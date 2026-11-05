@@ -28,6 +28,7 @@ jobs:
           "$EXE" data/countries.geojson samples/brasil-venezuela.cartorig-native.json 0 build/previews/f000.ppm
           "$EXE" data/countries.geojson samples/brasil-venezuela.cartorig-native.json 96 build/previews/f096.ppm
           "$EXE" data/countries.geojson samples/brasil-venezuela.cartorig-native.json 239 build/previews/f239.ppm
+          "$EXE" data/countries.geojson samples/brasil-venezuela.cartorig-native.json 96 build/previews/f096-4k.ppm 3840 2160
       - name: Upload native OFX bundle and previews
         uses: actions/upload-artifact@v4
         with:
@@ -36,3 +37,13 @@ jobs:
             build/CartoRigNative.ofx.bundle/
             build/previews/
           if-no-files-found: error
+  sanitizers:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build AddressSanitizer + UndefinedBehaviorSanitizer
+        run: |
+          cmake -S . -B build-sanitize -DCMAKE_BUILD_TYPE=Debug -DCARTORIG_SANITIZERS=ON
+          cmake --build build-sanitize --parallel 2
+      - name: Run instrumented tests
+        run: ctest --test-dir build-sanitize --output-on-failure

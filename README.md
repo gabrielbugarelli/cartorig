@@ -70,14 +70,14 @@ Restart DaVinci Resolve Studio 20. If the Generator is supported, search for **C
 ## Preview without Resolve
 
 ```bash
-./build/cartorig_preview data/countries.geojson samples/brasil-venezuela.cartorig-native.json 96 ./frame.ppm
+./build/cartorig_preview data/countries.geojson samples/brasil-venezuela.cartorig-native.json 96 ./frame.ppm 3840 2160
 ```
 
 A PPM is produced for engineering tests only; this is **not** a pre-render requirement in the actual OFX runtime.
 
 ## Tests and safety
 
-`cartorig_tests` exercises parsing, world-data lookup, holes, projection/inversion, dateline motion, keyframe interpolation, route progression, memory canaries around tile buffers, byte/float range checks, and deterministic rendering. CI also compiles the actual OpenFX binary on Linux and Windows and generates reference PPMs. None of these substitute for Resolve Studio 20 E2E acceptance tests; see [docs/RESOLVE20_ACCEPTANCE.md](docs/RESOLVE20_ACCEPTANCE.md).
+`cartorig_tests` exercises parsing, world-data lookup, holes, projection/inversion, dateline motion, keyframe interpolation, route progression, memory canaries around tile buffers, byte/float range checks, and deterministic rendering. `cartorig_ofx_exports_tests` dynamically loads the compiled binary and verifies both OFX descriptors and the no-host safety path. CI also compiles the actual OpenFX binary on Linux and Windows and generates reference PPMs. None of these substitute for Resolve Studio 20 E2E acceptance tests; see [docs/RESOLVE20_ACCEPTANCE.md](docs/RESOLVE20_ACCEPTANCE.md).
 
 ## Links
 
