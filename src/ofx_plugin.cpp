@@ -23,9 +23,9 @@
 
 namespace {
 OfxHost *host=nullptr;
-OfxImageEffectSuiteV1 *fx=nullptr;
-OfxPropertySuiteV1 *prop=nullptr;
-OfxParameterSuiteV1 *param=nullptr;
+const OfxImageEffectSuiteV1 *fx=nullptr;
+const OfxPropertySuiteV1 *prop=nullptr;
+const OfxParameterSuiteV1 *param=nullptr;
 struct Instance {
   OfxImageClipHandle output=nullptr,source=nullptr;
   OfxParamHandle sceneFile=nullptr,datasetFile=nullptr,useSceneKeys=nullptr,lon=nullptr,lat=nullptr,zoom=nullptr,bearing=nullptr,route=nullptr,opacity=nullptr;
@@ -77,7 +77,7 @@ void defineBoolean(OfxParamSetHandle set,const char *name,const char *label,bool
 void stringAt(OfxParamHandle handle,double time,std::string &str){char *value=nullptr;if(param->paramGetValueAtTime(handle,time,&value)==kOfxStatOK&&value)str=value;}
 double doubleAt(OfxParamHandle handle,double time,double fallback){double value=fallback;if(handle)param->paramGetValueAtTime(handle,time,&value);return value;}
 int intAt(OfxParamHandle handle,double time,int fallback){int value=fallback;if(handle)param->paramGetValueAtTime(handle,time,&value);return value;}
-OfxStatus onLoad(){if(!host||!host->fetchSuite)return kOfxStatErrMissingHostFeature;fx=reinterpret_cast<OfxImageEffectSuiteV1*>(host->fetchSuite(host->host,kOfxImageEffectSuite,1));prop=reinterpret_cast<OfxPropertySuiteV1*>(host->fetchSuite(host->host,kOfxPropertySuite,1));param=reinterpret_cast<OfxParameterSuiteV1*>(host->fetchSuite(host->host,kOfxParameterSuite,1));return fx&&prop&&param?kOfxStatOK:kOfxStatErrMissingHostFeature;}
+OfxStatus onLoad(){if(!host||!host->fetchSuite)return kOfxStatErrMissingHostFeature;fx=reinterpret_cast<const OfxImageEffectSuiteV1*>(host->fetchSuite(host->host,kOfxImageEffectSuite,1));prop=reinterpret_cast<const OfxPropertySuiteV1*>(host->fetchSuite(host->host,kOfxPropertySuite,1));param=reinterpret_cast<const OfxParameterSuiteV1*>(host->fetchSuite(host->host,kOfxParameterSuite,1));return fx&&prop&&param?kOfxStatOK:kOfxStatErrMissingHostFeature;}
 OfxStatus describe(OfxImageEffectHandle e,bool filter){OfxPropertySetHandle p=nullptr;if(fx->getPropertySet(e,&p)!=kOfxStatOK)return kOfxStatFailed;
   prop->propSetString(p,kOfxPropLabel,0,filter?"CartoRig Overlay (Edit)":"CartoRig Map (Edit)");
   prop->propSetString(p,kOfxImageEffectPluginPropGrouping,0,"CartoRig Native");
