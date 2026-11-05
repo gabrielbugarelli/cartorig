@@ -37,8 +37,8 @@ PARTIAL = {
 }
 
 def clean(text):
-    text = re.sub(r"\\*\\*|" + chr(96), "", text.strip())
-    return re.sub(r"\\s+", " ", text)
+    text = re.sub(r"\*\*|" + chr(96), "", text.strip())
+    return re.sub(r"\s+", " ", text)
 
 def source(path):
     return (SRC / path).read_text(encoding="utf-8-sig")
@@ -46,16 +46,16 @@ def source(path):
 def build():
     rows = []
     catalog = source("ORIGINAL_465.md")
-    for status, ident, description in re.findall(r"^\\s*- \\[([x ])\\] \\*\\*(CR-RF-\\d{4})\\*\\*\\s*—\\s*(.*)$", catalog, re.M):
+    for status, ident, description in re.findall(r"^\s*- \[([x ])\] \*\*(CR-RF-\d{4})\*\*\s*—\s*(.*)$", catalog, re.M):
         rows.append([ident, "CR-RF", "ORIGINAL_465.md", clean(description), "legacy-implemented" if status == "x" else "legacy-backlog"])
     for ident, legacy_status, milestone, acceptance in re.findall(
-        r"^\\|\\s*\\*\\*((?:KF|CAM|GEO|ROUTE|MG)-\\d{2})\\*\\*\\s*\\|\\s*([^|]*)\\|\\s*([^|]*)\\|\\s*(.*?)\\|\\s*$",
+        r"^\|\s*\*\*((?:KF|CAM|GEO|ROUTE|MG)-\d{2})\*\*\s*\|\s*([^|]*)\|\s*([^|]*)\|\s*(.*?)\|\s*$",
         catalog, re.M
     ):
         rows.append([ident, "ANIMATION", "ORIGINAL_465.md", clean(acceptance), clean(legacy_status)])
-    for ident, description, acceptance in re.findall(r"^\\|\\s*(MAP-\\d{3})\\s*\\|\\s*([^|]*)\\|\\s*([^|]*)\\|", source("PRODUCT.md"), re.M):
+    for ident, description, acceptance in re.findall(r"^\|\s*(MAP-\d{3})\s*\|\s*([^|]*)\|\s*([^|]*)\|", source("PRODUCT.md"), re.M):
         rows.append([ident, "MAP", "PRODUCT.md", clean(description + "; " + acceptance), "planned"])
-    for ident, description, acceptance in re.findall(r"^\\|\\s*(ADV-\\d{3})\\s*\\|\\s*([^|]*)\\|\\s*([^|]*)\\|", source("ADVANCED_ROADMAP.md"), re.M):
+    for ident, description, acceptance in re.findall(r"^\|\s*(ADV-\d{3})\s*\|\s*([^|]*)\|\s*([^|]*)\|", source("ADVANCED_ROADMAP.md"), re.M):
         rows.append([ident, "ADV", "ADVANCED_ROADMAP.md", clean(description + "; " + acceptance), "planned"])
 
     counts = {"CR-RF": 0, "KF+CAM+GEO+ROUTE+MG": 0, "MAP": 0, "ADV": 0}
@@ -73,7 +73,7 @@ def build():
         raise RuntimeError("Duplicate test IDs")
 
     stream = io.StringIO(newline="")
-    writer = csv.writer(stream, lineterminator="\\n")
+    writer = csv.writer(stream, lineterminator="\n")
     writer.writerow(["requirement_id", "family", "source", "original_criterion", "original_state", "native_state", "native_evidence"])
     for ident, family, src, description, old in rows:
         evidence = PARTIAL.get(ident, "")
