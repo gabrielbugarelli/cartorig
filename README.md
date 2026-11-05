@@ -83,7 +83,7 @@ A PPM is produced for engineering tests only; this is **not** a pre-render requi
 
 - [Engineering gates and remaining scope](docs/STATUS.md)
 - [Manual Resolve Studio 20 acceptance protocol](docs/RESOLVE20_ACCEPTANCE.md)
-- [Requirements traceability](docs/TRACEABILITY.md)
+- [Requirements traceability](docs/TRACEABILITY.md) and [all 551 original IDs](docs/REQUIREMENTS_MATRIX.csv)
 - [OpenFX specification](https://openfx.readthedocs.io/en/main/)
 - [Country data attribution](data/LICENSE-COUNTRYINFO.txt)
 - [Third-party dependencies](third_party/NOTICE.md)

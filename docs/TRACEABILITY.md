@@ -10,4 +10,4 @@ The original CartoRig master requirements list `CR-RF-0001..CR-RF-0465`, 42 anim
 - ADV-001: GeoJSON subset Polygon/MultiPolygon supported for offline dataset; Point and LineString imports pending. ADV-002..ADV-016 and ADV-101..ADV-108: pending, apart from foundational calculations and camera.
 - Tests: new C++ tests exercise narrow core behaviors, not all 129 original acceptance scenarios. The old 129-case CSV stays a source of intended behavior, not passing evidence in this project.
 
-A structured exhaustive per-ID matrix with each identifier's acceptance criteria will be imported from the original documents in a later traceability pass; do not infer acceptance from this summary.
+An [exhaustive machine-readable requirements matrix](REQUIREMENTS_MATRIX.csv) is generated from the original documents archived in [reference/](reference/) using `python tools/traceability.py`. It explicitly records native evidence and backlog state for all 551 unique IDs; the original 129 test scenarios are preserved separately. CI fails on mismatched source IDs or a stale matrix. The legacy implementation flags are never treated as Native acceptance.
