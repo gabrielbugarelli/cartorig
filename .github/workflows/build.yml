@@ -1,0 +1,38 @@
+name: CartoRig Native C++ and OpenFX CI
+on:
+  push:
+    branches: [main, 'feat/**']
+  pull_request:
+  workflow_dispatch:
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, windows-2022]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Configure
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCARTORIG_BUILD_TESTS=ON
+      - name: Compile
+        run: cmake --build build --config Release --parallel 2
+      - name: Run standalone core tests
+        run: ctest --test-dir build -C Release --output-on-failure
+      - name: Render 3 representative frames
+        shell: bash
+        run: |
+          mkdir -p build/previews
+          if [[ "${{ runner.os }}" == "Windows" ]]; then EXE=build/Release/cartorig_preview.exe; else EXE=build/cartorig_preview; fi
+          "$EXE" data/countries.geojson samples/brasil-venezuela.cartorig-native.json 0 build/previews/f000.ppm
+          "$EXE" data/countries.geojson samples/brasil-venezuela.cartorig-native.json 96 build/previews/f096.ppm
+          "$EXE" data/countries.geojson samples/brasil-venezuela.cartorig-native.json 239 build/previews/f239.ppm
+      - name: Upload native OFX bundle and previews
+        uses: actions/upload-artifact@v4
+        with:
+          name: CartoRigNative-${{ runner.os }}
+          path: |
+            build/CartoRigNative.ofx.bundle/
+            build/previews/
+          if-no-files-found: error

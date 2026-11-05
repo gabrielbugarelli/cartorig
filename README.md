@@ -1,0 +1,91 @@
+# CartoRig Native — Edit-first OpenFX prototype
+
+**Status: developer preview v0.1.0; not a complete production plugin and not yet validated in DaVinci Resolve Studio 20.**
+
+This repository is a new, independently compiled C++ project. It does not require Electron, SVG screenshots, `fuscript.exe`, the Workflow Integration bridge or the Fusion page for normal image generation.
+
+## What exists today
+
+- Two OpenFX Image Effect entry points: `com.cartorig.native.map` (Generator context) and `com.cartorig.native.overlay` (Filter context).
+- Bundled offline country polygons, parsed as GeoJSON Polygon/MultiPolygon, with country IDs used to highlight selected countries.
+- Native 8-bit and float RGBA pixel renderer with OpenFX render windows, row-byte strides and per-pixel alpha blending; byte and float tests.
+- Web Mercator camera, geographic pan/zoom/bearing, geographic point projections and inverse projections, fit-to-bounds, shortest-path dateline keyframe interpolation.
+- Country fill, borders, polygon holes, markers and ASCII bitmap labels, quadratic Bézier routes with reveal by approximate arc-length and arrowheads.
+- Scene JSON v1 with input limits, version validation, camera keys, route time windows and style palette. Camera coordinates/zoom/bearing and route reveal/opacity are also exposed as OFX keyframe-capable parameters.
+- Bundled example Brazil/Venezuela, CMake build, Windows bundle installer, cross-platform core/ABI builds in CI, standalone tests and PPM preview frames.
+
+## Important limitations
+
+**This is the first functional vertical slice, not the completed 465-requirement product.** The following are **not implemented or not validated**: true edit-on-Viewer geographic selection (OpenFX Interacts); online search, tile XYZ, vector label shaping, full Unicode, independent keyframe track per dynamically created territory, unlimited live object inspector, editable route handles/waypoints, full animation parity, Undo/Redo integration with changing external scene files, 3D terrain/globe, GPU backend, HDR color pipeline, hosting tests inside Resolve Studio 20, final UX studies and certification. The map can be edited via scene JSON and exposed OFX controls, but no custom dockable GIS panel exists.
+
+**OpenFX Generator support in the Edit-page Effects Library must be confirmed in a real Resolve 20 installation.** The filter remains an alternative entry point if the host does not expose generator context. These two contexts are not declared equivalent or guaranteed in Resolve.
+
+## Build (CMake + C++17)
+
+Windows 11 with VS 2022 C++:
+
+```powershell
+cmake -S . -B build -G "Visual Studio 17 2022" -A x64
+cmake --build build --config Release
+ctest --test-dir build -C Release --output-on-failure
+```
+
+Linux (build verification, not a Resolve 20 certification):
+
+```bash
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build -j2
+ctest --test-dir build --output-on-failure
+```
+
+Bundle output: `build/CartoRigNative.ofx.bundle/Contents/Win64/CartoRigNative.ofx` on Windows or `Contents/Linux-x86-64/CartoRigNative.ofx` on Linux, with `Contents/Resources` containing licensed country data and example scene. Both OpenFX entries are contained in **one binary**. The standard OFX API headers are vendored, not Blackmagic proprietary headers or binaries.
+
+## Install and remove (Windows)
+
+Close Resolve. Use PowerShell **as administrator** and inspect the script before running:
+
+```powershell
+.\packaging\Install.ps1 -Confirm:$false
+# after testing
+.\packaging\Uninstall.ps1 -Confirm:$false
+```
+
+`Install.ps1 -WhatIf` previews the destination without modifying it. Installation refuses to overwrite an existing bundle; uninstall deletes only the CartoRig Native bundle, never external projects/scenes. Default install path: `%ProgramFiles%\Common Files\OFX\Plugins\CartoRigNative.ofx.bundle`.
+
+Restart DaVinci Resolve Studio 20. If the Generator is supported, search for **CartoRig Map (Edit)**. For a video layer, apply **CartoRig Overlay (Edit)** as OpenFX. Editing the bundled sample file modifies every instance that references it; to preserve a project, copy the sample scene to a project-owned path first and specify **Scene .json** in the Inspector.
+
+## Inspector parameters
+
+| Parameter | Meaning |
+| --- | --- |
+| Scene .json | Blank uses bundled Brazil/Venezuela scene; otherwise a file path |
+| GeoJSON | Blank uses bundled offline countries; otherwise GeoJSON FeatureCollection |
+| Use camera keyframes from scene | Enabled: evaluate the JSON camera track; disabled: use the native OFX camera parameters |
+| Camera longitude / latitude / zoom / bearing | Keyframe-capable native OFX parameters when JSON camera keys are disabled |
+| Route reveal | -1 uses the JSON timing; 0..1 controls progress via OFX keyframes |
+| Cartography opacity | Multiplies alpha of highlights, route graphics and markers |
+
+**No automatic host-scene synchronization:** changing the JSON on disk will invalidate the internal file cache, but the host might not know to rerender. Force an effect refresh or adjust a parameter. Portable self-contained scene embedding and custom UI are later work.
+
+## Preview without Resolve
+
+```bash
+./build/cartorig_preview data/countries.geojson samples/brasil-venezuela.cartorig-native.json 96 ./frame.ppm
+```
+
+A PPM is produced for engineering tests only; this is **not** a pre-render requirement in the actual OFX runtime.
+
+## Tests and safety
+
+`cartorig_tests` exercises parsing, world-data lookup, holes, projection/inversion, dateline motion, keyframe interpolation, route progression, memory canaries around tile buffers, byte/float range checks, and deterministic rendering. CI also compiles the actual OpenFX binary on Linux and Windows and generates reference PPMs. None of these substitute for Resolve Studio 20 E2E acceptance tests; see [docs/RESOLVE20_ACCEPTANCE.md](docs/RESOLVE20_ACCEPTANCE.md).
+
+## Links
+
+- [Engineering gates and remaining scope](docs/STATUS.md)
+- [Manual Resolve Studio 20 acceptance protocol](docs/RESOLVE20_ACCEPTANCE.md)
+- [Requirements traceability](docs/TRACEABILITY.md)
+- [OpenFX specification](https://openfx.readthedocs.io/en/main/)
+- [Country data attribution](data/LICENSE-COUNTRYINFO.txt)
+- [Third-party dependencies](third_party/NOTICE.md)
+
+All implementation is independent of Blackmagic proprietary binaries and third-party map tool code. Copyright for datasets and libraries remains with their respective licensors.

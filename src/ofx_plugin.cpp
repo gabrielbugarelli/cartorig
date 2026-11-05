@@ -1,0 +1,158 @@
+// CartoRig Native: minimal OpenFX 1.x C ABI, no Resolve private SDK.
+#include "cartorig.hpp"
+#include "ofxCore.h"
+#include "ofxImageEffect.h"
+#include "ofxParam.h"
+#include "ofxProperty.h"
+#include <algorithm>
+#include <cmath>
+#include <cstring>
+#include <filesystem>
+#include <iostream>
+#include <memory>
+#include <mutex>
+#include <stdexcept>
+#include <string>
+#include <unordered_map>
+#ifdef _WIN32
+#define NOMINMAX
+#include <windows.h>
+#else
+#include <dlfcn.h>
+#endif
+
+namespace {
+OfxHost *host=nullptr;
+OfxImageEffectSuiteV1 *fx=nullptr;
+OfxPropertySuiteV1 *prop=nullptr;
+OfxParameterSuiteV1 *param=nullptr;
+struct Instance {
+  OfxImageClipHandle output=nullptr,source=nullptr;
+  OfxParamHandle sceneFile=nullptr,datasetFile=nullptr,useSceneKeys=nullptr,lon=nullptr,lat=nullptr,zoom=nullptr,bearing=nullptr,route=nullptr,opacity=nullptr;
+  bool overlay=false;
+};
+struct CacheEntry {
+  std::filesystem::file_time_type modified;
+  std::shared_ptr<const cartorig::Dataset> dataset;
+  std::shared_ptr<const cartorig::Scene> scene;
+};
+std::mutex cacheMutex;
+std::unordered_map<std::string,CacheEntry> cache;
+std::string defaultAsset(const char *filename){
+  std::filesystem::path module;
+#ifdef _WIN32
+  HMODULE handle=nullptr;
+  if(GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS|GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,reinterpret_cast<LPCWSTR>(&defaultAsset),&handle)){
+    wchar_t buffer[32768];DWORD count=GetModuleFileNameW(handle,buffer,32768);
+    if(count>0&&count<32768)module=std::filesystem::path(std::wstring(buffer,count));
+  }
+#else
+  Dl_info info{};if(dladdr(reinterpret_cast<const void*>(&defaultAsset),&info)&&info.dli_fname)module=info.dli_fname;
+#endif
+  if(module.empty())throw std::runtime_error("Unable to locate CartoRig Native plugin bundle");
+  return (module.parent_path().parent_path()/"Resources"/filename).string();
+}
+std::shared_ptr<const cartorig::Dataset> datasetAt(const std::string &path){
+  std::lock_guard<std::mutex> lock(cacheMutex);
+  const auto stamp=std::filesystem::last_write_time(path);
+  auto it=cache.find("geo:"+path);
+  if(it!=cache.end()&&it->second.modified==stamp&&it->second.dataset)return it->second.dataset;
+  auto result=std::make_shared<cartorig::Dataset>(cartorig::parseGeoJSON(cartorig::readText(path)));
+  if(cache.size()>16)cache.clear();cache["geo:"+path]={stamp,result,nullptr};return result;
+}
+std::shared_ptr<const cartorig::Scene> sceneAt(const std::string &path){
+  std::lock_guard<std::mutex> lock(cacheMutex);
+  const auto stamp=std::filesystem::last_write_time(path);
+  auto it=cache.find("scene:"+path);
+  if(it!=cache.end()&&it->second.modified==stamp&&it->second.scene)return it->second.scene;
+  auto result=std::make_shared<cartorig::Scene>(cartorig::parseScene(cartorig::readText(path,2*1024*1024)));
+  if(cache.size()>16)cache.clear();cache["scene:"+path]={stamp,nullptr,result};return result;
+}
+OfxStatus readProp(OfxPropertySetHandle set,const char *name,int index,int &value){return prop->propGetInt(set,name,index,&value);}
+OfxStatus readProp(OfxPropertySetHandle set,const char *name,int index,double &value){return prop->propGetDouble(set,name,index,&value);}
+Instance *instance(OfxImageEffectHandle e){OfxPropertySetHandle set=nullptr;if(fx->getPropertySet(e,&set)!=kOfxStatOK)return nullptr;Instance *p=nullptr;if(prop->propGetPointer(set,kOfxPropInstanceData,0,reinterpret_cast<void **>(&p))!=kOfxStatOK)return nullptr;return p;}
+void defineDouble(OfxParamSetHandle set,const char*name,const char*label,double val,double lo,double hi){OfxPropertySetHandle p=nullptr;if(param->paramDefine(set,kOfxParamTypeDouble,name,&p)!=kOfxStatOK)throw std::runtime_error("param define");prop->propSetString(p,kOfxPropLabel,0,label);prop->propSetDouble(p,kOfxParamPropDefault,0,val);prop->propSetDouble(p,kOfxParamPropMin,0,lo);prop->propSetDouble(p,kOfxParamPropMax,0,hi);prop->propSetDouble(p,kOfxParamPropDisplayMin,0,lo);prop->propSetDouble(p,kOfxParamPropDisplayMax,0,hi);prop->propSetInt(p,kOfxParamPropAnimates,0,1);}
+void defineString(OfxParamSetHandle set,const char *name,const char *label){OfxPropertySetHandle p=nullptr;if(param->paramDefine(set,kOfxParamTypeString,name,&p)!=kOfxStatOK)throw std::runtime_error("param define string");prop->propSetString(p,kOfxPropLabel,0,label);prop->propSetString(p,kOfxParamPropDefault,0,"");prop->propSetInt(p,kOfxParamPropAnimates,0,0);prop->propSetString(p,kOfxParamPropStringMode,0,kOfxParamStringIsFilePath);}
+void defineBoolean(OfxParamSetHandle set,const char *name,const char *label,bool value){OfxPropertySetHandle p=nullptr;if(param->paramDefine(set,kOfxParamTypeBoolean,name,&p)!=kOfxStatOK)throw std::runtime_error("param define bool");prop->propSetString(p,kOfxPropLabel,0,label);prop->propSetInt(p,kOfxParamPropDefault,0,value?1:0);prop->propSetInt(p,kOfxParamPropAnimates,0,0);}
+void stringAt(OfxParamHandle handle,double time,std::string &str){char *value=nullptr;if(param->paramGetValueAtTime(handle,time,&value)==kOfxStatOK&&value)str=value;}
+double doubleAt(OfxParamHandle handle,double time,double fallback){double value=fallback;if(handle)param->paramGetValueAtTime(handle,time,&value);return value;}
+int intAt(OfxParamHandle handle,double time,int fallback){int value=fallback;if(handle)param->paramGetValueAtTime(handle,time,&value);return value;}
+OfxStatus onLoad(){if(!host||!host->fetchSuite)return kOfxStatErrMissingHostFeature;fx=reinterpret_cast<OfxImageEffectSuiteV1*>(host->fetchSuite(host->host,kOfxImageEffectSuite,1));prop=reinterpret_cast<OfxPropertySuiteV1*>(host->fetchSuite(host->host,kOfxPropertySuite,1));param=reinterpret_cast<OfxParameterSuiteV1*>(host->fetchSuite(host->host,kOfxParameterSuite,1));return fx&&prop&&param?kOfxStatOK:kOfxStatErrMissingHostFeature;}
+OfxStatus describe(OfxImageEffectHandle e,bool filter){OfxPropertySetHandle p=nullptr;if(fx->getPropertySet(e,&p)!=kOfxStatOK)return kOfxStatFailed;
+  prop->propSetString(p,kOfxPropLabel,0,filter?"CartoRig Overlay (Edit)":"CartoRig Map (Edit)");
+  prop->propSetString(p,kOfxImageEffectPluginPropGrouping,0,"CartoRig Native");
+  prop->propSetString(p,kOfxImageEffectPropSupportedContexts,0,filter?kOfxImageEffectContextFilter:kOfxImageEffectContextGenerator);
+  prop->propSetString(p,kOfxImageEffectPropSupportedPixelDepths,0,kOfxBitDepthByte);
+  prop->propSetString(p,kOfxImageEffectPropSupportedPixelDepths,1,kOfxBitDepthFloat);
+  prop->propSetInt(p,kOfxImageEffectPropSupportsTiles,0,1);
+  prop->propSetInt(p,kOfxImageEffectPropTemporalClipAccess,0,0);
+  return kOfxStatOK;
+}
+OfxStatus describeInContext(OfxImageEffectHandle e,bool filter){OfxPropertySetHandle p=nullptr;
+ if(filter){if(fx->clipDefine(e,kOfxImageEffectSimpleSourceClipName,&p)!=kOfxStatOK)return kOfxStatFailed;prop->propSetString(p,kOfxImageEffectPropSupportedComponents,0,kOfxImageComponentRGBA);}
+ if(fx->clipDefine(e,kOfxImageEffectOutputClipName,&p)!=kOfxStatOK)return kOfxStatFailed;
+ prop->propSetString(p,kOfxImageEffectPropSupportedComponents,0,kOfxImageComponentRGBA);
+ OfxParamSetHandle ps=nullptr;if(fx->getParamSet(e,&ps)!=kOfxStatOK)return kOfxStatFailed;
+ defineString(ps,"SceneFile","Scene .json (blank: bundled sample)");defineString(ps,"CatalogFile","GeoJSON (blank: offline countries)");defineBoolean(ps,"UseSceneCamera","Use camera keyframes from scene",true);
+ defineDouble(ps,"Longitude","Camera longitude",-61,-180,180);defineDouble(ps,"Latitude","Camera latitude",-12,-85,85);defineDouble(ps,"Zoom","Camera zoom",3.2,0,18);defineDouble(ps,"Bearing","Camera bearing (degrees)",0,-360,360);
+ defineDouble(ps,"RouteProgress","Route reveal (-1: scene)",-1,-1,1);defineDouble(ps,"Opacity","Cartography opacity",1,0,1);
+ return kOfxStatOK;
+}
+OfxStatus createInstance(OfxImageEffectHandle e,bool filter){auto i=std::make_unique<Instance>();i->overlay=filter;OfxParamSetHandle ps=nullptr;if(fx->getParamSet(e,&ps)!=kOfxStatOK)return kOfxStatFailed;
+ if(fx->clipGetHandle(e,kOfxImageEffectOutputClipName,&i->output,nullptr)!=kOfxStatOK)return kOfxStatFailed;
+ if(filter&&fx->clipGetHandle(e,kOfxImageEffectSimpleSourceClipName,&i->source,nullptr)!=kOfxStatOK)return kOfxStatFailed;
+ for(auto t:std::vector<std::pair<const char*,OfxParamHandle*>>{{"SceneFile",&i->sceneFile},{"CatalogFile",&i->datasetFile},{"UseSceneCamera",&i->useSceneKeys},{"Longitude",&i->lon},{"Latitude",&i->lat},{"Zoom",&i->zoom},{"Bearing",&i->bearing},{"RouteProgress",&i->route},{"Opacity",&i->opacity}})if(param->paramGetHandle(ps,t.first,t.second,nullptr)!=kOfxStatOK)return kOfxStatFailed;
+ OfxPropertySetHandle p=nullptr;fx->getPropertySet(e,&p);if(prop->propSetPointer(p,kOfxPropInstanceData,0,i.get())!=kOfxStatOK)return kOfxStatFailed;i.release();return kOfxStatOK;
+}
+OfxStatus destroyInstance(OfxImageEffectHandle e){Instance *i=instance(e);if(!i)return kOfxStatOK;OfxPropertySetHandle p=nullptr;fx->getPropertySet(e,&p);prop->propSetPointer(p,kOfxPropInstanceData,0,nullptr);delete i;return kOfxStatOK;}
+struct ImageLease {OfxPropertySetHandle image=nullptr;~ImageLease(){if(image)fx->clipReleaseImage(image);}ImageLease(const ImageLease&)=delete;ImageLease& operator=(const ImageLease&)=delete;ImageLease()=default;};
+void clearRegion(cartorig::Surface surface){int bpp=surface.format==cartorig::PixelFormat::ByteRGBA?4:16;for(int y=surface.y1;y<surface.y2;++y)std::memset(static_cast<char*>(surface.data)+(y-surface.y1)*surface.rowBytes,0,static_cast<size_t>(surface.x2-surface.x1)*bpp);}
+cartorig::Surface surfaceOf(OfxPropertySetHandle image){cartorig::Surface s;void *buffer=nullptr;int rect[4]{},rowBytes=0;char *depth=nullptr,*components=nullptr;
+ if(prop->propGetPointer(image,kOfxImagePropData,0,&buffer)!=kOfxStatOK||!buffer||prop->propGetIntN(image,kOfxImagePropBounds,4,rect)!=kOfxStatOK||prop->propGetInt(image,kOfxImagePropRowBytes,0,&rowBytes)!=kOfxStatOK||prop->propGetString(image,kOfxImageEffectPropPixelDepth,0,&depth)!=kOfxStatOK||prop->propGetString(image,kOfxImageEffectPropComponents,0,&components)!=kOfxStatOK)throw std::runtime_error("unsupported image properties");
+ if(!components||std::strcmp(components,kOfxImageComponentRGBA))throw std::runtime_error("only RGBA is supported");
+ s.data=buffer;s.x1=rect[0];s.y1=rect[1];s.x2=rect[2];s.y2=rect[3];s.rowBytes=rowBytes;
+ if(depth&&!strcmp(depth,kOfxBitDepthByte))s.format=cartorig::PixelFormat::ByteRGBA;
+ else if(depth&&!strcmp(depth,kOfxBitDepthFloat))s.format=cartorig::PixelFormat::FloatRGBA;
+ else throw std::runtime_error("only byte and float RGBA supported");
+ return s;
+}
+void copySource(cartorig::Surface source,cartorig::Surface dst){const int bytes=dst.format==cartorig::PixelFormat::FloatRGBA?16:4;if(source.format!=dst.format)throw std::runtime_error("source/output depths do not match");clearRegion(dst);int x0=std::max(dst.x1,source.x1),x1=std::min(dst.x2,source.x2),y0=std::max(dst.y1,source.y1),y1=std::min(dst.y2,source.y2);for(int y=y0;y<y1;++y){auto *s=static_cast<char*>(source.data)+static_cast<ptrdiff_t>(y-source.y1)*source.rowBytes+static_cast<ptrdiff_t>(x0-source.x1)*bytes;auto *d=static_cast<char*>(dst.data)+static_cast<ptrdiff_t>(y-dst.y1)*dst.rowBytes+static_cast<ptrdiff_t>(x0-dst.x1)*bytes;std::memcpy(d,s,static_cast<size_t>(x1-x0)*bytes);}}
+OfxStatus render(OfxImageEffectHandle e,OfxPropertySetHandle args){Instance *i=instance(e);if(!i)return kOfxStatFailed;double time=0;if(readProp(args,kOfxPropTime,0,time)!=kOfxStatOK)return kOfxStatFailed;
+ ImageLease output;if(fx->clipGetImage(i->output,time,nullptr,&output.image)!=kOfxStatOK||!output.image)return kOfxStatFailed;
+ auto target=surfaceOf(output.image);
+ std::string sceneFile,datasetFile;stringAt(i->sceneFile,time,sceneFile);stringAt(i->datasetFile,time,datasetFile);
+ if(sceneFile.empty())sceneFile=defaultAsset("brasil-venezuela.cartorig-native.json");if(datasetFile.empty())datasetFile=defaultAsset("countries.geojson");
+ auto scene=sceneAt(sceneFile);auto dataset=datasetAt(datasetFile);
+ OfxPropertySetHandle effProps=nullptr;fx->getPropertySet(e,&effProps);double w=0,h=0,scaleX=1,scaleY=1;
+ if(prop->propGetDouble(effProps,kOfxImageEffectPropProjectSize,0,&w)!=kOfxStatOK||prop->propGetDouble(effProps,kOfxImageEffectPropProjectSize,1,&h)!=kOfxStatOK) {w=target.x2;h=target.y2;}
+ prop->propGetDouble(args,kOfxImageEffectPropRenderScale,0,&scaleX);prop->propGetDouble(args,kOfxImageEffectPropRenderScale,1,&scaleY);
+ int width=static_cast<int>(std::round(w*scaleX)),height=static_cast<int>(std::round(h*scaleY));if(width<target.x2)width=target.x2;if(height<target.y2)height=target.y2;
+ if(width<=0||height<=0||width>16384||height>16384)return kOfxStatErrValue;
+ cartorig::View view;view.width=width;view.height=height;view.frame=time;view.camera=evaluateCamera(*scene,time);
+ if(!intAt(i->useSceneKeys,time,1)){view.camera.lon=doubleAt(i->lon,time,view.camera.lon);view.camera.lat=doubleAt(i->lat,time,view.camera.lat);view.camera.zoom=doubleAt(i->zoom,time,view.camera.zoom);view.camera.bearing=doubleAt(i->bearing,time,view.camera.bearing);}
+ view.routeProgress=doubleAt(i->route,time,-1);double opacity=std::clamp(doubleAt(i->opacity,time,1),0.0,1.0);
+ auto copy=*scene;copy.style.highlight.a=static_cast<uint8_t>(copy.style.highlight.a*opacity);for(auto &m:copy.markers)m.color.a=static_cast<uint8_t>(m.color.a*opacity);for(auto &r:copy.routes)r.color.a=static_cast<uint8_t>(r.color.a*opacity);
+ ImageLease source;if(i->overlay&&fx->clipGetImage(i->source,time,nullptr,&source.image)==kOfxStatOK&&source.image){copySource(surfaceOf(source.image),target);copy.style.transparent=true;view.preserveBackground=true;}
+ else {copy.style.transparent=i->overlay||copy.style.transparent;}
+ cartorig::render(copy,*dataset,view,target);
+ return kOfxStatOK;
+}
+OfxStatus entry(const char *action,const void *handle,OfxPropertySetHandle args,OfxPropertySetHandle /*output*/,bool filter){try {
+ if(!std::strcmp(action,kOfxActionLoad))return onLoad();
+ if(!std::strcmp(action,kOfxActionUnload)){std::lock_guard<std::mutex> lock(cacheMutex);cache.clear();return kOfxStatOK;}
+ if(!std::strcmp(action,kOfxActionDescribe))return describe((OfxImageEffectHandle)handle,filter);
+ if(!std::strcmp(action,kOfxImageEffectActionDescribeInContext))return describeInContext((OfxImageEffectHandle)handle,filter);
+ if(!std::strcmp(action,kOfxActionCreateInstance))return createInstance((OfxImageEffectHandle)handle,filter);
+ if(!std::strcmp(action,kOfxActionDestroyInstance))return destroyInstance((OfxImageEffectHandle)handle);
+ if(!std::strcmp(action,kOfxImageEffectActionRender))return render((OfxImageEffectHandle)handle,args);
+ return kOfxStatReplyDefault;
+ }catch(const std::bad_alloc&){return kOfxStatErrMemory;}catch(const std::exception &error){std::cerr<<"CartoRig Native: "<<error.what()<<std::endl;return kOfxStatFailed;}catch(...){return kOfxStatFailed;}}
+OfxStatus generator(const char *action,const void *handle,OfxPropertySetHandle in,OfxPropertySetHandle out){return entry(action,handle,in,out,false);}
+OfxStatus overlay(const char *action,const void *handle,OfxPropertySetHandle in,OfxPropertySetHandle out){return entry(action,handle,in,out,true);}
+void setHost(OfxHost *h){host=h;}
+OfxPlugin plugins[2]={{kOfxImageEffectPluginApi,1,"com.cartorig.native.map",0,1,setHost,generator},{kOfxImageEffectPluginApi,1,"com.cartorig.native.overlay",0,1,setHost,overlay}};
+}
+extern "C" {
+OfxExport int OfxGetNumberOfPlugins(void){return 2;}
+OfxExport OfxPlugin *OfxGetPlugin(int n){return n>=0&&n<2?&plugins[n]:nullptr;}
+}
