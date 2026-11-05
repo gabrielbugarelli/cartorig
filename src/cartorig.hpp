@@ -25,7 +25,7 @@ struct Scene {
   std::vector<Marker> markers;
   std::vector<Route> routes;
 };
-struct View { int width=1920,height=1080; Camera camera; double routeProgress=-1; };
+struct View { int width=1920,height=1080; Camera camera; double frame=0, routeProgress=-1; bool preserveBackground=false; };
 enum class PixelFormat { ByteRGBA, FloatRGBA };
 struct Surface {
   void *data=nullptr; int x1=0,y1=0,x2=0,y2=0,rowBytes=0; PixelFormat format=PixelFormat::ByteRGBA;
