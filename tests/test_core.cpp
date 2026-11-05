@@ -23,7 +23,7 @@ int main(){
   check(world.features.size()>150,"offline world dataset loaded");check(world.byId.count("BRA")&&world.byId.count("VEN"),"world includes Brazil and Venezuela");check(sample.routes.size()==1&&sample.highlighted.size()==2,"sample works");
   check(std::abs(normalizeLon(181)+179)<1e-9,"longitude wrap");check(std::abs(normalizeLon(-181)-179)<1e-9,"negative longitude wrap");
   auto cam=evaluateCamera(s,50);check(std::abs(std::abs(cam.lon)-180)<1.1,"short antimeridian crossing");check(std::abs(cam.zoom-3)<1e-8,"interpolated camera zoom");
-  auto pp=project({-60,10},s.camera,640,360),rr=unproject(pp,s.camera,640,360);check(std::abs(rr.lon+60)<1e-8&&std::abs(rr.lat-10)<1e-8,"projection round trip");
+  auto pp=project({-60,10},s.camera,640,360);auto rr=unproject(pp,s.camera,640,360);check(std::abs(rr.lon+60)<1e-8&&std::abs(rr.lat-10)<1e-8,"projection round trip");
   auto a=project({-64,0},s.camera,640,360);check(std::abs(a.x-320)<1e-8&&std::abs(a.y-180)<1e-8,"camera center projects to center");
   Route r=s.routes[0];check(routeFraction(r,0)==0&&routeFraction(r,20)==0&&routeFraction(r,70)==0.5&&routeFraction(r,200)==1,"route progress boundaries");
   auto fit=fitBounds({{-67,10},{-47,-15}},1280,720,.1);check(fit.zoom>=0&&fit.zoom<=16,"fit bounds zoom range");
