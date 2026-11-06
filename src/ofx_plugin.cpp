@@ -3,6 +3,7 @@
 #include "native_controls.hpp"
 #include "natural_earth_catalog.hpp"
 #include "natural_earth_raster.hpp"
+#include "natural_earth_regions.hpp"
 #include "ofx_pixel_layout.hpp"
 #include "ofxCore.h"
 #include "ofxImageEffect.h"
@@ -39,6 +40,9 @@ struct Instance {
   OfxImageClipHandle output=nullptr,source=nullptr;
   OfxParamHandle sceneFile=nullptr,datasetFile=nullptr,sceneInline=nullptr,datasetInline=nullptr;
   OfxParamHandle naturalEarthGpkg=nullptr,naturalEarthDetail=nullptr,naturalEarthLayer=nullptr,naturalEarthLayerFile=nullptr,naturalEarthRasterRoot=nullptr,naturalEarthRasterAsset=nullptr;
+  OfxParamHandle regionCatalog=nullptr,regionKind=nullptr,regionQuery=nullptr,regionMatch=nullptr;
+  OfxParamHandle regionRed=nullptr,regionGreen=nullptr,regionBlue=nullptr,regionAlpha=nullptr;
+  OfxParamHandle regionAdd=nullptr,regionRemove=nullptr,regionSaved=nullptr,regionStatus=nullptr;
   OfxParamHandle useSceneKeys=nullptr,lon=nullptr,lat=nullptr,zoom=nullptr,bearing=nullptr,route=nullptr,opacity=nullptr;
   OfxParamHandle frameOffset=nullptr,timeScale=nullptr,diagnosticMode=nullptr,diagnosticLog=nullptr;
   OfxParamHandle countryA=nullptr,countryB=nullptr,countryList=nullptr,highlightStrength=nullptr;
@@ -72,6 +76,11 @@ struct RasterCacheEntry {
   std::shared_ptr<const cartorig::NaturalEarthRaster> raster;
 };
 std::unordered_map<std::string,RasterCacheEntry> rasterCache;
+struct RegionGeometryCacheEntry {
+  std::filesystem::file_time_type modified;
+  std::shared_ptr<const std::vector<cartorig::NaturalEarthGeometry>> features;
+};
+std::unordered_map<std::string,RegionGeometryCacheEntry> regionGeometryCache;
 std::mutex diagnosticsMutex;
 std::atomic<unsigned> diagnosticsCount{0};
 void writeDiagnostics(const std::string &message) noexcept {
@@ -175,6 +184,42 @@ std::shared_ptr<const cartorig::NaturalEarthRaster> naturalEarthRasterAt(
   if(rasterCache.size()>=12)rasterCache.clear();
   rasterCache[key]={stamp,value};
   return value;
+}
+std::shared_ptr<const std::vector<cartorig::NaturalEarthGeometry>>
+geographicRegionAt(const std::string &primary,const std::string &supplement,
+                   const cartorig::GeographicRegionSelection &r){
+  const auto load=[&](const std::string &source){
+    const auto stamp=std::filesystem::last_write_time(source);
+    const auto key=source+"|"+r.featureKey;
+    std::lock_guard<std::mutex> lock(cacheMutex);
+    const auto found=regionGeometryCache.find(key);
+    if(found!=regionGeometryCache.end()&&found->second.modified==stamp)
+      return found->second.features;
+    std::vector<cartorig::NaturalEarthGeometry> geometries;
+    if(r.kind=="continent"){
+      geometries=cartorig::NaturalEarthCatalog::continentGeometries(source,r.name,"10m");
+    }else{
+      cartorig::NaturalEarthRegion region;
+      region.sourceLayer=r.sourceLayer;region.sourceRowId=r.sourceRowId;
+      region.geometryType=r.kind=="city"?"POINT":"POLYGON";
+      auto geometry=cartorig::NaturalEarthCatalog::featureGeometry(source,region);
+      if(!geometry.empty())geometries.push_back(std::move(geometry));
+    }
+    if(geometries.empty())
+      throw std::invalid_argument("Selected geographic region has no publisher geometry");
+    auto ptr=std::make_shared<const std::vector<cartorig::NaturalEarthGeometry>>(
+        std::move(geometries));
+    if(regionGeometryCache.size()>=100)regionGeometryCache.clear();
+    regionGeometryCache[key]={stamp,ptr};
+    return ptr;
+  };
+  try{return load(primary);}
+  catch(const std::invalid_argument &error){
+    if(supplement.empty()||supplement==primary||
+       std::string(error.what())!="Natural Earth geometry layer absent from GeoPackage")
+      throw;
+    return load(supplement);
+  }
 }
 std::shared_ptr<const cartorig::Dataset> datasetAt(const std::string &path){
   std::lock_guard<std::mutex> lock(cacheMutex);
