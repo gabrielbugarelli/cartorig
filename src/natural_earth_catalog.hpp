@@ -30,6 +30,11 @@ struct NaturalEarthCatalog {
   // Read one explicitly selected official vector table, including Point,
   // LineString and Polygon features. Bounded, read-only, and fail-closed;
   // a separate large-data-pack renderer will eventually stream by viewport.
+  // A continent is a derived group, not a fabricated municipality polygon.
+  // Uses the real admin-0 country geometries with publisher continent names.
+  static std::vector<NaturalEarthGeometry> continentGeometries(
+      const std::filesystem::path &geoPackage,const std::string &continent,
+      const std::string &scale="10m");
   static std::vector<NaturalEarthGeometry> layerGeometries(
       const std::filesystem::path &geoPackage,const std::string &table,
       std::size_t maxFeatures=20000);
