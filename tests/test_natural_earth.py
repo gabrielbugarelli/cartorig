@@ -40,7 +40,7 @@ class NaturalEarthTests(unittest.TestCase):
 
     def test_failed_source_page_prevents_complete(self):
         def fake(url):
-            if "10m-physical-vectors" in url:raise TimeoutError("offline")
+            if url.endswith("/downloads/10m-physical-vectors/"):raise TimeoutError("offline")
             return '<a href="https://naciscdn.org/naturalearth/10m/cultural/ne_10m_admin_0_countries.zip">Download countries</a> version 5.1.1'
         d=inventory.audit(fake)
         self.assertEqual(d["summary"]["pages_blocked"],1)
