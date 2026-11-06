@@ -706,6 +706,81 @@ OfxStatus render(OfxImageEffectHandle e,OfxPropertySetHandle args){Instance *i=i
  }
  return kOfxStatOK;
 }
+OfxStatus onGeographicRegionChanged(OfxImageEffectHandle effect,
+                                    OfxPropertySetHandle args,
+                                    const std::string &changed){
+  auto *i=instance(effect);
+  if(!i||!param->paramSetValue)return kOfxStatReplyDefault;
+  double time=0;
+  if(args)prop->propGetDouble(args,kOfxPropTime,0,&time);
+  const int choice=intAt(i->regionKind,time,1);
+  const char* types[]={"continent","country","state","city"};
+  if(choice<0||choice>3)throw std::invalid_argument("unknown geographic region type");
+  std::string indexFile,query,saved;
+  stringAt(i->regionCatalog,time,indexFile);
+  stringAt(i->regionQuery,time,query);
+  stringAt(i->regionSaved,time,saved);
+  const bool actionAdd=changed=="GeographicRegionAdd";
+  const bool actionRemove=changed=="GeographicRegionRemove";
+  std::vector<cartorig::NaturalEarthRegion> results;
+  if(!indexFile.empty()&&!query.empty())
+    results=cartorig::NaturalEarthCatalog::search(indexFile,query,types[choice],10);
+  const int selected=intAt(i->regionMatch,time,0);
+  const auto updateInfo=[&](std::string message){
+    if(message.size()>700)message.resize(700);
+    // Label refresh is not guaranteed by all OFX hosts; persistent selections
+    // do not depend on it.
+    (void)param->paramSetValue(i->regionStatus,message.c_str());
+  };
+  if(actionAdd||actionRemove){
+    if(indexFile.empty())
+      throw std::invalid_argument("Set the offline geographic search index first");
+    if(selected<0||selected>=static_cast<int>(results.size()))
+      throw std::invalid_argument("Choose a valid offline search result");
+    const auto &hit=results[static_cast<std::size_t>(selected)];
+    std::string next;
+    if(actionRemove){
+      next=cartorig::removeGeographicSelection(saved,hit.featureKey);
+    }else{
+      const auto channel=[&](OfxParamHandle h,double defaultValue){
+        return static_cast<std::uint8_t>(std::lround(std::clamp(
+            doubleAt(h,time,defaultValue),0.0,255.0)));
+      };
+      cartorig::GeographicRegionSelection added;
+      added.featureKey=hit.featureKey;added.kind=hit.kind;
+      added.name=hit.name;added.parent=hit.parent;
+      added.sourceLayer=hit.sourceLayer;added.sourceRowId=hit.sourceRowId;
+      added.scale=hit.scale;
+      added.fill={channel(i->regionRed,40),channel(i->regionGreen,157),
+                  channel(i->regionBlue,192),channel(i->regionAlpha,220)};
+      next=cartorig::upsertGeographicSelection(saved,added);
+    }
+    if(param->paramSetValue(i->regionSaved,next.c_str())!=kOfxStatOK)
+      throw std::runtime_error("Resolve did not accept persistent region state update");
+    updateInfo(std::to_string(cartorig::parseGeographicSelections(next).size())+
+        " regions selected | "+(actionAdd?"Added / updated: ":"Removed: ")+
+        hit.name);
+    return kOfxStatOK;
+  }
+  if(indexFile.empty()){
+    updateInfo("Set offline search index (catalog.sqlite) before searching");
+  }else if(query.empty()){
+    updateInfo(std::to_string(cartorig::parseGeographicSelections(saved).size())+
+               " regions selected | Enter a location name");
+  }else if(results.empty()){
+    updateInfo("No offline Natural Earth matches");
+  }else{
+    std::ostringstream summary;
+    summary<<cartorig::parseGeographicSelections(saved).size()<<" selected | ";
+    for(std::size_t n=0;n<results.size();++n){
+      if(n)summary<<" ; ";
+      summary<<(n+1)<<": "<<results[n].name;
+      if(!results[n].parent.empty())summary<<" ("<<results[n].parent<<")";
+    }
+    updateInfo(summary.str());
+  }
+  return kOfxStatReplyDefault;
+}
 OfxStatus entry(const char *action,const void *handle,OfxPropertySetHandle args,OfxPropertySetHandle out,bool filter){try {
  if(!std::strcmp(action,kOfxActionLoad))return onLoad();
  if(!std::strcmp(action,kOfxActionUnload)){std::lock_guard<std::mutex> lock(cacheMutex);cache.clear();vectorLayerCache.clear();rasterCache.clear();return kOfxStatOK;}
@@ -717,6 +792,8 @@ OfxStatus entry(const char *action,const void *handle,OfxPropertySetHandle args,
    if(args&&prop->propGetString(args,kOfxPropName,0,&changed)==kOfxStatOK&&
       changed&&!std::strcmp(changed,"DiagnosticLog"))
      writeDiagnostics("INSPECTOR DiagnosticLog changed; render may not have started yet");
+   if(changed&&std::strncmp(changed,"GeographicRegion",16)==0)
+     return onGeographicRegionChanged((OfxImageEffectHandle)handle,args,changed);
    return kOfxStatReplyDefault;
  }
  if(!std::strcmp(action,kOfxImageEffectActionGetClipPreferences)){
