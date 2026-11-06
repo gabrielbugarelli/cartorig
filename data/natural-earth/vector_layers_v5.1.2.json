@@ -1,0 +1,1741 @@
+{
+  "schema_version": 1,
+  "product": "CartoRig Native",
+  "catalog": "Natural Earth",
+  "source": "https://github.com/nvkelso/natural-earth-vector",
+  "source_release": "v5.1.2",
+  "source_tree_sha": "f1890d9f152c896d250a77557a5751a93d494776",
+  "source_verified_in_github": true,
+  "explanation": "Expected official vector layers only. A Git blob sha is NOT a downloaded ZIP SHA256. No layer is marked imported. Raster/POV website variants are audited separately; this is not a full data pack.",
+  "layer_count": 215,
+  "summary": {
+    "10m_cultural": 84,
+    "10m_physical": 50,
+    "110m_cultural": 14,
+    "110m_physical": 18,
+    "50m_cultural": 26,
+    "50m_physical": 23
+  },
+  "layers": [
+    {
+      "source_path": "10m_cultural/ne_10m_admin_0_antarctic_claim_limit_lines.shp",
+      "source_blob_sha": "80c5c38af2c74b1d72839a84ad8e044a0005709f",
+      "scale": "10m",
+      "theme": "cultural",
+      "layer": "ne_10m_admin_0_antarctic_claim_limit_lines",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "10m_cultural/ne_10m_admin_0_antarctic_claims.shp",
+      "source_blob_sha": "eda59fc9c9032ae3ae187bd10a014b78562bdff0",
+      "scale": "10m",
+      "theme": "cultural",
+      "layer": "ne_10m_admin_0_antarctic_claims",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "10m_cultural/ne_10m_admin_0_boundary_lines_disputed_areas.shp",
+      "source_blob_sha": "794de2b906238c2994b01dc64aa681d8aded9bd2",
+      "scale": "10m",
+      "theme": "cultural",
+      "layer": "ne_10m_admin_0_boundary_lines_disputed_areas",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "10m_cultural/ne_10m_admin_0_boundary_lines_land.shp",
+      "source_blob_sha": "114cece46e7143fea439b09992d686b560d38709",
+      "scale": "10m",
+      "theme": "cultural",
+      "layer": "ne_10m_admin_0_boundary_lines_land",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "10m_cultural/ne_10m_admin_0_boundary_lines_map_units.shp",
+      "source_blob_sha": "6ce5ff13f6bd0df44d8cb24d4305c3ad04e80f49",
+      "scale": "10m",
+      "theme": "cultural",
+      "layer": "ne_10m_admin_0_boundary_lines_map_units",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "10m_cultural/ne_10m_admin_0_boundary_lines_maritime_indicator_chn.shp",
+      "source_blob_sha": "c94add881ef2406e50566362176811b6700c2eab",
+      "scale": "10m",
+      "theme": "cultural",
+      "layer": "ne_10m_admin_0_boundary_lines_maritime_indicator_chn",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "10m_cultural/ne_10m_admin_0_boundary_lines_maritime_indicator.shp",
+      "source_blob_sha": "6d091ea88c4299e8d6fdd1b0b783251f8f5eca54",
+      "scale": "10m",
+      "theme": "cultural",
+      "layer": "ne_10m_admin_0_boundary_lines_maritime_indicator",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "10m_cultural/ne_10m_admin_0_countries_arg.shp",
+      "source_blob_sha": "77bed4a6020c208e9160193c7cd10175f07e12d5",
+      "scale": "10m",
+      "theme": "cultural",
+      "layer": "ne_10m_admin_0_countries_arg",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "10m_cultural/ne_10m_admin_0_countries_bdg.shp",
+      "source_blob_sha": "84e7b134abaf8d170e1c64792ac5b8eabeaafc02",
+      "scale": "10m",
+      "theme": "cultural",
+      "layer": "ne_10m_admin_0_countries_bdg",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "10m_cultural/ne_10m_admin_0_countries_bra.shp",
+      "source_blob_sha": "e0de5b1e5aae8ca03268c76dc2ea8eb4573ab007",
+      "scale": "10m",
+      "theme": "cultural",
+      "layer": "ne_10m_admin_0_countries_bra",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "10m_cultural/ne_10m_admin_0_countries_chn.shp",
+      "source_blob_sha": "cea05077bc029197deeb5a0d309e95e16456b4dc",
+      "scale": "10m",
+      "theme": "cultural",
+      "layer": "ne_10m_admin_0_countries_chn",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "10m_cultural/ne_10m_admin_0_countries_deu.shp",
+      "source_blob_sha": "d585cac726e6333281d46088046ed5eae06306ed",
+      "scale": "10m",
+      "theme": "cultural",
+      "layer": "ne_10m_admin_0_countries_deu",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "10m_cultural/ne_10m_admin_0_countries_egy.shp",
+      "source_blob_sha": "df7f5dffebe575d04c47ec2d37fcacc5c782bc5c",
+      "scale": "10m",
+      "theme": "cultural",
+      "layer": "ne_10m_admin_0_countries_egy",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "10m_cultural/ne_10m_admin_0_countries_esp.shp",
+      "source_blob_sha": "8e0e41fa8a38f434785aff1130750cb4d193d725",
+      "scale": "10m",
+      "theme": "cultural",
+      "layer": "ne_10m_admin_0_countries_esp",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "10m_cultural/ne_10m_admin_0_countries_fra.shp",
+      "source_blob_sha": "992cf69f68fe5a6f51702df3eb0814feee6bfeed",
+      "scale": "10m",
+      "theme": "cultural",
+      "layer": "ne_10m_admin_0_countries_fra",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "10m_cultural/ne_10m_admin_0_countries_gbr.shp",
+      "source_blob_sha": "c0e7577d3037ac9e6395ac0785fcc269d6e8552f",
+      "scale": "10m",
+      "theme": "cultural",
+      "layer": "ne_10m_admin_0_countries_gbr",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "10m_cultural/ne_10m_admin_0_countries_grc.shp",
+      "source_blob_sha": "f71bc1f4312c50272fb3b93fe71c0ccdf6347675",
+      "scale": "10m",
+      "theme": "cultural",
+      "layer": "ne_10m_admin_0_countries_grc",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "10m_cultural/ne_10m_admin_0_countries_idn.shp",
+      "source_blob_sha": "77e981f5d06987c9918120c8413345de8aeca1cc",
+      "scale": "10m",
+      "theme": "cultural",
+      "layer": "ne_10m_admin_0_countries_idn",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "10m_cultural/ne_10m_admin_0_countries_ind.shp",
+      "source_blob_sha": "c28037b499b61d668a61a48d9cf2c8421423d4c0",
+      "scale": "10m",
+      "theme": "cultural",
+      "layer": "ne_10m_admin_0_countries_ind",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "10m_cultural/ne_10m_admin_0_countries_iso.shp",
+      "source_blob_sha": "7c266641f52de46cd2b10025cf7424122a1d3c80",
+      "scale": "10m",
+      "theme": "cultural",
+      "layer": "ne_10m_admin_0_countries_iso",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "10m_cultural/ne_10m_admin_0_countries_isr.shp",
+      "source_blob_sha": "d63dfcde781d2736ee4ac2d6df7a0ff481c9b02e",
+      "scale": "10m",
+      "theme": "cultural",
+      "layer": "ne_10m_admin_0_countries_isr",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "10m_cultural/ne_10m_admin_0_countries_ita.shp",
+      "source_blob_sha": "6e492a2780c1180fc029ac3232568f2af6c12cd4",
+      "scale": "10m",
+      "theme": "cultural",
+      "layer": "ne_10m_admin_0_countries_ita",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "10m_cultural/ne_10m_admin_0_countries_jpn.shp",
+      "source_blob_sha": "f258f4c82076b91d96167cba93d221a0b15c0d0b",
+      "scale": "10m",
+      "theme": "cultural",
+      "layer": "ne_10m_admin_0_countries_jpn",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "10m_cultural/ne_10m_admin_0_countries_kor.shp",
+      "source_blob_sha": "028f84d7937edcb3061e8c21f9d6d857b0b5fc68",
+      "scale": "10m",
+      "theme": "cultural",
+      "layer": "ne_10m_admin_0_countries_kor",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "10m_cultural/ne_10m_admin_0_countries_lakes.shp",
+      "source_blob_sha": "310e8bbd88dfab2bfb3563d7ab186ca9d9c02923",
+      "scale": "10m",
+      "theme": "cultural",
+      "layer": "ne_10m_admin_0_countries_lakes",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "10m_cultural/ne_10m_admin_0_countries_mar.shp",
+      "source_blob_sha": "ef5ecd036ef67b2d3ab5f5fb05601d16dd027d51",
+      "scale": "10m",
+      "theme": "cultural",
+      "layer": "ne_10m_admin_0_countries_mar",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "10m_cultural/ne_10m_admin_0_countries_nep.shp",
+      "source_blob_sha": "1ac19a7a229c79663669f25500415ff8f3f20548",
+      "scale": "10m",
+      "theme": "cultural",
+      "layer": "ne_10m_admin_0_countries_nep",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "10m_cultural/ne_10m_admin_0_countries_nld.shp",
+      "source_blob_sha": "c726384361bef86dda570874ab1a6eca8667da02",
+      "scale": "10m",
+      "theme": "cultural",
+      "layer": "ne_10m_admin_0_countries_nld",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "10m_cultural/ne_10m_admin_0_countries_pak.shp",
+      "source_blob_sha": "1bcc201f34d7be6662830cc546a254c3ac091fe4",
+      "scale": "10m",
+      "theme": "cultural",
+      "layer": "ne_10m_admin_0_countries_pak",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "10m_cultural/ne_10m_admin_0_countries_pol.shp",
+      "source_blob_sha": "c726384361bef86dda570874ab1a6eca8667da02",
+      "scale": "10m",
+      "theme": "cultural",
+      "layer": "ne_10m_admin_0_countries_pol",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "10m_cultural/ne_10m_admin_0_countries_prt.shp",
+      "source_blob_sha": "3fda5ad68625fc543dd5a67a31b68e9f131d8a0f",
+      "scale": "10m",
+      "theme": "cultural",
+      "layer": "ne_10m_admin_0_countries_prt",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "10m_cultural/ne_10m_admin_0_countries_pse.shp",
+      "source_blob_sha": "cea73fb5de997853abd7c6642c0bb8e7de296800",
+      "scale": "10m",
+      "theme": "cultural",
+      "layer": "ne_10m_admin_0_countries_pse",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "10m_cultural/ne_10m_admin_0_countries_rus.shp",
+      "source_blob_sha": "3c861b7d733f322eec8002f458a353042020893a",
+      "scale": "10m",
+      "theme": "cultural",
+      "layer": "ne_10m_admin_0_countries_rus",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "10m_cultural/ne_10m_admin_0_countries_sau.shp",
+      "source_blob_sha": "7d24a93fae81a786a07c5c41ccaed02db96d5933",
+      "scale": "10m",
+      "theme": "cultural",
+      "layer": "ne_10m_admin_0_countries_sau",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "10m_cultural/ne_10m_admin_0_countries_swe.shp",
+      "source_blob_sha": "6e492a2780c1180fc029ac3232568f2af6c12cd4",
+      "scale": "10m",
+      "theme": "cultural",
+      "layer": "ne_10m_admin_0_countries_swe",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "10m_cultural/ne_10m_admin_0_countries_tlc.shp",
+      "source_blob_sha": "1d5a852e597ee2dd61a5c601d687947820509e17",
+      "scale": "10m",
+      "theme": "cultural",
+      "layer": "ne_10m_admin_0_countries_tlc",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "10m_cultural/ne_10m_admin_0_countries_tur.shp",
+      "source_blob_sha": "26f1fb44610355e94fdfe10fb05aaa823ab5a571",
+      "scale": "10m",
+      "theme": "cultural",
+      "layer": "ne_10m_admin_0_countries_tur",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "10m_cultural/ne_10m_admin_0_countries_twn.shp",
+      "source_blob_sha": "66b8e22455993cc67e968b89a296ceee3c087b86",
+      "scale": "10m",
+      "theme": "cultural",
+      "layer": "ne_10m_admin_0_countries_twn",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "10m_cultural/ne_10m_admin_0_countries_ukr.shp",
+      "source_blob_sha": "4bdad0d034204d439132e6c0c0ca927ce7bdfabf",
+      "scale": "10m",
+      "theme": "cultural",
+      "layer": "ne_10m_admin_0_countries_ukr",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "10m_cultural/ne_10m_admin_0_countries_usa.shp",
+      "source_blob_sha": "b888269747776015e1dc1d2241b0fe99e6248094",
+      "scale": "10m",
+      "theme": "cultural",
+      "layer": "ne_10m_admin_0_countries_usa",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "10m_cultural/ne_10m_admin_0_countries_vnm.shp",
+      "source_blob_sha": "f04cb5b753332d5c0a24a4e94fd519970c795f0d",
+      "scale": "10m",
+      "theme": "cultural",
+      "layer": "ne_10m_admin_0_countries_vnm",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "10m_cultural/ne_10m_admin_0_countries.shp",
+      "source_blob_sha": "a10056b74ef4ba38e4af7f7f127ea8f48124b2da",
+      "scale": "10m",
+      "theme": "cultural",
+      "layer": "ne_10m_admin_0_countries",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "10m_cultural/ne_10m_admin_0_disputed_areas_scale_rank_minor_islands.shp",
+      "source_blob_sha": "526ecd26e6ee4af035cd4edabd6b59e1e0140fe5",
+      "scale": "10m",
+      "theme": "cultural",
+      "layer": "ne_10m_admin_0_disputed_areas_scale_rank_minor_islands",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "10m_cultural/ne_10m_admin_0_disputed_areas.shp",
+      "source_blob_sha": "44764cb484fab5e131b379cfa5da0e82ff3e4edf",
+      "scale": "10m",
+      "theme": "cultural",
+      "layer": "ne_10m_admin_0_disputed_areas",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "10m_cultural/ne_10m_admin_0_label_points.shp",
+      "source_blob_sha": "4c0beef04ad12c6f34e7854991094e09cc7a7524",
+      "scale": "10m",
+      "theme": "cultural",
+      "layer": "ne_10m_admin_0_label_points",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "10m_cultural/ne_10m_admin_0_map_subunits.shp",
+      "source_blob_sha": "cecff98f0581b562ea193223eaa125d1a0a4f5f5",
+      "scale": "10m",
+      "theme": "cultural",
+      "layer": "ne_10m_admin_0_map_subunits",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "10m_cultural/ne_10m_admin_0_map_units.shp",
+      "source_blob_sha": "2af840c84a4a36d15cea949537fadb29fb1a28af",
+      "scale": "10m",
+      "theme": "cultural",
+      "layer": "ne_10m_admin_0_map_units",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "10m_cultural/ne_10m_admin_0_names.shp",
+      "source_blob_sha": "cad6d72b64dfeab94d1e7eff1a489d69c4aa0fa0",
+      "scale": "10m",
+      "theme": "cultural",
+      "layer": "ne_10m_admin_0_names",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "10m_cultural/ne_10m_admin_0_pacific_groupings.shp",
+      "source_blob_sha": "35eceee3c8defde5f8821e8fec849c8680ce67ef",
+      "scale": "10m",
+      "theme": "cultural",
+      "layer": "ne_10m_admin_0_pacific_groupings",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "10m_cultural/ne_10m_admin_0_scale_rank_minor_islands.shp",
+      "source_blob_sha": "8d52cacb7815d57dc5c4f3a8e4cbbee88d3aeead",
+      "scale": "10m",
+      "theme": "cultural",
+      "layer": "ne_10m_admin_0_scale_rank_minor_islands",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "10m_cultural/ne_10m_admin_0_scale_rank.shp",
+      "source_blob_sha": "31d2a73c638577f9865c022b71db745041b6865b",
+      "scale": "10m",
+      "theme": "cultural",
+      "layer": "ne_10m_admin_0_scale_rank",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "10m_cultural/ne_10m_admin_0_seams.shp",
+      "source_blob_sha": "41de24a9f01a4d041fd9df92e0dffa40f4a23e52",
+      "scale": "10m",
+      "theme": "cultural",
+      "layer": "ne_10m_admin_0_seams",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "10m_cultural/ne_10m_admin_0_sovereignty.shp",
+      "source_blob_sha": "e0efbd3c84a71dcb4536e51abcf6ac6130cad27c",
+      "scale": "10m",
+      "theme": "cultural",
+      "layer": "ne_10m_admin_0_sovereignty",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "10m_cultural/ne_10m_admin_1_label_points_details.shp",
+      "source_blob_sha": "6625309b3d0b783ce616551d0a2fd22b99b8eed1",
+      "scale": "10m",
+      "theme": "cultural",
+      "layer": "ne_10m_admin_1_label_points_details",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "10m_cultural/ne_10m_admin_1_label_points.shp",
+      "source_blob_sha": "3bf25c14c41e9b3ab433d8e6c5c53df16a785ed1",
+      "scale": "10m",
+      "theme": "cultural",
+      "layer": "ne_10m_admin_1_label_points",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "10m_cultural/ne_10m_admin_1_seams.shp",
+      "source_blob_sha": "c5ef7c62357a9f1cc77ab5f6b2659223989fda24",
+      "scale": "10m",
+      "theme": "cultural",
+      "layer": "ne_10m_admin_1_seams",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "10m_cultural/ne_10m_admin_1_states_provinces_lakes.shp",
+      "source_blob_sha": "33f5b63d050784ae894a0c14e86472b624fd465b",
+      "scale": "10m",
+      "theme": "cultural",
+      "layer": "ne_10m_admin_1_states_provinces_lakes",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "10m_cultural/ne_10m_admin_1_states_provinces_lines.shp",
+      "source_blob_sha": "15bfb3714d1c981f51c58a0e90ed71ed709ce93b",
+      "scale": "10m",
+      "theme": "cultural",
+      "layer": "ne_10m_admin_1_states_provinces_lines",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "10m_cultural/ne_10m_admin_1_states_provinces_scale_rank_minor_islands.shp",
+      "source_blob_sha": "a24ece43990e31ce7e5bb9432d9ebf06700a8d73",
+      "scale": "10m",
+      "theme": "cultural",
+      "layer": "ne_10m_admin_1_states_provinces_scale_rank_minor_islands",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "10m_cultural/ne_10m_admin_1_states_provinces_scale_rank.shp",
+      "source_blob_sha": "a05b7fd1f3099e80cd0484a7d756ba28fb5fa678",
+      "scale": "10m",
+      "theme": "cultural",
+      "layer": "ne_10m_admin_1_states_provinces_scale_rank",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "10m_cultural/ne_10m_admin_1_states_provinces.shp",
+      "source_blob_sha": "f97a631c6784f4097304a83668df51ec803b0072",
+      "scale": "10m",
+      "theme": "cultural",
+      "layer": "ne_10m_admin_1_states_provinces",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "10m_cultural/ne_10m_admin_2_counties_lakes.shp",
+      "source_blob_sha": "4cbd38a4083ae6c49665ca604cd582284944aa0c",
+      "scale": "10m",
+      "theme": "cultural",
+      "layer": "ne_10m_admin_2_counties_lakes",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "10m_cultural/ne_10m_admin_2_counties_lines.shp",
+      "source_blob_sha": "b6b7de63f08490a2e5e2c5605d25878772c01799",
+      "scale": "10m",
+      "theme": "cultural",
+      "layer": "ne_10m_admin_2_counties_lines",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "10m_cultural/ne_10m_admin_2_counties_scale_rank_minor_islands.shp",
+      "source_blob_sha": "4d18ab481e47d035c7d229539dc19269f27156f1",
+      "scale": "10m",
+      "theme": "cultural",
+      "layer": "ne_10m_admin_2_counties_scale_rank_minor_islands",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "10m_cultural/ne_10m_admin_2_counties_scale_rank.shp",
+      "source_blob_sha": "4d18ab481e47d035c7d229539dc19269f27156f1",
+      "scale": "10m",
+      "theme": "cultural",
+      "layer": "ne_10m_admin_2_counties_scale_rank",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "10m_cultural/ne_10m_admin_2_counties_to_match.shp",
+      "source_blob_sha": "5c4ddade5d4f2d548e43fdd920ad359f2a7e483d",
+      "scale": "10m",
+      "theme": "cultural",
+      "layer": "ne_10m_admin_2_counties_to_match",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "10m_cultural/ne_10m_admin_2_counties.shp",
+      "source_blob_sha": "299a837edcae0fc793dc32250aadb5380b82a925",
+      "scale": "10m",
+      "theme": "cultural",
+      "layer": "ne_10m_admin_2_counties",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "10m_cultural/ne_10m_admin_2_label_points_details.shp",
+      "source_blob_sha": "2f33b667a230f9a2588455aa922ca7f3cbbb9c93",
+      "scale": "10m",
+      "theme": "cultural",
+      "layer": "ne_10m_admin_2_label_points_details",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "10m_cultural/ne_10m_admin_2_label_points.shp",
+      "source_blob_sha": "214d85bc016a2b9b25cf3ec777f1ea1c0f5e63f8",
+      "scale": "10m",
+      "theme": "cultural",
+      "layer": "ne_10m_admin_2_label_points",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "10m_cultural/ne_10m_airports.shp",
+      "source_blob_sha": "0f99985fd36015548118da5530db189d1aacff5b",
+      "scale": "10m",
+      "theme": "cultural",
+      "layer": "ne_10m_airports",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "10m_cultural/ne_10m_parks_and_protected_lands_area.shp",
+      "source_blob_sha": "c890688787f208e891dc5b89fc57dbb2ba206d63",
+      "scale": "10m",
+      "theme": "cultural",
+      "layer": "ne_10m_parks_and_protected_lands_area",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "10m_cultural/ne_10m_parks_and_protected_lands_line.shp",
+      "source_blob_sha": "89bbe64c0bc12f7b07cb4b43a7bab7cbd2bfa234",
+      "scale": "10m",
+      "theme": "cultural",
+      "layer": "ne_10m_parks_and_protected_lands_line",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "10m_cultural/ne_10m_parks_and_protected_lands_point.shp",
+      "source_blob_sha": "a6838cdab02994d8b3a097164cbd8267db18be94",
+      "scale": "10m",
+      "theme": "cultural",
+      "layer": "ne_10m_parks_and_protected_lands_point",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "10m_cultural/ne_10m_parks_and_protected_lands_scale_rank.shp",
+      "source_blob_sha": "7fed61dd66aa10521d05b58d58bba48000c43fcd",
+      "scale": "10m",
+      "theme": "cultural",
+      "layer": "ne_10m_parks_and_protected_lands_scale_rank",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "10m_cultural/ne_10m_populated_places_simple.shp",
+      "source_blob_sha": "00e528122c026b4fae3dabb3e6c08d11259a717b",
+      "scale": "10m",
+      "theme": "cultural",
+      "layer": "ne_10m_populated_places_simple",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "10m_cultural/ne_10m_populated_places.shp",
+      "source_blob_sha": "55ca08fdb9757c0c5b119c39670f2e5add335554",
+      "scale": "10m",
+      "theme": "cultural",
+      "layer": "ne_10m_populated_places",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "10m_cultural/ne_10m_ports.shp",
+      "source_blob_sha": "db49d73f53023efd9eb0b3b2074fc8d5c3e474fb",
+      "scale": "10m",
+      "theme": "cultural",
+      "layer": "ne_10m_ports",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "10m_cultural/ne_10m_railroads_north_america.shp",
+      "source_blob_sha": "200676b1cd21f94538bebbc58f93f58a4e56f419",
+      "scale": "10m",
+      "theme": "cultural",
+      "layer": "ne_10m_railroads_north_america",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "10m_cultural/ne_10m_railroads.shp",
+      "source_blob_sha": "585a6d70d1ae96a07cc9bb62823109d9f2125932",
+      "scale": "10m",
+      "theme": "cultural",
+      "layer": "ne_10m_railroads",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "10m_cultural/ne_10m_roads_north_america.shp",
+      "source_blob_sha": "de2e88cff3af352e3fcf9bd27b471885b2949832",
+      "scale": "10m",
+      "theme": "cultural",
+      "layer": "ne_10m_roads_north_america",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "10m_cultural/ne_10m_roads.shp",
+      "source_blob_sha": "ff344b283b1291ffea6125d52f6ab45f07f4712f",
+      "scale": "10m",
+      "theme": "cultural",
+      "layer": "ne_10m_roads",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "10m_cultural/ne_10m_time_zones.shp",
+      "source_blob_sha": "aae3f5adea697ec1eb7d7ac151d8397249ac46b0",
+      "scale": "10m",
+      "theme": "cultural",
+      "layer": "ne_10m_time_zones",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "10m_cultural/ne_10m_urban_areas_landscan.shp",
+      "source_blob_sha": "5939d39e7d8a73ed00934a567d5ae2f427105243",
+      "scale": "10m",
+      "theme": "cultural",
+      "layer": "ne_10m_urban_areas_landscan",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "10m_cultural/ne_10m_urban_areas.shp",
+      "source_blob_sha": "c078d62902b7278c3eff1b16549613f2a4c4b91e",
+      "scale": "10m",
+      "theme": "cultural",
+      "layer": "ne_10m_urban_areas",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "10m_physical/ne_10m_antarctic_ice_shelves_lines.shp",
+      "source_blob_sha": "9ac60c362bb60bc8fed7a968ef2370cbb609ade3",
+      "scale": "10m",
+      "theme": "physical",
+      "layer": "ne_10m_antarctic_ice_shelves_lines",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "10m_physical/ne_10m_antarctic_ice_shelves_polys.shp",
+      "source_blob_sha": "322fc66c27c8a3ccbce34290dcad7398215c9447",
+      "scale": "10m",
+      "theme": "physical",
+      "layer": "ne_10m_antarctic_ice_shelves_polys",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "10m_physical/ne_10m_bathymetry_all/ne_10m_bathymetry_A_10000.shp",
+      "source_blob_sha": "c51113389ebd0809db9a0426f15a32f847adecc8",
+      "scale": "10m",
+      "theme": "physical",
+      "layer": "ne_10m_bathymetry_A_10000",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "10m_physical/ne_10m_bathymetry_all/ne_10m_bathymetry_B_9000.shp",
+      "source_blob_sha": "4bc7c033d3c0b37c08aa44ab02dc4054ee5300be",
+      "scale": "10m",
+      "theme": "physical",
+      "layer": "ne_10m_bathymetry_B_9000",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "10m_physical/ne_10m_bathymetry_all/ne_10m_bathymetry_C_8000.shp",
+      "source_blob_sha": "82d2738658fedc439524be3fc535c8b77b1c1685",
+      "scale": "10m",
+      "theme": "physical",
+      "layer": "ne_10m_bathymetry_C_8000",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "10m_physical/ne_10m_bathymetry_all/ne_10m_bathymetry_D_7000.shp",
+      "source_blob_sha": "85dc728b8b90cdda1416d9f49a4e7e0ee87bdfca",
+      "scale": "10m",
+      "theme": "physical",
+      "layer": "ne_10m_bathymetry_D_7000",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "10m_physical/ne_10m_bathymetry_all/ne_10m_bathymetry_E_6000.shp",
+      "source_blob_sha": "d5d513c39fbca6c69b7b60235b2b2ebc04401043",
+      "scale": "10m",
+      "theme": "physical",
+      "layer": "ne_10m_bathymetry_E_6000",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "10m_physical/ne_10m_bathymetry_all/ne_10m_bathymetry_F_5000.shp",
+      "source_blob_sha": "a4781e57a6776bf9ebea62c4897a74f88bc8803c",
+      "scale": "10m",
+      "theme": "physical",
+      "layer": "ne_10m_bathymetry_F_5000",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "10m_physical/ne_10m_bathymetry_all/ne_10m_bathymetry_G_4000.shp",
+      "source_blob_sha": "96240373b40488101056edd42960858f1e9c870a",
+      "scale": "10m",
+      "theme": "physical",
+      "layer": "ne_10m_bathymetry_G_4000",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "10m_physical/ne_10m_bathymetry_all/ne_10m_bathymetry_H_3000.shp",
+      "source_blob_sha": "5d47e18d67ef8e1ed422035f2b3c3d14ddc5dfe3",
+      "scale": "10m",
+      "theme": "physical",
+      "layer": "ne_10m_bathymetry_H_3000",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "10m_physical/ne_10m_bathymetry_all/ne_10m_bathymetry_I_2000.shp",
+      "source_blob_sha": "747af6a6055b01b5630e5a9452e3518318fb1a14",
+      "scale": "10m",
+      "theme": "physical",
+      "layer": "ne_10m_bathymetry_I_2000",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "10m_physical/ne_10m_bathymetry_all/ne_10m_bathymetry_J_1000.shp",
+      "source_blob_sha": "ef415eefa940bece8308bd9afc82201f0d6c9f3c",
+      "scale": "10m",
+      "theme": "physical",
+      "layer": "ne_10m_bathymetry_J_1000",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "10m_physical/ne_10m_bathymetry_all/ne_10m_bathymetry_K_200.shp",
+      "source_blob_sha": "8c847a24447863c46754521e2cc95c4ad1d87a5d",
+      "scale": "10m",
+      "theme": "physical",
+      "layer": "ne_10m_bathymetry_K_200",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "10m_physical/ne_10m_bathymetry_all/ne_10m_bathymetry_L_0.shp",
+      "source_blob_sha": "4e65f4f5d95ed930881ebf8d67b1488e78557101",
+      "scale": "10m",
+      "theme": "physical",
+      "layer": "ne_10m_bathymetry_L_0",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "10m_physical/ne_10m_coastline.shp",
+      "source_blob_sha": "2066748e6cc68b7e6ac701d486658cb721cb772b",
+      "scale": "10m",
+      "theme": "physical",
+      "layer": "ne_10m_coastline",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "10m_physical/ne_10m_geographic_lines.shp",
+      "source_blob_sha": "1d2475370ee1de931a9c093182d3595448f1cb78",
+      "scale": "10m",
+      "theme": "physical",
+      "layer": "ne_10m_geographic_lines",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "10m_physical/ne_10m_geography_marine_polys.shp",
+      "source_blob_sha": "d442c0483b2f9a6cc42422235c951618ce6dd966",
+      "scale": "10m",
+      "theme": "physical",
+      "layer": "ne_10m_geography_marine_polys",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "10m_physical/ne_10m_geography_regions_elevation_points.shp",
+      "source_blob_sha": "3bf7dd864f7006a847fa01f653ed6c4340c0b4ab",
+      "scale": "10m",
+      "theme": "physical",
+      "layer": "ne_10m_geography_regions_elevation_points",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "10m_physical/ne_10m_geography_regions_points.shp",
+      "source_blob_sha": "8f38ca0ce0306f57615d7d1c09ee325b13ff3e27",
+      "scale": "10m",
+      "theme": "physical",
+      "layer": "ne_10m_geography_regions_points",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "10m_physical/ne_10m_geography_regions_polys.shp",
+      "source_blob_sha": "9b20720212a87ee7e34ce20a1b8b91d94e2a3e4e",
+      "scale": "10m",
+      "theme": "physical",
+      "layer": "ne_10m_geography_regions_polys",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "10m_physical/ne_10m_glaciated_areas.shp",
+      "source_blob_sha": "81c1cf525c38e9b3c731e322dcf322c10e33eae4",
+      "scale": "10m",
+      "theme": "physical",
+      "layer": "ne_10m_glaciated_areas",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "10m_physical/ne_10m_graticules_all/ne_10m_graticules_1.shp",
+      "source_blob_sha": "3e5e3127b6dc50bea8256df97d8cb83c68009e00",
+      "scale": "10m",
+      "theme": "physical",
+      "layer": "ne_10m_graticules_1",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "10m_physical/ne_10m_graticules_all/ne_10m_graticules_10.shp",
+      "source_blob_sha": "31ca6145705ad62a505a2a2e214ca7e58be4996c",
+      "scale": "10m",
+      "theme": "physical",
+      "layer": "ne_10m_graticules_10",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "10m_physical/ne_10m_graticules_all/ne_10m_graticules_15.shp",
+      "source_blob_sha": "80341306879b45e3a328ed5535d2242a82ad9fe6",
+      "scale": "10m",
+      "theme": "physical",
+      "layer": "ne_10m_graticules_15",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "10m_physical/ne_10m_graticules_all/ne_10m_graticules_20.shp",
+      "source_blob_sha": "3dc9661e7eead3c9e0880fee18c74f3db3745797",
+      "scale": "10m",
+      "theme": "physical",
+      "layer": "ne_10m_graticules_20",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "10m_physical/ne_10m_graticules_all/ne_10m_graticules_30.shp",
+      "source_blob_sha": "9925355c652f59836de91d26b37a89f850bec843",
+      "scale": "10m",
+      "theme": "physical",
+      "layer": "ne_10m_graticules_30",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "10m_physical/ne_10m_graticules_all/ne_10m_graticules_5.shp",
+      "source_blob_sha": "22b758d74a7db4772bcde5f8ca976c0f8ab3b4cf",
+      "scale": "10m",
+      "theme": "physical",
+      "layer": "ne_10m_graticules_5",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "10m_physical/ne_10m_graticules_all/ne_10m_wgs84_bounding_box.shp",
+      "source_blob_sha": "1d74949801bb4d14d91bd4432d255b1c00d53699",
+      "scale": "10m",
+      "theme": "physical",
+      "layer": "ne_10m_wgs84_bounding_box",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "10m_physical/ne_10m_lakes_australia.shp",
+      "source_blob_sha": "d0baacdc5ef1e385e31cf1c60706931c98051a41",
+      "scale": "10m",
+      "theme": "physical",
+      "layer": "ne_10m_lakes_australia",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "10m_physical/ne_10m_lakes_europe.shp",
+      "source_blob_sha": "9120eba7ad37e40f1eb81fe99678d9385ee37894",
+      "scale": "10m",
+      "theme": "physical",
+      "layer": "ne_10m_lakes_europe",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "10m_physical/ne_10m_lakes_historic.shp",
+      "source_blob_sha": "ec9e47c6bacf550e1e04f17ede6c624a495c1d72",
+      "scale": "10m",
+      "theme": "physical",
+      "layer": "ne_10m_lakes_historic",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "10m_physical/ne_10m_lakes_north_america.shp",
+      "source_blob_sha": "16308e95f6b1d2631a86b4cc67a01262133a20d8",
+      "scale": "10m",
+      "theme": "physical",
+      "layer": "ne_10m_lakes_north_america",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "10m_physical/ne_10m_lakes_pluvial.shp",
+      "source_blob_sha": "dfa672b3500794a8a3b84d88736af3c2a04819b0",
+      "scale": "10m",
+      "theme": "physical",
+      "layer": "ne_10m_lakes_pluvial",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "10m_physical/ne_10m_lakes.shp",
+      "source_blob_sha": "c4f040717819562d38decb5a7a01fcf2d379a708",
+      "scale": "10m",
+      "theme": "physical",
+      "layer": "ne_10m_lakes",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "10m_physical/ne_10m_land_ocean_label_points.shp",
+      "source_blob_sha": "1bbbcf4b4a563e1b64af401c2a5bb3d7fd3a9520",
+      "scale": "10m",
+      "theme": "physical",
+      "layer": "ne_10m_land_ocean_label_points",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "10m_physical/ne_10m_land_ocean_seams.shp",
+      "source_blob_sha": "8ba4149dfe9e4285956f5b0aab7e6556a5a7b3c8",
+      "scale": "10m",
+      "theme": "physical",
+      "layer": "ne_10m_land_ocean_seams",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "10m_physical/ne_10m_land_scale_rank.shp",
+      "source_blob_sha": "8c0fc10087f5d94827f151771a0972e46fc2d1ac",
+      "scale": "10m",
+      "theme": "physical",
+      "layer": "ne_10m_land_scale_rank",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "10m_physical/ne_10m_land.shp",
+      "source_blob_sha": "6dd25a1c5bc7f97b2a2d711d6ea83451312d99af",
+      "scale": "10m",
+      "theme": "physical",
+      "layer": "ne_10m_land",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "10m_physical/ne_10m_minor_islands_coastline.shp",
+      "source_blob_sha": "2f6cb5afa743f49fbff69e00fd3665bda38735de",
+      "scale": "10m",
+      "theme": "physical",
+      "layer": "ne_10m_minor_islands_coastline",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "10m_physical/ne_10m_minor_islands_label_points.shp",
+      "source_blob_sha": "32007610fff589dfe21eb0243119aefaa2c5a0f1",
+      "scale": "10m",
+      "theme": "physical",
+      "layer": "ne_10m_minor_islands_label_points",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "10m_physical/ne_10m_minor_islands.shp",
+      "source_blob_sha": "516d134c660cdbd8b562078bf28d6cdbd29c8df1",
+      "scale": "10m",
+      "theme": "physical",
+      "layer": "ne_10m_minor_islands",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "10m_physical/ne_10m_ocean_scale_rank.shp",
+      "source_blob_sha": "b470c709f94fe9bf5c58052e74eead8dac57975e",
+      "scale": "10m",
+      "theme": "physical",
+      "layer": "ne_10m_ocean_scale_rank",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "10m_physical/ne_10m_ocean.shp",
+      "source_blob_sha": "d964deb3f5a99d61353a76b6c17e3036d7f92d8d",
+      "scale": "10m",
+      "theme": "physical",
+      "layer": "ne_10m_ocean",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "10m_physical/ne_10m_playas.shp",
+      "source_blob_sha": "d7fb255a172824ed252170acbeafabd333ef5c50",
+      "scale": "10m",
+      "theme": "physical",
+      "layer": "ne_10m_playas",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "10m_physical/ne_10m_reefs.shp",
+      "source_blob_sha": "15a676056858a712b7f9043bfbe4386780a49259",
+      "scale": "10m",
+      "theme": "physical",
+      "layer": "ne_10m_reefs",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "10m_physical/ne_10m_rivers_australia.shp",
+      "source_blob_sha": "0c25a813c82208b4a21512cb8d9047da538d9ae2",
+      "scale": "10m",
+      "theme": "physical",
+      "layer": "ne_10m_rivers_australia",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "10m_physical/ne_10m_rivers_europe.shp",
+      "source_blob_sha": "02ad6fdd6db0e1567db7bade37808d9c4b8d36d3",
+      "scale": "10m",
+      "theme": "physical",
+      "layer": "ne_10m_rivers_europe",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "10m_physical/ne_10m_rivers_lake_centerlines_scale_rank.shp",
+      "source_blob_sha": "ee0a3cdced1406dbf9e1272f468048f2ab6e3113",
+      "scale": "10m",
+      "theme": "physical",
+      "layer": "ne_10m_rivers_lake_centerlines_scale_rank",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "10m_physical/ne_10m_rivers_lake_centerlines.shp",
+      "source_blob_sha": "ea59691f0fe56cec8ad816cef34b1e73ba04d87b",
+      "scale": "10m",
+      "theme": "physical",
+      "layer": "ne_10m_rivers_lake_centerlines",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "10m_physical/ne_10m_rivers_north_america.shp",
+      "source_blob_sha": "d13ec9599927d617914f76f8fc59e4fb52e77659",
+      "scale": "10m",
+      "theme": "physical",
+      "layer": "ne_10m_rivers_north_america",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "110m_cultural/ne_110m_admin_0_boundary_lines_land.shp",
+      "source_blob_sha": "053742259af88c17312f42298f7b12f0e585606a",
+      "scale": "110m",
+      "theme": "cultural",
+      "layer": "ne_110m_admin_0_boundary_lines_land",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "110m_cultural/ne_110m_admin_0_countries_lakes.shp",
+      "source_blob_sha": "f6e8e21a8da8648c43b5223e7276386f3289a3dd",
+      "scale": "110m",
+      "theme": "cultural",
+      "layer": "ne_110m_admin_0_countries_lakes",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "110m_cultural/ne_110m_admin_0_countries.shp",
+      "source_blob_sha": "9318e45c7015568100ad4d7a271790fbec966876",
+      "scale": "110m",
+      "theme": "cultural",
+      "layer": "ne_110m_admin_0_countries",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "110m_cultural/ne_110m_admin_0_map_units.shp",
+      "source_blob_sha": "a92c89a55cb3a9413c370010b09b6163b37e6feb",
+      "scale": "110m",
+      "theme": "cultural",
+      "layer": "ne_110m_admin_0_map_units",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "110m_cultural/ne_110m_admin_0_pacific_groupings.shp",
+      "source_blob_sha": "db54ef69d557f3bba4d1e45a4325e2149ea105c8",
+      "scale": "110m",
+      "theme": "cultural",
+      "layer": "ne_110m_admin_0_pacific_groupings",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "110m_cultural/ne_110m_admin_0_scale_rank.shp",
+      "source_blob_sha": "fd8240bd2cd131a983bcdf6ee7c45b4166d64c08",
+      "scale": "110m",
+      "theme": "cultural",
+      "layer": "ne_110m_admin_0_scale_rank",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "110m_cultural/ne_110m_admin_0_sovereignty.shp",
+      "source_blob_sha": "dcf0f9c398fd3fa0babae861ab5063ddbed632c5",
+      "scale": "110m",
+      "theme": "cultural",
+      "layer": "ne_110m_admin_0_sovereignty",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "110m_cultural/ne_110m_admin_0_tiny_countries.shp",
+      "source_blob_sha": "7765b7f04fc0bd07a11cdc316d7a30f230c25afa",
+      "scale": "110m",
+      "theme": "cultural",
+      "layer": "ne_110m_admin_0_tiny_countries",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "110m_cultural/ne_110m_admin_1_states_provinces_lakes.shp",
+      "source_blob_sha": "23ab2ed9322fb9513f298d5ec03bcf5bdec1023f",
+      "scale": "110m",
+      "theme": "cultural",
+      "layer": "ne_110m_admin_1_states_provinces_lakes",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "110m_cultural/ne_110m_admin_1_states_provinces_lines.shp",
+      "source_blob_sha": "4a30aea53a3f5760ff88aa559a5accb52f45bd16",
+      "scale": "110m",
+      "theme": "cultural",
+      "layer": "ne_110m_admin_1_states_provinces_lines",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "110m_cultural/ne_110m_admin_1_states_provinces_scale_rank.shp",
+      "source_blob_sha": "36100406aeee2eb979ce28c2dcfc2fbec4c0b57a",
+      "scale": "110m",
+      "theme": "cultural",
+      "layer": "ne_110m_admin_1_states_provinces_scale_rank",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "110m_cultural/ne_110m_admin_1_states_provinces.shp",
+      "source_blob_sha": "83d3576b33b56eeae25259f998f913edec783fb5",
+      "scale": "110m",
+      "theme": "cultural",
+      "layer": "ne_110m_admin_1_states_provinces",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "110m_cultural/ne_110m_populated_places_simple.shp",
+      "source_blob_sha": "a7bcefa0aee55b435bef7544f452eb72c2f136e8",
+      "scale": "110m",
+      "theme": "cultural",
+      "layer": "ne_110m_populated_places_simple",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "110m_cultural/ne_110m_populated_places.shp",
+      "source_blob_sha": "a7bcefa0aee55b435bef7544f452eb72c2f136e8",
+      "scale": "110m",
+      "theme": "cultural",
+      "layer": "ne_110m_populated_places",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "110m_physical/ne_110m_coastline.shp",
+      "source_blob_sha": "fc3f939fdbc90d1535ad1f07f21e742ee3043afc",
+      "scale": "110m",
+      "theme": "physical",
+      "layer": "ne_110m_coastline",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "110m_physical/ne_110m_geographic_lines.shp",
+      "source_blob_sha": "1d2475370ee1de931a9c093182d3595448f1cb78",
+      "scale": "110m",
+      "theme": "physical",
+      "layer": "ne_110m_geographic_lines",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "110m_physical/ne_110m_geography_marine_polys.shp",
+      "source_blob_sha": "28b61b7495c1adfee55d57e81280033fd3d273a7",
+      "scale": "110m",
+      "theme": "physical",
+      "layer": "ne_110m_geography_marine_polys",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "110m_physical/ne_110m_geography_regions_elevation_points.shp",
+      "source_blob_sha": "583ad59fe7398fa73a6f0c8ac30fb2af047c35ad",
+      "scale": "110m",
+      "theme": "physical",
+      "layer": "ne_110m_geography_regions_elevation_points",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "110m_physical/ne_110m_geography_regions_points.shp",
+      "source_blob_sha": "49bc233a7cf9bd615654c6b719cf4bc96462d955",
+      "scale": "110m",
+      "theme": "physical",
+      "layer": "ne_110m_geography_regions_points",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "110m_physical/ne_110m_geography_regions_polys.shp",
+      "source_blob_sha": "c30a5cd0e991b1b00b2698ff11c4ff59cafbc9c7",
+      "scale": "110m",
+      "theme": "physical",
+      "layer": "ne_110m_geography_regions_polys",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "110m_physical/ne_110m_glaciated_areas.shp",
+      "source_blob_sha": "a772d16bd57c259478fa68ea6034a59fdebae39e",
+      "scale": "110m",
+      "theme": "physical",
+      "layer": "ne_110m_glaciated_areas",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "110m_physical/ne_110m_graticules_all/ne_110m_graticules_1.shp",
+      "source_blob_sha": "3e5e3127b6dc50bea8256df97d8cb83c68009e00",
+      "scale": "110m",
+      "theme": "physical",
+      "layer": "ne_110m_graticules_1",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "110m_physical/ne_110m_graticules_all/ne_110m_graticules_10.shp",
+      "source_blob_sha": "31ca6145705ad62a505a2a2e214ca7e58be4996c",
+      "scale": "110m",
+      "theme": "physical",
+      "layer": "ne_110m_graticules_10",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "110m_physical/ne_110m_graticules_all/ne_110m_graticules_15.shp",
+      "source_blob_sha": "80341306879b45e3a328ed5535d2242a82ad9fe6",
+      "scale": "110m",
+      "theme": "physical",
+      "layer": "ne_110m_graticules_15",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "110m_physical/ne_110m_graticules_all/ne_110m_graticules_20.shp",
+      "source_blob_sha": "3dc9661e7eead3c9e0880fee18c74f3db3745797",
+      "scale": "110m",
+      "theme": "physical",
+      "layer": "ne_110m_graticules_20",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "110m_physical/ne_110m_graticules_all/ne_110m_graticules_30.shp",
+      "source_blob_sha": "9925355c652f59836de91d26b37a89f850bec843",
+      "scale": "110m",
+      "theme": "physical",
+      "layer": "ne_110m_graticules_30",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "110m_physical/ne_110m_graticules_all/ne_110m_graticules_5.shp",
+      "source_blob_sha": "22b758d74a7db4772bcde5f8ca976c0f8ab3b4cf",
+      "scale": "110m",
+      "theme": "physical",
+      "layer": "ne_110m_graticules_5",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "110m_physical/ne_110m_graticules_all/ne_110m_wgs84_bounding_box.shp",
+      "source_blob_sha": "c95f07c6a7a6cbc4c9d9e186812c5968310498fb",
+      "scale": "110m",
+      "theme": "physical",
+      "layer": "ne_110m_wgs84_bounding_box",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "110m_physical/ne_110m_lakes.shp",
+      "source_blob_sha": "726df04123ca3b15cb5366704e4285ac7badc88f",
+      "scale": "110m",
+      "theme": "physical",
+      "layer": "ne_110m_lakes",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "110m_physical/ne_110m_land.shp",
+      "source_blob_sha": "69ce127bf49cc005144f63846b102e6b91358e8e",
+      "scale": "110m",
+      "theme": "physical",
+      "layer": "ne_110m_land",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "110m_physical/ne_110m_ocean.shp",
+      "source_blob_sha": "953e7a149e153de05f1739e4266d5cf470112591",
+      "scale": "110m",
+      "theme": "physical",
+      "layer": "ne_110m_ocean",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "110m_physical/ne_110m_rivers_lake_centerlines.shp",
+      "source_blob_sha": "4cc1268c214698b4b49395a27afc0e070e9b482a",
+      "scale": "110m",
+      "theme": "physical",
+      "layer": "ne_110m_rivers_lake_centerlines",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "50m_cultural/ne_50m_admin_0_boundary_lines_disputed_areas.shp",
+      "source_blob_sha": "39f24fbce36430e3e899d93f469e995ab1cf06e7",
+      "scale": "50m",
+      "theme": "cultural",
+      "layer": "ne_50m_admin_0_boundary_lines_disputed_areas",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "50m_cultural/ne_50m_admin_0_boundary_lines_land.shp",
+      "source_blob_sha": "03820b61687ddbd45e6499a1a08cad22c4006bdc",
+      "scale": "50m",
+      "theme": "cultural",
+      "layer": "ne_50m_admin_0_boundary_lines_land",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "50m_cultural/ne_50m_admin_0_boundary_lines_maritime_indicator_chn.shp",
+      "source_blob_sha": "c94add881ef2406e50566362176811b6700c2eab",
+      "scale": "50m",
+      "theme": "cultural",
+      "layer": "ne_50m_admin_0_boundary_lines_maritime_indicator_chn",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "50m_cultural/ne_50m_admin_0_boundary_lines_maritime_indicator.shp",
+      "source_blob_sha": "96962d915265c787f3bdd679e14eae3e1cc60680",
+      "scale": "50m",
+      "theme": "cultural",
+      "layer": "ne_50m_admin_0_boundary_lines_maritime_indicator",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "50m_cultural/ne_50m_admin_0_boundary_map_units.shp",
+      "source_blob_sha": "a3c8aa928ac9901b154e8ecc0905a2bb89b35831",
+      "scale": "50m",
+      "theme": "cultural",
+      "layer": "ne_50m_admin_0_boundary_map_units",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "50m_cultural/ne_50m_admin_0_breakaway_disputed_areas_scale_rank.shp",
+      "source_blob_sha": "bc3bc61339b461f0aeacf2374189e28888e19d8f",
+      "scale": "50m",
+      "theme": "cultural",
+      "layer": "ne_50m_admin_0_breakaway_disputed_areas_scale_rank",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "50m_cultural/ne_50m_admin_0_breakaway_disputed_areas.shp",
+      "source_blob_sha": "6a691fb96220fe1696be648303ff0820daad6477",
+      "scale": "50m",
+      "theme": "cultural",
+      "layer": "ne_50m_admin_0_breakaway_disputed_areas",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "50m_cultural/ne_50m_admin_0_countries_lakes.shp",
+      "source_blob_sha": "e73c1d80e3003d42e2c5fdd1db01504b3cd4244a",
+      "scale": "50m",
+      "theme": "cultural",
+      "layer": "ne_50m_admin_0_countries_lakes",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "50m_cultural/ne_50m_admin_0_countries.shp",
+      "source_blob_sha": "7cc7147404cba043d06b5fdd07e2c2d33924689b",
+      "scale": "50m",
+      "theme": "cultural",
+      "layer": "ne_50m_admin_0_countries",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "50m_cultural/ne_50m_admin_0_map_subunits.shp",
+      "source_blob_sha": "fba4067fee22ca74247170c38bc26a97deb834b0",
+      "scale": "50m",
+      "theme": "cultural",
+      "layer": "ne_50m_admin_0_map_subunits",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "50m_cultural/ne_50m_admin_0_map_units.shp",
+      "source_blob_sha": "69ddb23bf2e40d3813abb10811e189ecf47b636f",
+      "scale": "50m",
+      "theme": "cultural",
+      "layer": "ne_50m_admin_0_map_units",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "50m_cultural/ne_50m_admin_0_pacific_groupings.shp",
+      "source_blob_sha": "35eceee3c8defde5f8821e8fec849c8680ce67ef",
+      "scale": "50m",
+      "theme": "cultural",
+      "layer": "ne_50m_admin_0_pacific_groupings",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "50m_cultural/ne_50m_admin_0_scale_rank.shp",
+      "source_blob_sha": "b37466ad979cb0e30e9d1160b3c29c4fed4c305a",
+      "scale": "50m",
+      "theme": "cultural",
+      "layer": "ne_50m_admin_0_scale_rank",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "50m_cultural/ne_50m_admin_0_sovereignty.shp",
+      "source_blob_sha": "fa9f233b2368027a7fe43f6c9d391ece34060fee",
+      "scale": "50m",
+      "theme": "cultural",
+      "layer": "ne_50m_admin_0_sovereignty",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "50m_cultural/ne_50m_admin_0_tiny_countries_scale_rank.shp",
+      "source_blob_sha": "3cff10bfceabc2cf4a19b0863770f8b3c1bc8479",
+      "scale": "50m",
+      "theme": "cultural",
+      "layer": "ne_50m_admin_0_tiny_countries_scale_rank",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "50m_cultural/ne_50m_admin_0_tiny_countries.shp",
+      "source_blob_sha": "3cff10bfceabc2cf4a19b0863770f8b3c1bc8479",
+      "scale": "50m",
+      "theme": "cultural",
+      "layer": "ne_50m_admin_0_tiny_countries",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "50m_cultural/ne_50m_admin_1_seams.shp",
+      "source_blob_sha": "4e470dfcd00538e3d804c686746004a1b56ff375",
+      "scale": "50m",
+      "theme": "cultural",
+      "layer": "ne_50m_admin_1_seams",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "50m_cultural/ne_50m_admin_1_states_provinces_lakes.shp",
+      "source_blob_sha": "856fc1eeb6ee3a9730217571de89ce29b563cd63",
+      "scale": "50m",
+      "theme": "cultural",
+      "layer": "ne_50m_admin_1_states_provinces_lakes",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "50m_cultural/ne_50m_admin_1_states_provinces_lines.shp",
+      "source_blob_sha": "bc6a7961d5fddae488a88457ae1d8c482c25b88d",
+      "scale": "50m",
+      "theme": "cultural",
+      "layer": "ne_50m_admin_1_states_provinces_lines",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "50m_cultural/ne_50m_admin_1_states_provinces_scale_rank.shp",
+      "source_blob_sha": "d39c27f8daeee940b9d99d9d333eec3ed3fe5044",
+      "scale": "50m",
+      "theme": "cultural",
+      "layer": "ne_50m_admin_1_states_provinces_scale_rank",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "50m_cultural/ne_50m_admin_1_states_provinces.shp",
+      "source_blob_sha": "a63fd4ac9bcf30c80c5267cc697d21d891816f8a",
+      "scale": "50m",
+      "theme": "cultural",
+      "layer": "ne_50m_admin_1_states_provinces",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "50m_cultural/ne_50m_airports.shp",
+      "source_blob_sha": "3baac82e7eaa9db95159b9165499fc43137c8d3d",
+      "scale": "50m",
+      "theme": "cultural",
+      "layer": "ne_50m_airports",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "50m_cultural/ne_50m_populated_places_simple.shp",
+      "source_blob_sha": "6bc8b104fc518017b08c5ecdf31f557d5de1c17c",
+      "scale": "50m",
+      "theme": "cultural",
+      "layer": "ne_50m_populated_places_simple",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "50m_cultural/ne_50m_populated_places.shp",
+      "source_blob_sha": "6bc8b104fc518017b08c5ecdf31f557d5de1c17c",
+      "scale": "50m",
+      "theme": "cultural",
+      "layer": "ne_50m_populated_places",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "50m_cultural/ne_50m_ports.shp",
+      "source_blob_sha": "c4b8d74a139831c4c484944555f970c390351bb3",
+      "scale": "50m",
+      "theme": "cultural",
+      "layer": "ne_50m_ports",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "50m_cultural/ne_50m_urban_areas.shp",
+      "source_blob_sha": "40958696d27abe8257f4a007b529eae966af5fbd",
+      "scale": "50m",
+      "theme": "cultural",
+      "layer": "ne_50m_urban_areas",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "50m_physical/ne_50m_antarctic_ice_shelves_lines.shp",
+      "source_blob_sha": "ee3c0239c8be7e5d4c801b92f954ac8b1a0e1275",
+      "scale": "50m",
+      "theme": "physical",
+      "layer": "ne_50m_antarctic_ice_shelves_lines",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "50m_physical/ne_50m_antarctic_ice_shelves_polys.shp",
+      "source_blob_sha": "c901a59c295f67fe7928e7bd222a1588431c64c8",
+      "scale": "50m",
+      "theme": "physical",
+      "layer": "ne_50m_antarctic_ice_shelves_polys",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "50m_physical/ne_50m_coastline.shp",
+      "source_blob_sha": "3e2890d4ae10c33d8d095de62a1ef5a539c94e1c",
+      "scale": "50m",
+      "theme": "physical",
+      "layer": "ne_50m_coastline",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "50m_physical/ne_50m_geographic_lines.shp",
+      "source_blob_sha": "1d2475370ee1de931a9c093182d3595448f1cb78",
+      "scale": "50m",
+      "theme": "physical",
+      "layer": "ne_50m_geographic_lines",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "50m_physical/ne_50m_geography_marine_polys.shp",
+      "source_blob_sha": "9ae4a16ba34c91b9caa6f2e14e4f4675356c2826",
+      "scale": "50m",
+      "theme": "physical",
+      "layer": "ne_50m_geography_marine_polys",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "50m_physical/ne_50m_geography_regions_elevation_points.shp",
+      "source_blob_sha": "17d029ea1e3e7d36c276330ec9c1cfa2aaadac5c",
+      "scale": "50m",
+      "theme": "physical",
+      "layer": "ne_50m_geography_regions_elevation_points",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "50m_physical/ne_50m_geography_regions_points.shp",
+      "source_blob_sha": "9e32034241e1ccff992187b88839563c86d0e035",
+      "scale": "50m",
+      "theme": "physical",
+      "layer": "ne_50m_geography_regions_points",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "50m_physical/ne_50m_geography_regions_polys.shp",
+      "source_blob_sha": "f32a2a6e3886dfeceb8f7ffadb80ff9cc9d9861e",
+      "scale": "50m",
+      "theme": "physical",
+      "layer": "ne_50m_geography_regions_polys",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "50m_physical/ne_50m_glaciated_areas.shp",
+      "source_blob_sha": "a23123f476bc92026abaf3097f45b5859d9764b1",
+      "scale": "50m",
+      "theme": "physical",
+      "layer": "ne_50m_glaciated_areas",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "50m_physical/ne_50m_graticules_all/ne_50m_graticules_1.shp",
+      "source_blob_sha": "3e5e3127b6dc50bea8256df97d8cb83c68009e00",
+      "scale": "50m",
+      "theme": "physical",
+      "layer": "ne_50m_graticules_1",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "50m_physical/ne_50m_graticules_all/ne_50m_graticules_10.shp",
+      "source_blob_sha": "31ca6145705ad62a505a2a2e214ca7e58be4996c",
+      "scale": "50m",
+      "theme": "physical",
+      "layer": "ne_50m_graticules_10",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "50m_physical/ne_50m_graticules_all/ne_50m_graticules_15.shp",
+      "source_blob_sha": "80341306879b45e3a328ed5535d2242a82ad9fe6",
+      "scale": "50m",
+      "theme": "physical",
+      "layer": "ne_50m_graticules_15",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "50m_physical/ne_50m_graticules_all/ne_50m_graticules_20.shp",
+      "source_blob_sha": "3dc9661e7eead3c9e0880fee18c74f3db3745797",
+      "scale": "50m",
+      "theme": "physical",
+      "layer": "ne_50m_graticules_20",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "50m_physical/ne_50m_graticules_all/ne_50m_graticules_30.shp",
+      "source_blob_sha": "9925355c652f59836de91d26b37a89f850bec843",
+      "scale": "50m",
+      "theme": "physical",
+      "layer": "ne_50m_graticules_30",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "50m_physical/ne_50m_graticules_all/ne_50m_graticules_5.shp",
+      "source_blob_sha": "22b758d74a7db4772bcde5f8ca976c0f8ab3b4cf",
+      "scale": "50m",
+      "theme": "physical",
+      "layer": "ne_50m_graticules_5",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "50m_physical/ne_50m_graticules_all/ne_50m_wgs84_bounding_box.shp",
+      "source_blob_sha": "194f64f5bbf610054a69687192e500d962353be9",
+      "scale": "50m",
+      "theme": "physical",
+      "layer": "ne_50m_wgs84_bounding_box",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "50m_physical/ne_50m_lakes_historic.shp",
+      "source_blob_sha": "e6078653d8877ac41c8a9a79ef9a5ff24cd66d29",
+      "scale": "50m",
+      "theme": "physical",
+      "layer": "ne_50m_lakes_historic",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "50m_physical/ne_50m_lakes.shp",
+      "source_blob_sha": "db977d9ee8860d8079c5e17dc474762940f26b59",
+      "scale": "50m",
+      "theme": "physical",
+      "layer": "ne_50m_lakes",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "50m_physical/ne_50m_land.shp",
+      "source_blob_sha": "75ce6d9860ac1bc9b2288c662f4ec36f195d7bf1",
+      "scale": "50m",
+      "theme": "physical",
+      "layer": "ne_50m_land",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "50m_physical/ne_50m_ocean.shp",
+      "source_blob_sha": "964c3dfa9d53e666c3e3ca45e76bdf764269e422",
+      "scale": "50m",
+      "theme": "physical",
+      "layer": "ne_50m_ocean",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "50m_physical/ne_50m_playas.shp",
+      "source_blob_sha": "4ac7ef3237546cfc6d7df743b2881d6d707f8062",
+      "scale": "50m",
+      "theme": "physical",
+      "layer": "ne_50m_playas",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "50m_physical/ne_50m_rivers_lake_centerlines_scale_rank.shp",
+      "source_blob_sha": "70ac8008910d45b51c96dcbb09e36a0e9ecc68bd",
+      "scale": "50m",
+      "theme": "physical",
+      "layer": "ne_50m_rivers_lake_centerlines_scale_rank",
+      "status": "expected_not_installed"
+    },
+    {
+      "source_path": "50m_physical/ne_50m_rivers_lake_centerlines.shp",
+      "source_blob_sha": "1332bf8e5f2ec78ef7fa3620c00d26c3683f57d8",
+      "scale": "50m",
+      "theme": "physical",
+      "layer": "ne_50m_rivers_lake_centerlines",
+      "status": "expected_not_installed"
+    }
+  ]
+}
