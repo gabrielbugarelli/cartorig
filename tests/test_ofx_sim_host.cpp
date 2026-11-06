@@ -329,6 +329,39 @@ int main(int argc,char**argv){
          "existing source ID recolored without duplication");
    check(render(generator,styled,W,H,0)==kOfxStatOK&&regionPixels!=colored,
          "recolored region changes real rendered pixels");
+   // Capture color at the playhead in the selected geographic source ID.
+   // These tracks are stored in the same persisted JSON as the region.
+   setS(bh(regionAction),kOfxPropName,0,"GeographicRegionCaptureKey");
+   setD(bh(regionAction),kOfxPropTime,0,0.0);
+   check(call(generator,kOfxActionInstanceChanged,styled,&regionAction)==kOfxStatOK,
+         "Capture RGBA key at scene frame zero");
+   overrideParam(styled,"GeographicRegionRed",25.0);
+   overrideParam(styled,"GeographicRegionGreen",130.0);
+   overrideParam(styled,"GeographicRegionBlue",230.0);
+   overrideParam(styled,"GeographicRegionAlpha",160.0);
+   overrideParam(styled,"GeographicRegionEase",1);
+   setD(bh(regionAction),kOfxPropTime,0,100.0);
+   check(call(generator,kOfxActionInstanceChanged,styled,&regionAction)==kOfxStatOK,
+         "Capture independent RGBA key at frame 100");
+   check(std::holds_alternative<std::string>(saved)&&
+         std::get<std::string>(saved).find("color_keys")!=std::string::npos,
+         "captured region keyframes are project-persistent");
+   check(render(generator,styled,W,H,0)==kOfxStatOK,
+         "animated region renders scene frame zero");
+   const auto animationStart=regionPixels;
+   check(render(generator,styled,W,H,100)==kOfxStatOK&&
+         regionPixels!=animationStart,
+         "region RGBA animation visibly changes OpenFX pixels at frame 100");
+   const auto animationEnd=regionPixels;
+   check(render(generator,styled,W,H,50)==kOfxStatOK&&
+         regionPixels!=animationStart&&regionPixels!=animationEnd,
+         "region color interpolates at intermediate playhead frame");
+   check(render(generator,styled,W,H,100)==kOfxStatOK&&
+         regionPixels==animationEnd,
+         "region RGBA animation is deterministic under random seeks");
+   setS(bh(regionAction),kOfxPropName,0,"GeographicRegionEdit");
+   check(call(generator,kOfxActionInstanceChanged,styled,&regionAction)==kOfxStatReplyDefault,
+         "select existing region loads its own RGBA color");
    setS(bh(regionAction),kOfxPropName,0,"GeographicRegionRemove");
    check(call(generator,kOfxActionInstanceChanged,styled,&regionAction)==kOfxStatOK,
          "Remove selected source ID");
@@ -336,6 +369,15 @@ int main(int argc,char**argv){
          "removal leaves an empty persisted region list");
    check(render(generator,styled,W,H,0)==kOfxStatOK&&regionPixels==unselected,
          "removing region restores identical source geometry pixels");
+   setS(bh(regionAction),kOfxPropName,0,"GeographicRegionAdd");
+   setD(bh(regionAction),kOfxPropTime,0,0);
+   check(call(generator,kOfxActionInstanceChanged,styled,&regionAction)==kOfxStatOK,
+         "re-add region for saved-selection delete test");
+   setS(bh(regionAction),kOfxPropName,0,"GeographicRegionRemoveSaved");
+   check(call(generator,kOfxActionInstanceChanged,styled,&regionAction)==kOfxStatOK,
+         "remove saved region by its selected persistent ID");
+   check(std::get<std::string>(saved)=="[]",
+         "saved-region removal clears stored geometry and styles");
    check(call(generator,kOfxActionDestroyInstance,styled)==kOfxStatOK,
          "destroy typed offline region host effect");
  }
