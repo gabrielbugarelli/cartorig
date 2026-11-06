@@ -13,6 +13,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 add_library(cartorig_core STATIC
   src/cartorig.cpp
   src/raster.cpp
+  src/natural_earth_raster.cpp
   src/compositing.cpp
   src/native_controls.cpp
   third_party/json11/json11.cpp)
