@@ -88,6 +88,13 @@ void copySurface(Surface source,Surface destination){
     throw std::invalid_argument("invalid source or destination surface");
   // A filter must produce a defined pixel for every output pixel even if
   // its input has a smaller region of definition than the requested window.
+  // Most OFX hosts allocate separate source/output images, but avoid
+  // destructive clearing when the host provides the exact same buffer.
+  if(source.data==destination.data&&source.format==destination.format&&
+     source.premultiplied==destination.premultiplied&&
+     source.rowBytes==destination.rowBytes&&source.x1==destination.x1&&
+     source.y1==destination.y1&&source.x2==destination.x2&&
+     source.y2==destination.y2)return;
   clear(destination);
   const int x0=std::max(source.x1,destination.x1);
   const int y0=std::max(source.y1,destination.y1);

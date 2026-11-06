@@ -75,9 +75,11 @@ void renderDiagnosticPattern(Surface s,int width,int height,int mode){
       char *dest=row+static_cast<ptrdiff_t>(x-s.x1)*pixelBytes;
       if(s.format==PixelFormat::ByteRGBA) {
         auto *out=reinterpret_cast<uint8_t*>(dest);
+        if(s.premultiplied){c[0]*=c[3];c[1]*=c[3];c[2]*=c[3];}
         for(int k=0;k<4;k++)out[k]=static_cast<uint8_t>(std::lround(c[k]*255.0f));
       }else {
         auto *out=reinterpret_cast<float*>(dest);
+        if(s.premultiplied){c[0]*=c[3];c[1]*=c[3];c[2]*=c[3];}
         for(int k=0;k<4;k++)out[k]=c[k];
       }
     }
@@ -86,7 +88,10 @@ void renderDiagnosticPattern(Surface s,int width,int height,int mode){
 
 void render(const Scene &scene,const Dataset &data,const View &view,Surface dst,RasterStats *stats){
  if(view.width<=0||view.height<=0||view.width>16384||view.height>16384||!dst.data||dst.x1>=dst.x2||dst.y1>=dst.y2||dst.rowBytes==0)throw std::invalid_argument("invalid image target");
- Painter p{dst,view.width,view.height,stats,view.opacity};if(!view.preserveBackground)p.fill(scene.style.transparent?Color{0,0,0,0}:scene.style.ocean);
+ Painter p{dst,view.width,view.height,stats,view.opacity};if(!view.preserveBackground){
+   p.fill(Color{0,0,0,0}); // host output can contain undefined pixels
+   if(!scene.style.transparent)p.fill(scene.style.ocean);
+ }
  const auto drawFeature=[&](const Feature &f,Color fillColor,bool border){
    const double world=256.0*std::pow(2.0,view.camera.zoom)*(view.width/1280.0);
    const double angle=view.camera.bearing*3.14159265358979323846/180.0;

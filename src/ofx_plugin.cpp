@@ -154,7 +154,7 @@ OfxStatus describeInContext(OfxImageEffectHandle e,bool filter){OfxPropertySetHa
  OfxParamSetHandle ps=nullptr;if(fx->getParamSet(e,&ps)!=kOfxStatOK)return kOfxStatFailed;
  defineString(ps,"SceneFile","Scene .json (blank: bundled sample)");defineString(ps,"CatalogFile","GeoJSON (blank: offline countries)");defineBoolean(ps,"UseSceneCamera","Use camera keyframes from scene",true);
  defineDouble(ps,"Longitude","Camera longitude",-61,-180,180);defineDouble(ps,"Latitude","Camera latitude",-12,-85,85);defineDouble(ps,"Zoom","Camera zoom",3.2,0,18);defineDouble(ps,"Bearing","Camera bearing (degrees)",0,-360,360);
- defineDouble(ps,"RouteProgress","Route reveal (-1: scene)",-1,-1,1);defineDouble(ps,"Opacity","Cartography opacity",1,0,1);
+ defineDouble(ps,"RouteProgress","Route reveal (-1: scene)",-1,-1,1);defineDouble(ps,"Opacity","Cartography opacity (entire map)",filter?0.7:1,0,1);
  defineDiagnosticChoice(ps);defineBoolean(ps,"DiagnosticLog","Write OFX diagnostic log",false);
  return kOfxStatOK;
 }
@@ -166,7 +166,6 @@ OfxStatus createInstance(OfxImageEffectHandle e,bool filter){auto i=std::make_un
 }
 OfxStatus destroyInstance(OfxImageEffectHandle e){Instance *i=instance(e);if(!i)return kOfxStatOK;OfxPropertySetHandle p=nullptr;fx->getPropertySet(e,&p);prop->propSetPointer(p,kOfxPropInstanceData,0,nullptr);delete i;return kOfxStatOK;}
 struct ImageLease {OfxPropertySetHandle image=nullptr;~ImageLease(){if(image)fx->clipReleaseImage(image);}ImageLease(const ImageLease&)=delete;ImageLease& operator=(const ImageLease&)=delete;ImageLease()=default;};
-void clearRegion(cartorig::Surface surface){int bpp=surface.format==cartorig::PixelFormat::ByteRGBA?4:16;for(int y=surface.y1;y<surface.y2;++y)std::memset(static_cast<char*>(surface.data)+(y-surface.y1)*surface.rowBytes,0,static_cast<size_t>(surface.x2-surface.x1)*bpp);}
 cartorig::Surface surfaceOf(OfxPropertySetHandle image,bool generator){cartorig::Surface s;void *buffer=nullptr;int rect[4]{},rowBytes=0;char *depth=nullptr,*components=nullptr;
  if(prop->propGetPointer(image,kOfxImagePropData,0,&buffer)!=kOfxStatOK||!buffer||prop->propGetIntN(image,kOfxImagePropBounds,4,rect)!=kOfxStatOK||prop->propGetInt(image,kOfxImagePropRowBytes,0,&rowBytes)!=kOfxStatOK||prop->propGetString(image,kOfxImageEffectPropPixelDepth,0,&depth)!=kOfxStatOK||prop->propGetString(image,kOfxImageEffectPropComponents,0,&components)!=kOfxStatOK)throw std::runtime_error("unsupported image properties");
  const auto layout=cartorig::classifyOfxLayout(
@@ -186,6 +185,10 @@ cartorig::Surface surfaceOf(OfxPropertySetHandle image,bool generator){cartorig:
      writeDiagnostics("COMPAT: Resolve 20 Generator returned ComponentNone with "
        "tight Float4 row. Interpreting as RGBA after validating dimensions.");
  }
+ char *premult=nullptr;
+ if(prop->propGetString(image,kOfxImageEffectPropPreMultiplication,0,&premult)==kOfxStatOK&&premult)
+   s.premultiplied=!std::strcmp(premult,kOfxImagePreMultiplied);
+ else s.premultiplied=generator;
  s.data=buffer;s.x1=rect[0];s.y1=rect[1];s.x2=rect[2];s.y2=rect[3];s.rowBytes=rowBytes;
  if(depth&&!strcmp(depth,kOfxBitDepthByte))s.format=cartorig::PixelFormat::ByteRGBA;
  else if(depth&&!strcmp(depth,kOfxBitDepthFloat))s.format=cartorig::PixelFormat::FloatRGBA;
@@ -197,7 +200,6 @@ cartorig::Surface surfaceOf(OfxPropertySetHandle image,bool generator){cartorig:
    throw std::runtime_error("OFX image row pitch too short for RGBA format");
  return s;
 }
-void copySource(cartorig::Surface source,cartorig::Surface dst){const int bytes=dst.format==cartorig::PixelFormat::FloatRGBA?16:4;if(source.format!=dst.format)throw std::runtime_error("source/output depths do not match");clearRegion(dst);int x0=std::max(dst.x1,source.x1),x1=std::min(dst.x2,source.x2),y0=std::max(dst.y1,source.y1),y1=std::min(dst.y2,source.y2);for(int y=y0;y<y1;++y){auto *s=static_cast<char*>(source.data)+static_cast<ptrdiff_t>(y-source.y1)*source.rowBytes+static_cast<ptrdiff_t>(x0-source.x1)*bytes;auto *d=static_cast<char*>(dst.data)+static_cast<ptrdiff_t>(y-dst.y1)*dst.rowBytes+static_cast<ptrdiff_t>(x0-dst.x1)*bytes;std::memcpy(d,s,static_cast<size_t>(x1-x0)*bytes);}}
 OfxStatus render(OfxImageEffectHandle e,OfxPropertySetHandle args){Instance *i=instance(e);if(!i)return kOfxStatFailed;double time=0;if(readProp(args,kOfxPropTime,0,time)!=kOfxStatOK)return kOfxStatFailed;
  const bool diagnosticLogging=intAt(i->diagnosticLog,time,0)!=0;
  const int diagnosticMode=intAt(i->diagnosticMode,time,0);
@@ -276,12 +278,21 @@ OfxStatus render(OfxImageEffectHandle e,OfxPropertySetHandle args){Instance *i=i
  if(sceneFile.empty())sceneFile=defaultAsset("brasil-venezuela.cartorig-native.json");
  if(datasetFile.empty())datasetFile=defaultAsset("countries.geojson");
  auto scene=sceneAt(sceneFile);auto dataset=datasetAt(datasetFile);
- cartorig::View view;view.width=width;view.height=height;view.frame=time;view.camera=evaluateCamera(*scene,time);
+ cartorig::View view;view.width=width;view.height=height;view.frame=time;view.camera=evaluateCamera(*scene,time);view.opacity=std::clamp(doubleAt(i->opacity,time,1),0.0,1.0);
  if(!intAt(i->useSceneKeys,time,1)){view.camera.lon=doubleAt(i->lon,time,view.camera.lon);view.camera.lat=doubleAt(i->lat,time,view.camera.lat);view.camera.zoom=doubleAt(i->zoom,time,view.camera.zoom);view.camera.bearing=doubleAt(i->bearing,time,view.camera.bearing);}
- view.routeProgress=doubleAt(i->route,time,-1);double opacity=std::clamp(doubleAt(i->opacity,time,1),0.0,1.0);
- auto copy=*scene;copy.style.highlight.a=static_cast<uint8_t>(copy.style.highlight.a*opacity);for(auto &m:copy.markers)m.color.a=static_cast<uint8_t>(m.color.a*opacity);for(auto &r:copy.routes)r.color.a=static_cast<uint8_t>(r.color.a*opacity);
- ImageLease source;if(i->overlay&&fx->clipGetImage(i->source,time,nullptr,&source.image)==kOfxStatOK&&source.image){copySource(surfaceOf(source.image,false),target);copy.style.transparent=true;view.preserveBackground=true;}
- else {copy.style.transparent=i->overlay||copy.style.transparent;}
+ view.routeProgress=doubleAt(i->route,time,-1);
+ auto copy=*scene;
+ ImageLease source;
+ if(i->overlay){
+   const OfxStatus sourceStatus=fx->clipGetImage(i->source,time,nullptr,&source.image);
+   if(sourceStatus!=kOfxStatOK||!source.image){
+     if(diagnosticLogging)writeDiagnostics("Overlay source unavailable: "+std::to_string(sourceStatus));
+     return kOfxStatFailed;
+   }
+   cartorig::copySurface(surfaceOf(source.image,false),target);
+   copy.style.transparent=true;
+   view.preserveBackground=true;
+ }
  cartorig::render(copy,*dataset,view,target);
  return kOfxStatOK;
 }
@@ -311,9 +322,9 @@ OfxStatus entry(const char *action,const void *handle,OfxPropertySetHandle args,
        writeDiagnostics("GetClipPreferences Output RGBA request not accepted: "+
          std::to_string(status));
    }
-   // Our generator produces straight RGBA; without this, generator defaults may be opaque.
-   // Filter output retains the host's source premultiplication pending source conversion.
-   if(!filter&&prop->propSetString(out,kOfxImageEffectPropPreMultiplication,0,kOfxImageUnPreMultiplied)!=kOfxStatOK)return kOfxStatFailed;
+   // Both contexts now produce premultiplied output, including translucent
+   // graphics composited onto live video by the Overlay Filter.
+   if(prop->propSetString(out,kOfxImageEffectPropPreMultiplication,0,kOfxImagePreMultiplied)!=kOfxStatOK)return kOfxStatFailed;
    return kOfxStatOK;
  }
  if(!std::strcmp(action,kOfxActionCreateInstance))return createInstance((OfxImageEffectHandle)handle,filter);
