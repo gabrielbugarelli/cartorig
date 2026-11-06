@@ -47,13 +47,15 @@ with tempfile.TemporaryDirectory() as directory:
                   b"".join(p(x,y) for x,y in pts))
     def point(x,y):
         return gp(b"\x01"+struct.pack("<I",1)+p(x,y))
-    with sqlite3.connect(gpkg) as local:
-        local.execute("UPDATE ne_10m_admin_0_countries SET geometry=? WHERE adm0_a3='BRA'",
-                      (polygon(),))
-        local.execute("UPDATE ne_10m_admin_1_states_provinces SET geometry=? WHERE name='São Paulo'",
-                      (polygon(),))
-        local.execute("UPDATE ne_10m_populated_places SET geometry=? WHERE name='São Paulo'",
-                      (point(-46.633,-23.55),))
+    local=sqlite3.connect(gpkg)
+    local.execute("UPDATE ne_10m_admin_0_countries SET geometry=? WHERE adm0_a3='BRA'",
+                  (polygon(),))
+    local.execute("UPDATE ne_10m_admin_1_states_provinces SET geometry=? WHERE name='São Paulo'",
+                  (polygon(),))
+    local.execute("UPDATE ne_10m_populated_places SET geometry=? WHERE name='São Paulo'",
+                  (point(-46.633,-23.55),))
+    local.commit()
+    local.close()
     # Python SQLite connection context manager commits but does NOT close.
     # Windows keeps the GeoPackage locked until an explicit close.
     db.close()
