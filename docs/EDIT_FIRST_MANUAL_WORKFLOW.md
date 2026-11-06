@@ -12,7 +12,7 @@ As novas instâncias têm `Use camera animation from imported scene` **desativad
 
 1. Na **Edit**, adicione `CartoRig Map (Edit)` à V1. A câmera começa fixa e sem elementos predefinidos.
 2. Ajuste **Camera longitude**, **Camera latitude**, **Camera zoom** e **Camera bearing**. Para animar, posicione o playhead, adicione keyframes dos respectivos parâmetros e altere valores em outros quadros. As curvas Bézier são editadas pelo editor nativo da Edit quando o Resolve expuser os parâmetros OpenFX.
-3. Em **Territories / highlight**, digite códigos ISO3, por exemplo `BRA`, `VEN`, `FRA`, nos campos de **Country 1** e **Country 2**. Ambos iniciam vazios. **Highlight opacity** aceita keyframes de 0 a 1 para aparecer/desaparecer. Não existe seleção automática de Brasil ou Venezuela.
+3. Em **Territories / highlight**, digite códigos ISO3, por exemplo `BRA`, `VEN`, `FRA`, nos campos de **Country 1** e **Country 2**. O campo **More countries (ISO3 list)** aceita listas como `ARG, URY, CHL` sem necessidade de JSON. Todos iniciam vazios. **Highlight opacity** aceita keyframes de 0 a 1 para aparecer/desaparecer. Não existe seleção automática de Brasil ou Venezuela.
 4. Em **Manual geographic route**, marque **Enable manual route** apenas quando quiser criar uma rota. Ajuste latitudes e longitudes dos pontos de partida e chegada. **Route reveal** começa em 1 (rota inteira visível quando ativada); para desenhá-la progressivamente, coloque um keyframe em 0 no quadro inicial e outro em 1 no quadro final. É possível animar também coordenadas, curvatura e espessura.
 5. **Show route endpoints** controla a exibição de marcadores; os campos **Origin label** e **Destination label** aceitam rótulos curtos. Nenhuma marcação é adicionada antes da ativação manual da rota.
 6. Em **Map colors (optional override)**, marque **Override imported map colors** para escolher os valores RGB de oceano, territórios e destaque. Desmarcado, o plugin preserva as cores definidas na cena.
@@ -29,7 +29,7 @@ A versão exibida no Inspector é **0.3.0-dev / SHA de origem**. O GitHub Action
 ## Limites explícitos
 
 - Estes controles oferecem **manipulação nativa por parâmetros numéricos e campos do Inspector**; ainda não há clique direto em países no Viewer, alças de Bézier geográficas nem drag-and-drop de marcadores na imagem.
-- Dois países podem ser destacados diretamente no Inspector. Cenas complexas com quantidades variáveis de territórios/rotas continuam possíveis via JSON incorporado; um gerenciador visual de objetos dinâmicos permanece futuro.
+- Dois países podem ser destacados nos campos rápidos, além de listas adicionais ISO3 diretamente no Inspector. Cenas complexas com quantidades variáveis de territórios/rotas continuam possíveis via JSON incorporado; um gerenciador visual de objetos dinâmicos permanece futuro.
 - O editor de curvas da Edit controla parâmetros OpenFX publicados; não se deve anunciar suporte completo a todas as curvas sem o teste host-real.
 - O efeito `Overlay` aplicado a vídeo, o alfa e o salvamento/reabertura dos novos parâmetros ainda precisam de testes reais no Resolve 20.
 - O projeto continua em prévia de desenvolvimento; o catálogo completo de requisitos não foi concluído.

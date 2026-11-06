@@ -7,7 +7,7 @@ namespace cartorig {
 // Edit page native Inspector settings. No cartographic motion is generated
 // unless a user explicitly creates keyframes or enables an imported scene.
 struct NativeMapControls {
-  std::string countryA, countryB;
+  std::string countryA, countryB, countryList;
   double highlightStrength=1.0;
   bool customColors=false;
   Color ocean{13,30,50,255}, land{35,59,82,255}, highlight{40,157,192,220};

@@ -223,6 +223,10 @@ int main(int argc,char**argv){
  check(render(generator,blank,W,H,0)==kOfxStatOK&&blankOutput!=neutralF0,
        "manual ISO3 country highlight changes map");
  const auto withBrazil=blankOutput;
+ overrideParam(blank,"CountryList",std::string("ARG, VEN"));
+ check(render(generator,blank,W,H,0)==kOfxStatOK,
+       "native ISO3 list accepts additional countries");
+ overrideParam(blank,"CountryList",std::string(""));
  overrideParam(blank,"HighlightStrength",0.);
  check(render(generator,blank,W,H,0)==kOfxStatOK&&blankOutput==neutralF0,
        "highlight strength zero removes only native highlighted region");

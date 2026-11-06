@@ -72,6 +72,10 @@ int main(){
     c.countryB="BRA";
     auto dedup=sceneWithNativeControls(scene,c);
     check(dedup.highlighted.size()==1,"duplicate country names deduplicated");
+    c.countryList="ARG, CHL; URY BRA";
+    auto multiple=sceneWithNativeControls(scene,c);
+    check(multiple.highlighted.size()==4,"native list accepts many additional ISO3 countries");
+    c.countryList.clear();
     c.countryB="";
     c.highlightStrength=0;
     auto transparentHighlight=sceneWithNativeControls(scene,c);

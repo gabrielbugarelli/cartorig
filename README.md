@@ -85,7 +85,7 @@ Restart DaVinci Resolve Studio 20. If the Generator is supported, search for **C
 | Embedded scene JSON | Portable in-project scene; overrides external scene file |
 | Embedded GeoJSON | Portable in-project data; overrides external GeoJSON |
 | Scene offset / time scale | Shift, freeze and reverse JSON camera/route animation |
-| Country 1 / Country 2 (ISO3) | Blank initially; user chooses territories to highlight |
+| Country 1 / Country 2 / More countries (ISO3 list) | Blank initially; user chooses one, two or multiple territories to highlight |
 | Highlight opacity | Animatable strength for user-selected countries |
 | Enable manual route | Disabled initially; creates editable route only on request |
 | Start / end longitude and latitude | Keyframe-capable geographic waypoints for the manual route |

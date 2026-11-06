@@ -2,6 +2,7 @@
 #include <algorithm>
 #include <cctype>
 #include <cmath>
+#include <utility>
 #include <stdexcept>
 
 namespace cartorig {
@@ -47,10 +48,26 @@ Scene sceneWithNativeControls(const Scene &original,const NativeMapControls &n) 
   }
   s.style.highlight.a=static_cast<uint8_t>(
     std::lround(s.style.highlight.a*n.highlightStrength));
-  for(const auto &raw:{n.countryA,n.countryB}){
+  auto addCountry=[&](const std::string &raw){
     const auto iso=normalizedISO3(raw);
     if(!iso.empty()&&std::find(s.highlighted.begin(),s.highlighted.end(),iso)==s.highlighted.end())
       s.highlighted.push_back(iso);
+  };
+  addCountry(n.countryA);addCountry(n.countryB);
+  if(n.countryList.size()>4096)
+    throw std::invalid_argument("native country list exceeds size limit");
+  std::string token;size_t tokenCount=0;
+  for(size_t i=0;i<=n.countryList.size();++i){
+    const char ch=i<n.countryList.size()?n.countryList[i]:',';
+    if(ch==','||ch==';'||ch==' '||ch=='\t'||ch=='\r'||ch=='\n'){
+      if(!token.empty()){
+        if(++tokenCount>256)throw std::invalid_argument("too many native country IDs");
+        addCountry(token);
+        token.clear();
+      }
+    }else{
+      if(token.size()<=12)token.push_back(ch);
+    }
   }
   if(n.routeEnabled){
     requireGeo(n.routeStart);requireGeo(n.routeEnd);

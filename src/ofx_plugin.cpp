@@ -38,7 +38,7 @@ struct Instance {
   OfxParamHandle sceneFile=nullptr,datasetFile=nullptr,sceneInline=nullptr,datasetInline=nullptr;
   OfxParamHandle useSceneKeys=nullptr,lon=nullptr,lat=nullptr,zoom=nullptr,bearing=nullptr,route=nullptr,opacity=nullptr;
   OfxParamHandle frameOffset=nullptr,timeScale=nullptr,diagnosticMode=nullptr,diagnosticLog=nullptr;
-  OfxParamHandle countryA=nullptr,countryB=nullptr,highlightStrength=nullptr;
+  OfxParamHandle countryA=nullptr,countryB=nullptr,countryList=nullptr,highlightStrength=nullptr;
   OfxParamHandle routeEnabled=nullptr,routeStartLon=nullptr,routeStartLat=nullptr;
   OfxParamHandle routeEndLon=nullptr,routeEndLat=nullptr,routeCurve=nullptr,routeWidth=nullptr;
   OfxParamHandle showRouteMarkers=nullptr,routeStartLabel=nullptr,routeEndLabel=nullptr;
@@ -264,6 +264,7 @@ OfxStatus describeInContext(OfxImageEffectHandle e,bool filter){
  defineNativeGroup(ps,"CountryControls","Territories / highlight",true);
  defineNativeText(ps,"CountryA","Country 1 (ISO3, e.g. BRA)","CountryControls");
  defineNativeText(ps,"CountryB","Country 2 (ISO3, e.g. VEN)","CountryControls");
+ defineNativeText(ps,"CountryList","More countries (ISO3 list)","CountryControls");
  defineNativeDouble(ps,"HighlightStrength","Highlight opacity",1,0,1,"CountryControls");
 
  defineNativeGroup(ps,"RouteControls","Manual geographic route",true);
@@ -308,7 +309,7 @@ OfxStatus createInstance(OfxImageEffectHandle e,bool filter){auto i=std::make_un
  {"SceneTimeOffset",&i->frameOffset},{"SceneTimeScale",&i->timeScale},
  {"UseSceneCamera",&i->useSceneKeys},{"Longitude",&i->lon},{"Latitude",&i->lat},{"Zoom",&i->zoom},
  {"Bearing",&i->bearing},{"RouteProgress",&i->route},{"Opacity",&i->opacity},
- {"CountryA",&i->countryA},{"CountryB",&i->countryB},{"HighlightStrength",&i->highlightStrength},
+ {"CountryA",&i->countryA},{"CountryB",&i->countryB},{"CountryList",&i->countryList},{"HighlightStrength",&i->highlightStrength},
  {"NativeRouteEnabled",&i->routeEnabled},{"RouteStartLongitude",&i->routeStartLon},
  {"RouteStartLatitude",&i->routeStartLat},{"RouteEndLongitude",&i->routeEndLon},
  {"RouteEndLatitude",&i->routeEndLat},{"NativeRouteCurve",&i->routeCurve},
@@ -446,6 +447,7 @@ OfxStatus render(OfxImageEffectHandle e,OfxPropertySetHandle args){Instance *i=i
  cartorig::NativeMapControls controls;
  stringAt(i->countryA,time,controls.countryA);
  stringAt(i->countryB,time,controls.countryB);
+ stringAt(i->countryList,time,controls.countryList);
  controls.highlightStrength=doubleAt(i->highlightStrength,time,1);
  controls.routeEnabled=intAt(i->routeEnabled,time,0)!=0;
  controls.routeStart.lon=doubleAt(i->routeStartLon,time,-20);
