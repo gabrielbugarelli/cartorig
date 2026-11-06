@@ -1,0 +1,94 @@
+name: CartoRig Native C++ and OpenFX CI
+on:
+  push:
+    branches: [main, 'feat/**']
+  pull_request:
+  workflow_dispatch:
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, windows-2022]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Verify original requirement coverage
+        run: python tools/traceability.py --check
+      - name: Configure
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCARTORIG_BUILD_TESTS=ON -DCARTORIG_SOURCE_SHA=${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Compile
+        run: cmake --build build --config Release --parallel 2
+      - name: Validate distributable OFX bundle layout
+        shell: bash
+        run: |
+          if [[ "${{ runner.os }}" == "Windows" ]]; then
+            test -f build/CartoRigNative.ofx.bundle/Contents/Win64/CartoRigNative.ofx
+            test ! -e build/CartoRigNative.ofx.bundle/Contents/Win64/Release/CartoRigNative.ofx
+          else
+            test -f build/CartoRigNative.ofx.bundle/Contents/Linux-x86-64/CartoRigNative.ofx
+          fi
+          test -f build/CartoRigNative.ofx.bundle/Contents/Resources/countries.geojson
+          test -f build/CartoRigNative.ofx.bundle/Contents/Resources/default-map.cartorig-native.json
+          test ! -e build/CartoRigNative.ofx.bundle/Contents/Resources/brasil-venezuela.cartorig-native.json
+      - name: Run standalone core tests
+        run: ctest --test-dir build -C Release --output-on-failure
+      - name: Render 3 representative frames
+        shell: bash
+        run: |
+          mkdir -p build/previews
+          if [[ "${{ runner.os }}" == "Windows" ]]; then EXE=build/Release/cartorig_preview.exe; else EXE=build/cartorig_preview; fi
+          "$EXE" data/countries.geojson data/default-map.cartorig-native.json 0 build/previews/f000.ppm
+          "$EXE" data/countries.geojson data/default-map.cartorig-native.json 96 build/previews/f096.ppm
+          "$EXE" data/countries.geojson data/default-map.cartorig-native.json 239 build/previews/f239.ppm
+          "$EXE" data/countries.geojson data/default-map.cartorig-native.json 96 build/previews/f096-1440p.ppm 2560 1440
+          "$EXE" data/countries.geojson data/default-map.cartorig-native.json 96 build/previews/f096-4k.ppm 3840 2160
+      - name: Validate static no-animation default
+        run: python tools/check_static_map.py build/previews/f000.ppm build/previews/f096.ppm build/previews/f239.ppm
+      - name: Validate Windows installer (dry-run)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $errors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path ./packaging/Install.ps1),[ref]$null,[ref]$errors) | Out-Null
+          if ($errors.Count -gt 0) { throw ($errors | Out-String) }
+          ./packaging/Install.ps1 -BundlePath ./build/CartoRigNative.ofx.bundle -Upgrade -WhatIf
+      - name: Stage Windows installation scripts
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          Copy-Item ./packaging/Install.ps1 ./build/Install-CartoRigNative.ps1
+          Copy-Item ./packaging/Uninstall.ps1 ./build/Uninstall-CartoRigNative.ps1
+      - name: Upload native OFX bundle and previews
+        uses: actions/upload-artifact@v4
+        with:
+          name: CartoRigNative-${{ runner.os }}
+          path: |
+            build/CartoRigNative.ofx.bundle/
+            build/previews/
+            build/Install-CartoRigNative.ps1
+            build/Uninstall-CartoRigNative.ps1
+          if-no-files-found: error
+  source-snapshot:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Pack exact commit sources for integration repro
+        run: tar czf cartorig-native-source.tar.gz CMakeLists.txt src tests tools third_party data samples packaging docs README.md
+      - name: Upload reproducible source snapshot
+        uses: actions/upload-artifact@v4
+        with:
+          name: CartoRigNative-Source
+          path: cartorig-native-source.tar.gz
+          if-no-files-found: error
+  sanitizers:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build AddressSanitizer + UndefinedBehaviorSanitizer
+        run: |
+          cmake -S . -B build-sanitize -DCMAKE_BUILD_TYPE=Debug -DCARTORIG_SANITIZERS=ON -DCARTORIG_SOURCE_SHA=${{ github.event.pull_request.head.sha || github.sha }}
+          cmake --build build-sanitize --parallel 2
+      - name: Run instrumented tests
+        run: ctest --test-dir build-sanitize --output-on-failure

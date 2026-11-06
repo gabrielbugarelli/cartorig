@@ -1,0 +1,130 @@
+id,feature,release,layer,priority,case,setup,expected
+T-KF01-01,KF-01,0.3,unit,P0,caminho-feliz,Track zoom com keys f0/f10/f20 e busca em f15,Avaliar segmento correto; f15 interpolado entre f10 e f20
+T-KF01-02,KF-01,0.3,unit,P0,erro-ou-borda,Adicionar dois keys no mesmo frame 10,"Upsert substitui, não duplica"
+T-KF02-01,KF-02,0.3,ui,P0,caminho-feliz,"Câmera, Brasil e rota com tracks visíveis",Trilhas hierárquicas em ordem estável e seleção consistente
+T-KF02-02,KF-02,0.3,ui,P0,erro-ou-borda,Expandir/colapsar centenas de trilhas durante reprodução,Nenhuma seleção perdida; render não altera foco
+T-KF03-01,KF-03,0.3,ui,P0,caminho-feliz,Auto Keyframe ON + mover zoom no f37,Criar key zoom f37; lon/lat preservados
+T-KF03-02,KF-03,0.3,ui,P0,erro-ou-borda,Auto Keyframe OFF + propriedade animada,Não alterar track silenciosamente; solicitar ação explícita
+T-KF04-01,KF-04,0.4,ui,P0,caminho-feliz,Editar handle temporal do Graph Editor,Curva e valor do inspector refletem easing da trilha
+T-KF04-02,KF-04,0.4,ui,P0,erro-ou-borda,"Mover handle x para fora de [0,1]",Rejeitar valor ou limitar visualmente com feedback
+T-KF05-01,KF-05,0.3,unit,P0,caminho-feliz,Keys f0=0 f10=1 com easing InOut,Valor em f5=0.5; endpoints exatos
+T-KF05-02,KF-05,0.3,unit,P0,erro-ou-borda,Tipo enum com interpolação cúbica,Erro sem render ou coerção
+T-KF06-01,KF-06,0.3,unit,P0,caminho-feliz,Alterar key de camera.zoom sem mudar lon,Só zoom muda na avaliação do mesmo frame
+T-KF06-02,KF-06,0.3,unit,P0,erro-ou-borda,Track duplicado para mesmo target/property,Cena rejeitada pela validação
+T-KF07-01,KF-07,0.3,unit,P0,caminho-feliz,Copiar keys f10/f20 e colar no f40,Criar keys f40/f50 com IDs novos
+T-KF07-02,KF-07,0.3,unit,P0,erro-ou-borda,Colar em frame que excede duração,Falha atômica; nenhum key parcial
+T-KF08-01,KF-08,0.4,unit,P0,caminho-feliz,Mover 3 keys +7 frames mantendo ordem,"Todos deslocados em 7, easing preservado"
+T-KF08-02,KF-08,0.4,unit,P0,erro-ou-borda,Retime cria colisão com key existente,Rejeitar sem sobrescrever valores
+T-KF09-01,KF-09,0.3,ui,P0,caminho-feliz,Arrastar key próximo de marker f40 com Snap ON,Key encaixa no f40 dentro da tolerância visual
+T-KF09-02,KF-09,0.3,ui,P0,erro-ou-borda,Arrastar com Alt/snap temporariamente OFF,Nenhum snap automático
+T-KF10-01,KF-10,0.3,unit,P0,caminho-feliz,Aplicar preset multi-track e Undo,Voltar snapshot anterior integralmente
+T-KF10-02,KF-10,0.3,unit,P0,erro-ou-borda,"Nova alteração após Undo, depois Redo",Redo invalidado; estado íntegro
+T-CAM11-01,CAM-11,0.4,unit,P0,caminho-feliz,Quatro poses f0/f72/f156/f239,Passar por cada pose exatamente
+T-CAM11-02,CAM-11,0.4,unit,P0,erro-ou-borda,Uma propriedade sem key intermediário,Manter interpolação dessa propriedade independente
+T-CAM12-01,CAM-12,0.4,geo,P0,caminho-feliz,Caminho Bézier geográfico com 2 handles,"Pontos de início/fim exatos, tangente contínua"
+T-CAM12-02,CAM-12,0.4,geo,P0,erro-ou-borda,Handles com latitude >85,Rejeitar/normalizar por contrato
+T-CAM13-01,CAM-13,0.4,geo,P0,caminho-feliz,Fly-to de Caracas a Washington,Pico de afastamento sem NaN; último frame exato
+T-CAM13-02,CAM-13,0.4,geo,P0,erro-ou-borda,Duração 1 frame / destino igual origem,Sem divisão por zero nem salto
+T-CAM14-01,CAM-14,0.4,geo,P0,caminho-feliz,Bearing de 350 para 10 shortest,Percorrer 20 graus e passar por 0
+T-CAM14-02,CAM-14,0.4,geo,P0,erro-ou-borda,Rotação contínua de 350→730,Manter volta completa no modo continuous
+T-CAM15-01,CAM-15,0.4,geo,P0,caminho-feliz,"Zoom com âncora em Caracas e pixel [300,400]",Projeção da âncora não desloca mais de 1 px
+T-CAM15-02,CAM-15,0.4,geo,P0,erro-ou-borda,Âncora inválida lat 100,Rejeitar sem mover câmera
+T-CAM16-01,CAM-16,0.4,geo,P0,caminho-feliz,FitBounds Brasil+Venezuela 16:9,Territórios encaixados no padding
+T-CAM16-02,CAM-16,0.4,geo,P0,erro-ou-borda,Bounds vazio ou região inexistente,Erro amigável sem alterar pose
+T-CAM17-01,CAM-17,0.4,geo,P0,caminho-feliz,Bezier com arc-length LUT e uniformScreen,Passos de distância semelhantes por fração
+T-CAM17-02,CAM-17,0.4,geo,P0,erro-ou-borda,Trajetória com comprimento zero,Resultado constante sem divisão por zero
+T-CAM18-01,CAM-18,0.4,unit,P0,caminho-feliz,Camera Follow seguindo ícone na rota,Centro segue alvo com offset declarado
+T-CAM18-02,CAM-18,0.4,unit,P0,erro-ou-borda,Câmera segue objeto dependente da própria câmera,Detectar ciclo e bloquear
+T-GEO19-01,GEO-19,0.5,unit,P0,caminho-feliz,Preencher país #000000 → #FFFFFF em 10 quadros,"Endpoints exatos, midpoint em sRGB linear-light"
+T-GEO19-02,GEO-19,0.5,unit,P0,erro-ou-borda,Hex inválido ou canal NaN,Rejeitar antes de render
+T-GEO20-01,GEO-20,0.5,unit,P0,caminho-feliz,Opacity 0→0.65→0.3 em três keys,Valores por key e interpolações corretos
+T-GEO20-02,GEO-20,0.5,unit,P0,erro-ou-borda,Opacity -1 ou 2,"Clamp/reject por política, sem alpha inválido"
+T-GEO21-01,GEO-21,0.5,geo,P0,caminho-feliz,Stroke reveal sobre MultiPolygon com ilhas,Perímetro aparece em distância cumulativa
+T-GEO21-02,GEO-21,0.5,geo,P0,erro-ou-borda,Anel inválido com 2 coordenadas,Erro de geometria sem SVG inválido
+T-GEO22-01,GEO-22,0.5,geo,P0,caminho-feliz,Fill reveal radial com hole central,Hole permanece transparente
+T-GEO22-02,GEO-22,0.5,geo,P0,erro-ou-borda,Reveal em polígono vazio,Sem vazamento de preenchimento
+T-GEO23-01,GEO-23,0.5,unit,P0,caminho-feliz,Pulse periodFrames=20 min=.2 max=.8,Resultado repetível em f10 e f30
+T-GEO23-02,GEO-23,0.5,unit,P0,erro-ou-borda,Período 0 ou negativo,Validação rejeita
+T-GEO24-01,GEO-24,0.5,unit,P0,caminho-feliz,Stroke width 1→8 entre f0/f20,Frame20 exatamente 8px normalizados
+T-GEO24-02,GEO-24,0.5,unit,P0,erro-ou-borda,Espessura negativa,Rejeitar sem gerar SVG
+T-GEO25-01,GEO-25,0.5,visual,P0,caminho-feliz,Glow strength animado em país,Preview e export final incluem brilho correto
+T-GEO25-02,GEO-25,0.5,visual,P0,erro-ou-borda,Glow extremo em 4K,Limitar recurso ou exibir erro explícito
+T-GEO26-01,GEO-26,0.5,visual,P0,caminho-feliz,Pop marker escala 0→1.2→1,Âncora permanece fixa
+T-GEO26-02,GEO-26,0.5,visual,P0,erro-ou-borda,Scale NaN/negativa,Rejeitar entrada
+T-GEO27-01,GEO-27,0.5,unit,P0,caminho-feliz,Aplicar preset Border Trace ao Brasil,Tracks criados com IDs estáveis; Undo único
+T-GEO27-02,GEO-27,0.5,unit,P0,erro-ou-borda,Aplicar novamente ao mesmo alvo sem confirmar,Não duplicar efeitos silenciosamente
+T-ROUTE28-01,ROUTE-28,0.5,geo,P0,caminho-feliz,Rota com Caracas→Belém→Brasília,Três waypoints e curva válida
+T-ROUTE28-02,ROUTE-28,0.5,geo,P0,erro-ou-borda,Somente um waypoint,Rejeitar rota sem dois pontos
+T-ROUTE29-01,ROUTE-29,0.5,ui,P0,caminho-feliz,Arrastar alça de Bézier em waypoint central,Atualizar path sem mover outros pontos
+T-ROUTE29-02,ROUTE-29,0.5,ui,P0,erro-ou-borda,Alça inválida/arrastar fora limites,Erro reversível e sem mutação parcial
+T-ROUTE30-01,ROUTE-30,0.5,unit,P0,caminho-feliz,Trim start=0.25 end=0.75,Mostrar metade intermediária do comprimento
+T-ROUTE30-02,ROUTE-30,0.5,unit,P0,erro-ou-borda,Trim start=.9 end=.1 sem allowWrap,Rejeitar sem render
+T-ROUTE31-01,ROUTE-31,0.5,geo,P0,caminho-feliz,MovingObject progress 0/.5/1,Objeto nos extremos e midpoint por arco
+T-ROUTE31-02,ROUTE-31,0.5,geo,P0,erro-ou-borda,Rota degenerada ou sem geometria,"Erro claro, sem NaN"
+T-ROUTE32-01,ROUTE-32,0.5,geo,P0,caminho-feliz,OrientAlongPath numa curva direita,Heading coincide com tangente local + offset
+T-ROUTE32-02,ROUTE-32,0.5,geo,P0,erro-ou-borda,Tangente nula em trecho plano,Fallback estável ao último ângulo válido
+T-ROUTE33-01,ROUTE-33,0.5,visual,P0,caminho-feliz,"Trailing Line length=.2, progress=.6",Renderizar segmento de .4 a .6
+T-ROUTE33-02,ROUTE-33,0.5,visual,P0,erro-ou-borda,Comprimento negativo,Rejeitar antes de rasterizar
+T-ROUTE34-01,ROUTE-34,0.5,unit,P0,caminho-feliz,Dashed offset 0→20 em 24 frames,"Dash se desloca, path fixo"
+T-ROUTE34-02,ROUTE-34,0.5,unit,P0,erro-ou-borda,DashOffset não-finito,Erro de input
+T-ROUTE35-01,ROUTE-35,0.5,geo,P0,caminho-feliz,Morph entre paths amostrados com 64 pontos,"Geometria finita, endpoints preservados"
+T-ROUTE35-02,ROUTE-35,0.5,geo,P0,erro-ou-borda,Paths vazios/com diferentes direções sem regra,Rejeição ou fallback documentado
+T-ROUTE36-01,ROUTE-36,0.5,unit,P0,caminho-feliz,Dois segmentos duração 20/40 frames,Progresso em cada trecho obedece tempo próprio
+T-ROUTE36-02,ROUTE-36,0.5,unit,P0,erro-ou-borda,Segmentos excedem duração da animação,Erro com índice do segmento
+T-MG37-01,MG-37,0.4,unit,P0,caminho-feliz,Aplicar Fly In 48 frames ao país,Gera keyframes editáveis e mesma pose final
+T-MG37-02,MG-37,0.4,unit,P0,erro-ou-borda,Preset com target removido,Falha atômica; nenhuma trilha órfã
+T-MG38-01,MG-38,0.5,unit,P0,caminho-feliz,Parent marker B em A com offset fixo,B acompanha A na ordem topológica
+T-MG38-02,MG-38,0.5,unit,P0,erro-ou-borda,Ciclo A→B→C→A,Validação rejeita
+T-MG39-01,MG-39,0.5,unit,P0,caminho-feliz,Stagger 4 países por 3 frames,Offsets 0/3/6/9 preservam ordem
+T-MG39-02,MG-39,0.5,unit,P0,erro-ou-borda,Stagger estoura duração,Rejeitar transação sem keys parciais
+T-MG40-01,MG-40,0.4,ui,P0,caminho-feliz,Criar marker f100 com rótulo Narração,Aparece na régua e snap funciona
+T-MG40-02,MG-40,0.4,ui,P0,erro-ou-borda,Marker no frame -1 ou >=frames,Rejeitar antes de salvar
+T-MG41-01,MG-41,0.5,unit,P0,caminho-feliz,"PingPong em [10,20]",Sequência reverte sem frame duplicado no endpoint
+T-MG41-02,MG-41,0.5,unit,P0,erro-ou-borda,Loop de range com start=end,Resultado constante; sem modulo zero
+T-MG42-01,MG-42,0.5,security,P0,caminho-feliz,"Expression clamp(sin(time)*.5+.5,0,1)",Valor finito no frame sem IO
+T-MG42-02,MG-42,0.5,security,P0,erro-ou-borda,Expression process.exit/Function/fetch,Parser nega execução arbitrária
+T-MIG-001,MIG,0.3,unit,P0,regressao-ou-integracao,Migrar fixture v1 Brasil-Venezuela sem alterar input,"Cena v2 válida, mesmo conteúdo cartográfico"
+T-MIG-002,MIG,0.3,unit,P0,regressao-ou-integracao,Comparar câmera nos 120 frames do exemplo v1,Erro <=1e-10 em lon/lat/zoom
+T-MIG-003,MIG,0.3,unit,P0,regressao-ou-integracao,Comparar progresso das rotas em todos os frames,Mesmo valor por frame dentro de 1e-10
+T-MIG-004,MIG,0.3,unit,P0,regressao-ou-integracao,Migrar uma cena de frames=1,Sem key duplicado ou divisão por zero
+T-MIG-005,MIG,0.3,unit,P0,regressao-ou-integracao,Migrar rota start=end,Criar degrau visível no frame inicial
+T-MIG-006,MIG,0.3,unit,P0,regressao-ou-integracao,Migrar território fade start=end,Opacidade inteira aparece no frame correto
+T-MIG-007,MIG,0.3,unit,P0,regressao-ou-integracao,Migrar longitude 179→-179,Continuidade do menor arco igual ao algoritmo legado
+T-MIG-008,MIG,0.3,unit,P0,regressao-ou-integracao,Migrar JSON malformado,"Erro com path, documento original intacto"
+T-MIG-009,MIG,0.3,integration,P0,regressao-ou-integracao,Salvar cena migrada como arquivo novo,"Novo arquivo v2, v1 original preservado"
+T-MIG-010,MIG,0.3,integration,P0,regressao-ou-integracao,Abrir v2 sem migração,Não reescreve keyframes nem IDs
+T-IPC-001,IPC,0.3,integration,P0,regressao-ou-integracao,Export de 1 frame e 4 camadas,Gerar quatro PNG válidos e manifest COMPLETE
+T-IPC-002,IPC,0.4,integration,P0,regressao-ou-integracao,Cancelar export após lote 24,"Status CANCELLED, não COMPLETE; PNGs existentes preservados"
+T-IPC-003,IPC,0.4,integration,P0,regressao-ou-integracao,Retomar job com hash idêntico,Não re-renderizar lotes completos
+T-IPC-004,IPC,0.4,integration,P0,regressao-ou-integracao,Retomar job com hash diferente,Bloquear resume e avisar incompatibilidade
+T-IPC-005,IPC,0.4,integration,P0,regressao-ou-integracao,Export >9999 frames,Usar 6 dígitos sem colisão de nomes
+T-IPC-006,IPC,0.4,integration,P0,regressao-ou-integracao,Export v1 de 4 dígitos,Importador antigo lê e valida PNGs
+T-IPC-007,IPC,0.4,integration,P0,regressao-ou-integracao,Export v2 de 6 dígitos,Importador novo lê e valida PNGs
+T-IPC-008,IPC,0.4,integration,P0,regressao-ou-integracao,Frame PNG incompleto com extensão .part,Não considerar frame completo
+T-IPC-009,IPC,0.4,security,P0,regressao-ou-integracao,Path traversal /.. em export/import,Rejeitar acesso fora da pasta
+T-IPC-010,IPC,0.4,security,P0,regressao-ou-integracao,Symlink malicioso nos diretórios de export,Não seguir para fora da raiz sem verificação
+T-FUS-001,NATIVE,0.6,lua,P0,regressao-ou-integracao,Lua gera composição raster de 4 layers,"Quatro Loader, três Merge, MediaOut conectado"
+T-FUS-002,NATIVE,0.6,lua,P0,regressao-ou-integracao,Falha depois de criar Fusion clip,Status PARTIAL e Unlock garantido
+T-FUS-003,NATIVE,0.6,integration,P0,regressao-ou-integracao,User apaga clip e reinsere mesma export,"Nova tentativa com confirmação, sem re-render"
+T-FUS-004,NATIVE,0.6,integration,P0,regressao-ou-integracao,Native capability ausente,Fallback PNG explícito e correto
+T-FUS-005,NATIVE,0.6,integration,P0,regressao-ou-integracao,Native support apenas opacity,Apenas propriedade suportada vira spline nativa; outras raster
+T-FUS-006,NATIVE,0.6,e2e,P0,regressao-ou-integracao,Testar versão Resolve 20 Studio Windows,Não declarar aprovado sem executar no Resolve real
+T-FUS-007,NATIVE,0.6,e2e,P0,regressao-ou-integracao,Testar versão Resolve 21 Studio Windows,Não declarar aprovado sem executar no Resolve real
+T-FUS-008,NATIVE,0.6,integration,P0,regressao-ou-integracao,Dupla confirmação simultânea,"Máximo uma tentativa ativa, nenhum clip duplicado involuntário"
+T-GOLD-001,GOLD,0.3,visual,P0,regressao-ou-integracao,Preview SVG v1 em f0/f60/f119,Snapshot equivalente após migração
+T-GOLD-002,GOLD,0.3,visual,P0,regressao-ou-integracao,PNG HD gerado via novo avaliador,Imagem equivalente ao legado nas cenas sem features novas
+T-GOLD-003,GOLD,0.4,visual,P0,regressao-ou-integracao,"Bearing 0°,45°,90° em PNG",Transform geométrico correto e labels opcionais legíveis
+T-GOLD-004,GOLD,0.5,visual,P0,regressao-ou-integracao,Polygon com buraco e fill reveal,Buraco não preenchido
+T-GOLD-005,GOLD,0.5,visual,P0,regressao-ou-integracao,Antimeridiano com rota/território,Nenhum traço atravessa tela inteira
+T-PERF-001,PERF,0.3,performance,P0,regressao-ou-integracao,"500 tracks com 5000 keys, 1000 frames de avaliação","Registrar p50/p95 e hardware, sem regressões graves"
+T-PERF-002,PERF,0.4,performance,P0,regressao-ou-integracao,36k frames export batch-size 24,RAM mantém limite configurado e arquivos válidos
+T-PERF-003,PERF,0.4,performance,P0,regressao-ou-integracao,100 trilhas expandidas no UI,Scrubbing sem travar interação e foco acessível
+T-SEC-001,SEC,0.5,security,P0,regressao-ou-integracao,AST expression com eval/Function/fetch,Rejeitar sem efeitos colaterais
+T-SEC-002,SEC,0.5,security,P0,regressao-ou-integracao,Constraint com referência inexistente,Erro antes de render
+T-SEC-003,SEC,0.5,security,P0,regressao-ou-integracao,AST 1025 nós ou 17 níveis,Rejeitar pelo budget de complexidade
+T-SEC-004,SEC,0.3,security,P0,regressao-ou-integracao,Track target __proto__ ou constructor,Rejeitar ao validar propriedade
+T-SEC-005,SEC,0.3,unit,P0,regressao-ou-integracao,NaN e Infinity em keyframe,Rejeitar sem serializar
+T-E2E-001,E2E,0.3,e2e,P0,regressao-ou-integracao,"Migrar cena antiga, editar zoom, salvar/reabrir","Preservar keys, sem mudança no arquivo original"
+T-E2E-002,E2E,0.4,e2e,P0,regressao-ou-integracao,Tour Brasil/Venezuela/Caribe/Washington,Quatro poses e zoom individual exibidos corretamente
+T-E2E-003,E2E,0.5,e2e,P0,regressao-ou-integracao,Dois routes + object along path e territory fade,Preview 120 frames corresponde ao Fusion raster
+T-E2E-004,E2E,0.5,e2e,P0,regressao-ou-integracao,Export cancel/restart sem re-render,"Manifest correto, timeline importa sequência válida"

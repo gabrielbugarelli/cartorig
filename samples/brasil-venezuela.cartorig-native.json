@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "title": "Brasil / Venezuela — CartoRig Native",
+  "fps": 24,
+  "frames": 240,
+  "camera": {"lon": -61, "lat": -12, "zoom": 3.2, "bearing": 0},
+  "style": {"ocean": "#0D1E32", "land": "#243B52", "border": "#69869D", "highlight": "#2597BFD9", "transparent": false},
+  "highlights": ["BRA", "VEN"],
+  "markers": [
+    {"id": "caracas", "label": "Caracas", "lon": -66.9036, "lat": 10.4806, "size": 5, "color": "#FFCC82"},
+    {"id": "brasilia", "label": "Brasilia", "lon": -47.8825, "lat": -15.7942, "size": 5, "color": "#FFCC82"}
+  ],
+  "routes": [{"id": "caracas-brasilia", "from": "caracas", "to": "brasilia", "start": 24, "end": 144, "color": "#FFCC82", "width": 3, "curve": 24}],
+  "cameraKeys": [
+    {"frame": 0, "lon": -62, "lat": -11, "zoom": 2.8, "easing": "smoothstep"},
+    {"frame": 120, "lon": -54, "lat": -10, "zoom": 3.5, "easing": "smoothstep"},
+    {"frame": 239, "lon": -47, "lat": -15, "zoom": 4.7, "easing": "hold"}
+  ]
+}

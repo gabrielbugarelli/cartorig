@@ -1,0 +1,13 @@
+/build/
+/out/
+/.vs/
+*.ppm
+*.user
+*.suo
+*.obj
+*.o
+*.pdb
+*.dll
+*.ofx
+*.tmp
+.DS_Store
