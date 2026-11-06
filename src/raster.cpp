@@ -81,7 +81,7 @@ Surface cropSurface(Surface s,int x1,int y1,int x2,int y2){
 }
 
 void renderDiagnosticPattern(Surface s,int width,int height,int mode){
-  if(!s.data||width<=0||height<=0||s.rowBytes==0||s.x1<0||s.x2>width||
+  if(!s.data||width<=0||height<=0||s.rowBytes==0||
      s.y1<0||s.y2>height||s.x1>=s.x2||s.y1>=s.y2||mode<1||mode>4)
     throw std::invalid_argument("invalid diagnostic surface");
   const int pixelBytes=s.format==PixelFormat::ByteRGBA?4:16;

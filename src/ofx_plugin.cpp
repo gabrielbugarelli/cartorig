@@ -46,15 +46,43 @@ std::mutex diagnosticsMutex;
 std::atomic<unsigned> diagnosticsCount{0};
 void writeDiagnostics(const std::string &message) noexcept {
   try {
-    if(diagnosticsCount.fetch_add(1,std::memory_order_relaxed)>=250)return;
+    if(diagnosticsCount.fetch_add(1,std::memory_order_relaxed)>=300)return;
     std::lock_guard<std::mutex> lock(diagnosticsMutex);
-    const auto dir=std::filesystem::temp_directory_path()/"CartoRigNative";
-    std::filesystem::create_directories(dir);
-    std::ofstream file(dir/"ofx-diagnostics.log",std::ios::app);
-    if(file)file<<std::chrono::duration_cast<std::chrono::seconds>(
-      std::chrono::system_clock::now().time_since_epoch()).count()
-      <<" CartoRigNative 0.1.0-dev "<<message<<"\n";
-  }catch(...){/* Diagnostic logging must never interrupt a render. */}
+    std::vector<std::filesystem::path> candidates;
+#ifdef _WIN32
+    wchar_t local[32768]{};
+    DWORD localLength=GetEnvironmentVariableW(L"LOCALAPPDATA",local,32768);
+    if(localLength>0&&localLength<32768)
+      candidates.push_back(std::filesystem::path(local)/"CartoRigNative"/"ofx-diagnostics.log");
+    wchar_t temp[32768]{};
+    DWORD tempLength=GetTempPathW(32768,temp);
+    if(tempLength>0&&tempLength<32768)
+      candidates.push_back(std::filesystem::path(temp)/"CartoRigNative"/"ofx-diagnostics.log");
+#endif
+    std::error_code ec;
+    auto fallback=std::filesystem::temp_directory_path(ec);
+    if(!ec)candidates.push_back(fallback/"CartoRigNative"/"ofx-diagnostics.log");
+    for(const auto &path:candidates) {
+      ec.clear();
+      std::filesystem::create_directories(path.parent_path(),ec);
+      if(ec)continue;
+      std::ofstream file(path,std::ios::app);
+      if(file) {
+        file<<std::chrono::duration_cast<std::chrono::seconds>(
+          std::chrono::system_clock::now().time_since_epoch()).count()
+          <<" CartoRigNative 0.1.0-dev "<<message<<"\n";
+        file.flush();
+        if(file.good())return;
+      }
+    }
+#ifdef _WIN32
+    OutputDebugStringA(("CartoRigNative: log file unavailable: "+message+"\n").c_str());
+#endif
+  }catch(...){
+#ifdef _WIN32
+    OutputDebugStringA("CartoRigNative: diagnostic logging failed unexpectedly\n");
+#endif
+  }
 }
 
 std::string defaultAsset(const char *filename){
@@ -156,6 +184,9 @@ void copySource(cartorig::Surface source,cartorig::Surface dst){const int bytes=
 OfxStatus render(OfxImageEffectHandle e,OfxPropertySetHandle args){Instance *i=instance(e);if(!i)return kOfxStatFailed;double time=0;if(readProp(args,kOfxPropTime,0,time)!=kOfxStatOK)return kOfxStatFailed;
  const bool diagnosticLogging=intAt(i->diagnosticLog,time,0)!=0;
  const int diagnosticMode=intAt(i->diagnosticMode,time,0);
+ if(diagnosticLogging)writeDiagnostics("RENDER_BEGIN t="+std::to_string(time)+
+   " mode="+std::to_string(diagnosticMode)+
+   " overlay="+std::to_string(static_cast<int>(i->overlay)));
  int gpuFlag=0;
  for(const char *key:{"OfxImageEffectPropOpenCLEnabled","OfxImageEffectPropCudaEnabled","OfxImageEffectPropMetalEnabled"}){
    int enabled=0;if(prop->propGetInt(args,key,0,&enabled)==kOfxStatOK&&enabled)gpuFlag=1;
@@ -164,7 +195,26 @@ OfxStatus render(OfxImageEffectHandle e,OfxPropertySetHandle args){Instance *i=i
    if(diagnosticLogging)writeDiagnostics("GPU pointer supplied, cannot use CPU pixel writer");
    return kOfxStatErrUnsupported;
  }
- ImageLease output;if(fx->clipGetImage(i->output,time,nullptr,&output.image)!=kOfxStatOK||!output.image)return kOfxStatFailed;
+ ImageLease output;
+ const OfxStatus imageStatus=fx->clipGetImage(i->output,time,nullptr,&output.image);
+ if(imageStatus!=kOfxStatOK||!output.image){
+   if(diagnosticLogging)writeDiagnostics("ERROR clipGetImage status="+std::to_string(imageStatus));
+   return kOfxStatFailed;
+ }
+ if(diagnosticLogging){
+   int rect[4]{},rowBytes=0;char *depth=nullptr,*components=nullptr;
+   auto stBounds=prop->propGetIntN(output.image,kOfxImagePropBounds,4,rect);
+   auto stStride=prop->propGetInt(output.image,kOfxImagePropRowBytes,0,&rowBytes);
+   auto stDepth=prop->propGetString(output.image,kOfxImageEffectPropPixelDepth,0,&depth);
+   auto stComp=prop->propGetString(output.image,kOfxImageEffectPropComponents,0,&components);
+   std::ostringstream msg;
+   msg<<"IMAGE_RAW boundsStatus="<<stBounds<<" strideStatus="<<stStride
+      <<" depthStatus="<<stDepth<<" componentsStatus="<<stComp
+      <<" rect="<<rect[0]<<","<<rect[1]<<","<<rect[2]<<","<<rect[3]
+      <<" rowBytes="<<rowBytes<<" depth="<<(depth?depth:"missing")
+      <<" components="<<(components?components:"missing");
+   writeDiagnostics(msg.str());
+ }
  auto target=surfaceOf(output.image);
  OfxPropertySetHandle effProps=nullptr;fx->getPropertySet(e,&effProps);double w=0,h=0,scaleX=1,scaleY=1;
  if(prop->propGetDouble(effProps,kOfxImageEffectPropProjectSize,0,&w)!=kOfxStatOK||prop->propGetDouble(effProps,kOfxImageEffectPropProjectSize,1,&h)!=kOfxStatOK) {w=target.x2;h=target.y2;}
@@ -236,7 +286,12 @@ OfxStatus entry(const char *action,const void *handle,OfxPropertySetHandle args,
  if(!std::strcmp(action,kOfxActionDestroyInstance))return destroyInstance((OfxImageEffectHandle)handle);
  if(!std::strcmp(action,kOfxImageEffectActionRender))return render((OfxImageEffectHandle)handle,args);
  return kOfxStatReplyDefault;
- }catch(const std::bad_alloc&){return kOfxStatErrMemory;}catch(const std::exception &error){std::cerr<<"CartoRig Native: "<<error.what()<<std::endl;return kOfxStatFailed;}catch(...){return kOfxStatFailed;}}
+ }catch(const std::bad_alloc&){writeDiagnostics("ERROR out-of-memory in OFX callback");return kOfxStatErrMemory;}
+ catch(const std::exception &error){
+   writeDiagnostics(std::string("ERROR action=")+(action?action:"(null)")+" reason="+error.what());
+   std::cerr<<"CartoRig Native: "<<error.what()<<std::endl;
+   return kOfxStatFailed;
+ }catch(...){writeDiagnostics("ERROR unknown exception in OFX callback");return kOfxStatFailed;}}
 OfxStatus generator(const char *action,const void *handle,OfxPropertySetHandle in,OfxPropertySetHandle out){return entry(action,handle,in,out,false);}
 OfxStatus overlay(const char *action,const void *handle,OfxPropertySetHandle in,OfxPropertySetHandle out){return entry(action,handle,in,out,true);}
 void setHost(OfxHost *h){host=h;}
