@@ -1,6 +1,7 @@
 // CartoRig Native: minimal OpenFX 1.x C ABI, no Resolve private SDK.
 #include "cartorig.hpp"
 #include "native_controls.hpp"
+#include "natural_earth_catalog.hpp"
 #include "ofx_pixel_layout.hpp"
 #include "ofxCore.h"
 #include "ofxImageEffect.h"
@@ -36,6 +37,7 @@ const OfxParameterSuiteV1 *param=nullptr;
 struct Instance {
   OfxImageClipHandle output=nullptr,source=nullptr;
   OfxParamHandle sceneFile=nullptr,datasetFile=nullptr,sceneInline=nullptr,datasetInline=nullptr;
+  OfxParamHandle naturalEarthGpkg=nullptr,naturalEarthDetail=nullptr;
   OfxParamHandle useSceneKeys=nullptr,lon=nullptr,lat=nullptr,zoom=nullptr,bearing=nullptr,route=nullptr,opacity=nullptr;
   OfxParamHandle frameOffset=nullptr,timeScale=nullptr,diagnosticMode=nullptr,diagnosticLog=nullptr;
   OfxParamHandle countryA=nullptr,countryB=nullptr,countryList=nullptr,highlightStrength=nullptr;
@@ -114,6 +116,22 @@ std::string defaultAsset(const char *filename){
 #endif
   if(module.empty())throw std::runtime_error("Unable to locate CartoRig Native plugin bundle");
   return (module.parent_path().parent_path()/"Resources"/filename).string();
+}
+std::shared_ptr<const cartorig::Dataset> naturalEarthCountriesAt(
+    const std::string &path,const std::string &scale){
+  // Cache only immutable geometry, never the mutable per-instance scene.
+  // A file update invalidates this entry, matching the existing GeoJSON cache.
+  std::lock_guard<std::mutex> lock(cacheMutex);
+  const auto stamp=std::filesystem::last_write_time(path);
+  const auto key="ne-country:"+scale+":"+path;
+  auto it=cache.find(key);
+  if(it!=cache.end()&&it->second.modified==stamp&&it->second.dataset)
+    return it->second.dataset;
+  auto result=std::make_shared<cartorig::Dataset>(
+      cartorig::NaturalEarthCatalog::countryPolygons(path,scale));
+  if(cache.size()>16)cache.clear();
+  cache[key]={stamp,result,nullptr};
+  return result;
 }
 std::shared_ptr<const cartorig::Dataset> datasetAt(const std::string &path){
   std::lock_guard<std::mutex> lock(cacheMutex);
@@ -200,6 +218,17 @@ void defineNativeToggle(OfxParamSetHandle ps,const char*name,const char*label,bo
   prop->propSetInt(props,kOfxParamPropDefault,0,initial?1:0);
   prop->propSetInt(props,kOfxParamPropAnimates,0,0);
   if(group)prop->propSetString(props,kOfxParamPropParent,0,group);
+}
+void defineNaturalEarthDetailChoice(OfxParamSetHandle ps){
+  OfxPropertySetHandle properties=nullptr;
+  if(param->paramDefine(ps,kOfxParamTypeChoice,"NaturalEarthDetail",&properties)!=kOfxStatOK)
+    throw std::runtime_error("Natural Earth detail choice parameter unavailable");
+  prop->propSetString(properties,kOfxPropLabel,0,"Natural Earth detail");
+  prop->propSetString(properties,kOfxParamPropParent,0,"AdvancedScene");
+  prop->propSetInt(properties,kOfxParamPropDefault,0,0);
+  const char* levels[]={"Auto (zoom dependent)","110m (overview)","50m (medium)","10m (detailed)"};
+  for(int n=0;n<4;++n)
+    prop->propSetString(properties,kOfxParamPropChoiceOption,n,levels[n]);
 }
 void defineVersionLabel(OfxParamSetHandle ps){
   OfxPropertySetHandle props=nullptr;
@@ -293,6 +322,8 @@ OfxStatus describeInContext(OfxImageEffectHandle e,bool filter){
  defineNativeDouble(ps,"HighlightB","Highlight blue",192,0,255,"MapColors");
 
  defineNativeGroup(ps,"AdvancedScene","Advanced: import custom scenes",false);
+ defineString(ps,"NaturalEarthVectorGpkg","Natural Earth vector GeoPackage (offline)","AdvancedScene");
+ defineNaturalEarthDetailChoice(ps);
  defineString(ps,"SceneFile","Scene .json (blank: empty map)","AdvancedScene");
  defineString(ps,"CatalogFile","GeoJSON (blank: offline countries)","AdvancedScene");
  defineMultiline(ps,"EmbeddedSceneJSON","Embedded scene JSON (portable)","AdvancedScene");
@@ -305,6 +336,7 @@ OfxStatus createInstance(OfxImageEffectHandle e,bool filter){auto i=std::make_un
  if(fx->clipGetHandle(e,kOfxImageEffectOutputClipName,&i->output,nullptr)!=kOfxStatOK)return kOfxStatFailed;
  if(filter&&fx->clipGetHandle(e,kOfxImageEffectSimpleSourceClipName,&i->source,nullptr)!=kOfxStatOK)return kOfxStatFailed;
  for(auto t:std::vector<std::pair<const char*,OfxParamHandle*>>{{"SceneFile",&i->sceneFile},{"CatalogFile",&i->datasetFile},
+ {"NaturalEarthVectorGpkg",&i->naturalEarthGpkg},{"NaturalEarthDetail",&i->naturalEarthDetail},
  {"EmbeddedSceneJSON",&i->sceneInline},{"EmbeddedCatalogJSON",&i->datasetInline},
  {"SceneTimeOffset",&i->frameOffset},{"SceneTimeScale",&i->timeScale},
  {"UseSceneCamera",&i->useSceneKeys},{"Longitude",&i->lon},{"Latitude",&i->lat},{"Zoom",&i->zoom},
@@ -430,13 +462,24 @@ OfxStatus render(OfxImageEffectHandle e,OfxPropertySetHandle args){Instance *i=i
    cartorig::renderDiagnosticPattern(target,width,height,diagnosticMode);
    return kOfxStatOK;
  }
- std::string sceneFile,datasetFile,inlineScene,inlineCatalog;
+ std::string sceneFile,datasetFile,inlineScene,inlineCatalog,naturalEarthPath;
  stringAt(i->sceneFile,time,sceneFile);stringAt(i->datasetFile,time,datasetFile);
  stringAt(i->sceneInline,time,inlineScene);stringAt(i->datasetInline,time,inlineCatalog);
+ stringAt(i->naturalEarthGpkg,time,naturalEarthPath);
  if(sceneFile.empty())sceneFile=defaultAsset("default-map.cartorig-native.json");
- if(datasetFile.empty())datasetFile=defaultAsset("countries.geojson");
  auto scene=inlineScene.empty()?sceneAt(sceneFile):embeddedSceneAt(*i,inlineScene);
- auto dataset=inlineCatalog.empty()?datasetAt(datasetFile):embeddedDatasetAt(*i,inlineCatalog);
+ // Priority: Embedded GeoJSON > explicit GeoJSON filename > local Natural
+ // Earth GeoPackage > bundled neutral GeoJSON. Existing clips stay unchanged.
+ std::shared_ptr<const cartorig::Dataset> dataset;
+ if(!inlineCatalog.empty())dataset=embeddedDatasetAt(*i,inlineCatalog);
+ else if(!datasetFile.empty())dataset=datasetAt(datasetFile);
+ else if(!naturalEarthPath.empty()){
+   const int detail=intAt(i->naturalEarthDetail,time,0);
+   const double zoom=doubleAt(i->zoom,time,1.3);
+   const char *scale=detail==1?"110m":detail==2?"50m":detail==3?"10m":
+                      (zoom<3.5?"110m":zoom<7?"50m":"10m");
+   dataset=naturalEarthCountriesAt(naturalEarthPath,scale);
+ }else dataset=datasetAt(defaultAsset("countries.geojson"));
  const double sceneFrame=cartorig::mapSceneFrame(time,
    doubleAt(i->frameOffset,time,0),doubleAt(i->timeScale,time,1));
  cartorig::View view;view.width=width;view.height=height;view.frame=sceneFrame;

@@ -52,6 +52,7 @@ endif()
 # The native Natural Earth search adapter is isolated from the already-validated
 # rasterizer/OpenFX binary until host UX and dataset packaging are verified.
 add_library(cartorig_ne_catalog STATIC src/natural_earth_catalog.cpp src/natural_earth_geometry.cpp)
+set_target_properties(cartorig_ne_catalog PROPERTIES POSITION_INDEPENDENT_CODE ON)
 target_include_directories(cartorig_ne_catalog PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
 if(UNIX AND NOT APPLE)
   target_link_libraries(cartorig_ne_catalog PUBLIC ${CMAKE_DL_LIBS})
@@ -62,7 +63,7 @@ else()
   target_compile_options(cartorig_ne_catalog PRIVATE -Wall -Wextra -Wpedantic)
 endif()
 add_library(CartoRigNative MODULE src/ofx_plugin.cpp)
-target_link_libraries(CartoRigNative PRIVATE cartorig_core)
+target_link_libraries(CartoRigNative PRIVATE cartorig_core cartorig_ne_catalog)
 configure_file(
   "${CMAKE_CURRENT_SOURCE_DIR}/src/build_info.h.in"
   "${CMAKE_CURRENT_BINARY_DIR}/generated/cartorig_build_info.hpp"
