@@ -166,9 +166,6 @@ OfxStatus render(OfxImageEffectHandle e,OfxPropertySetHandle args){Instance *i=i
  }
  ImageLease output;if(fx->clipGetImage(i->output,time,nullptr,&output.image)!=kOfxStatOK||!output.image)return kOfxStatFailed;
  auto target=surfaceOf(output.image);
- std::string sceneFile,datasetFile;stringAt(i->sceneFile,time,sceneFile);stringAt(i->datasetFile,time,datasetFile);
- if(sceneFile.empty())sceneFile=defaultAsset("brasil-venezuela.cartorig-native.json");if(datasetFile.empty())datasetFile=defaultAsset("countries.geojson");
- auto scene=sceneAt(sceneFile);auto dataset=datasetAt(datasetFile);
  OfxPropertySetHandle effProps=nullptr;fx->getPropertySet(e,&effProps);double w=0,h=0,scaleX=1,scaleY=1;
  if(prop->propGetDouble(effProps,kOfxImageEffectPropProjectSize,0,&w)!=kOfxStatOK||prop->propGetDouble(effProps,kOfxImageEffectPropProjectSize,1,&h)!=kOfxStatOK) {w=target.x2;h=target.y2;}
  prop->propGetDouble(args,kOfxImageEffectPropRenderScale,0,&scaleX);prop->propGetDouble(args,kOfxImageEffectPropRenderScale,1,&scaleY);
@@ -203,9 +200,15 @@ OfxStatus render(OfxImageEffectHandle e,OfxPropertySetHandle args){Instance *i=i
  target=cartorig::cropSurface(target,window[0],window[1],window[2],window[3]);
  if(!target.data)return kOfxStatOK;
  if(diagnosticMode>0&&diagnosticMode<=4){
+   // This diagnostic path must not load a scene, dataset or geographic cache.
    cartorig::renderDiagnosticPattern(target,width,height,diagnosticMode);
    return kOfxStatOK;
  }
+ std::string sceneFile,datasetFile;
+ stringAt(i->sceneFile,time,sceneFile);stringAt(i->datasetFile,time,datasetFile);
+ if(sceneFile.empty())sceneFile=defaultAsset("brasil-venezuela.cartorig-native.json");
+ if(datasetFile.empty())datasetFile=defaultAsset("countries.geojson");
+ auto scene=sceneAt(sceneFile);auto dataset=datasetAt(datasetFile);
  cartorig::View view;view.width=width;view.height=height;view.frame=time;view.camera=evaluateCamera(*scene,time);
  if(!intAt(i->useSceneKeys,time,1)){view.camera.lon=doubleAt(i->lon,time,view.camera.lon);view.camera.lat=doubleAt(i->lat,time,view.camera.lat);view.camera.zoom=doubleAt(i->zoom,time,view.camera.zoom);view.camera.bearing=doubleAt(i->bearing,time,view.camera.bearing);}
  view.routeProgress=doubleAt(i->route,time,-1);double opacity=std::clamp(doubleAt(i->opacity,time,1),0.0,1.0);
