@@ -9,6 +9,8 @@ import tempfile
 exe=Path(sys.argv[1])
 root=Path(sys.argv[2])
 preview=Path(sys.argv[3])
+host_simulator=Path(sys.argv[4])
+ofx_bundle=Path(sys.argv[5])
 sys.path.insert(0,str(root))
 from tools.natural_earth.build_catalog import index_source
 
@@ -123,4 +125,13 @@ with tempfile.TemporaryDirectory() as directory:
                      capture_output=True,text=True,timeout=20)
     assert p.returncode!=0,"missing pack must fail, not create an empty DB"
     assert not (target/"missing.sqlite").exists(),"runtime cannot create DB files"
+    # Real C++ simulated host exercises the Inspector Add/Update/Remove
+    # push-button actions and then compares actual RGBA output pixels.
+    simulated=subprocess.run(
+        [str(host_simulator),str(ofx_bundle),str(catalog),str(gpkg)],
+        capture_output=True,text=True,encoding="utf-8",timeout=35)
+    assert simulated.returncode==0,(
+        "OFX typed Geographic region action failure",
+        simulated.stdout,simulated.stderr)
+    assert "OFX simulated-host assertions passed" in simulated.stdout,simulated.stdout
     print("PASS: C++ native search is offline, read-only and respects GeoPackage region types")
