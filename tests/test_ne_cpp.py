@@ -98,8 +98,13 @@ with tempfile.TemporaryDirectory() as directory:
                            "ne_10m_populated_places;DROP TABLE gpkg_contents"],
          capture_output=True,text=True,encoding="utf-8",timeout=20)
     assert unsafe.returncode!=0,"untrusted layer name must be rejected"
-    with sqlite3.connect(gpkg) as check_db:
+    # A sqlite3 connection context manager commits but does NOT close the DB
+    # on Windows; leaving this open blocks TemporaryDirectory cleanup.
+    check_db=sqlite3.connect(gpkg)
+    try:
         assert check_db.execute("SELECT COUNT(*) FROM gpkg_contents").fetchone()[0]==4
+    finally:
+        check_db.close()
     assert "Brazil" in query("country","Brasil")
     r=subprocess.run([str(exe),str(catalog),"country","Brasil",str(gpkg)],
                      capture_output=True,text=True,encoding="utf-8",timeout=20)
