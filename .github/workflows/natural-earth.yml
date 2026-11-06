@@ -128,3 +128,22 @@ jobs:
           name: NaturalEarth-33-Supplement-Probe
           path: build/natural-earth/supplements-report.json
           if-no-files-found: warn
+
+  combined-vector-probe:
+    if: github.event_name == 'push' && contains(github.event.head_commit.message, '[combined-probe]')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Validate 182 official GeoPackage layers plus 33 SHA-pinned supplements
+        run: python -m tools.natural_earth.probe_vector_complete
+      - name: Publish complete-vector report, never upload the huge datasets
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: NaturalEarth-215-Real-Vector-Coverage
+          path: build/natural-earth/combined-vector/complete-vector-report.json
+          if-no-files-found: warn
