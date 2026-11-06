@@ -15,4 +15,11 @@ struct NaturalEarthGeometry {
   bool empty()const{return points.empty()&&lines.empty()&&polygons.empty();}
 };
 NaturalEarthGeometry decodeGeoPackageGeometry(const void*blob,std::size_t size);
+ // Overlay publisher vector data on the already rendered CartoRig image.
+ // The layer is not a replacement for the countries baseline.
+ void renderNaturalEarthLayer(const std::vector<NaturalEarthGeometry> &geometries,
+                              const View &view,Surface target,
+                              Color polygonFill,Color lineColor,Color pointColor,
+                              RasterStats *stats=nullptr);
+
 } // namespace cartorig
