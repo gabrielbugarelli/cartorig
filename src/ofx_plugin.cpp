@@ -740,6 +740,24 @@ OfxStatus onGeographicRegionChanged(OfxImageEffectHandle effect,
   std::vector<cartorig::NaturalEarthRegion> results;
   if(!indexFile.empty()&&!query.empty())
     results=cartorig::NaturalEarthCatalog::search(indexFile,query,types[choice],10);
+  // Keep ten stable choice indices while replacing their *display names* with
+  // actual offline FTS matches. Resolve may not repaint labels on every host
+  // version; fallback status text still shows the same names.
+  OfxPropertySetHandle choiceProps=nullptr;
+  if(param->paramGetPropertySet(i->regionMatch,&choiceProps)==kOfxStatOK &&
+     choiceProps){
+    for(int resultIndex=0;resultIndex<10;++resultIndex){
+      std::string option="No result "+std::to_string(resultIndex+1);
+      if(resultIndex<static_cast<int>(results.size())){
+        const auto &hit=results[static_cast<std::size_t>(resultIndex)];
+        option=hit.name;
+        if(!hit.parent.empty())option+=" ("+hit.parent+")";
+        if(option.size()>110)option.resize(110);
+      }
+      (void)prop->propSetString(choiceProps,kOfxParamPropChoiceOption,
+                               resultIndex,option.c_str());
+    }
+  }
   const int selected=intAt(i->regionMatch,time,0);
   const auto updateInfo=[&](std::string message){
     if(message.size()>700)message.resize(700);
