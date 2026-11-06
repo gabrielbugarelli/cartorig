@@ -146,9 +146,9 @@ std::shared_ptr<const cartorig::Dataset> embeddedDatasetAt(Instance &i,const std
 OfxStatus readProp(OfxPropertySetHandle set,const char *name,int index,int &value){return prop->propGetInt(set,name,index,&value);}
 OfxStatus readProp(OfxPropertySetHandle set,const char *name,int index,double &value){return prop->propGetDouble(set,name,index,&value);}
 Instance *instance(OfxImageEffectHandle e){OfxPropertySetHandle set=nullptr;if(fx->getPropertySet(e,&set)!=kOfxStatOK)return nullptr;Instance *p=nullptr;if(prop->propGetPointer(set,kOfxPropInstanceData,0,reinterpret_cast<void **>(&p))!=kOfxStatOK)return nullptr;return p;}
-void defineDouble(OfxParamSetHandle set,const char*name,const char*label,double val,double lo,double hi){OfxPropertySetHandle p=nullptr;if(param->paramDefine(set,kOfxParamTypeDouble,name,&p)!=kOfxStatOK)throw std::runtime_error("param define");prop->propSetString(p,kOfxPropLabel,0,label);prop->propSetDouble(p,kOfxParamPropDefault,0,val);prop->propSetDouble(p,kOfxParamPropMin,0,lo);prop->propSetDouble(p,kOfxParamPropMax,0,hi);prop->propSetDouble(p,kOfxParamPropDisplayMin,0,lo);prop->propSetDouble(p,kOfxParamPropDisplayMax,0,hi);prop->propSetInt(p,kOfxParamPropAnimates,0,1);}
-void defineString(OfxParamSetHandle set,const char *name,const char *label){OfxPropertySetHandle p=nullptr;if(param->paramDefine(set,kOfxParamTypeString,name,&p)!=kOfxStatOK)throw std::runtime_error("param define string");prop->propSetString(p,kOfxPropLabel,0,label);prop->propSetString(p,kOfxParamPropDefault,0,"");prop->propSetInt(p,kOfxParamPropAnimates,0,0);prop->propSetString(p,kOfxParamPropStringMode,0,kOfxParamStringIsFilePath);}
-void defineMultiline(OfxParamSetHandle set,const char *name,const char *label){
+void defineDouble(OfxParamSetHandle set,const char*name,const char*label,double val,double lo,double hi,const char*group=nullptr){OfxPropertySetHandle p=nullptr;if(param->paramDefine(set,kOfxParamTypeDouble,name,&p)!=kOfxStatOK)throw std::runtime_error("param define");prop->propSetString(p,kOfxPropLabel,0,label);prop->propSetDouble(p,kOfxParamPropDefault,0,val);prop->propSetDouble(p,kOfxParamPropMin,0,lo);prop->propSetDouble(p,kOfxParamPropMax,0,hi);prop->propSetDouble(p,kOfxParamPropDisplayMin,0,lo);prop->propSetDouble(p,kOfxParamPropDisplayMax,0,hi);prop->propSetInt(p,kOfxParamPropAnimates,0,1);if(group)prop->propSetString(p,kOfxParamPropParent,0,group);}
+void defineString(OfxParamSetHandle set,const char *name,const char *label,const char*group=nullptr){OfxPropertySetHandle p=nullptr;if(param->paramDefine(set,kOfxParamTypeString,name,&p)!=kOfxStatOK)throw std::runtime_error("param define string");prop->propSetString(p,kOfxPropLabel,0,label);prop->propSetString(p,kOfxParamPropDefault,0,"");prop->propSetInt(p,kOfxParamPropAnimates,0,0);prop->propSetString(p,kOfxParamPropStringMode,0,kOfxParamStringIsFilePath);if(group)prop->propSetString(p,kOfxParamPropParent,0,group);}
+void defineMultiline(OfxParamSetHandle set,const char *name,const char *label,const char*group=nullptr){
   OfxPropertySetHandle props=nullptr;
   if(param->paramDefine(set,kOfxParamTypeString,name,&props)!=kOfxStatOK)
     throw std::runtime_error("embedded JSON parameter definition failed");
@@ -157,8 +157,9 @@ void defineMultiline(OfxParamSetHandle set,const char *name,const char *label){
   prop->propSetString(props,kOfxParamPropStringMode,0,kOfxParamStringIsMultiLine);
   prop->propSetInt(props,kOfxParamPropPersistant,0,1);
   prop->propSetInt(props,kOfxParamPropAnimates,0,0);
+  if(group)prop->propSetString(props,kOfxParamPropParent,0,group);
 }
-void defineBoolean(OfxParamSetHandle set,const char *name,const char *label,bool value){OfxPropertySetHandle p=nullptr;if(param->paramDefine(set,kOfxParamTypeBoolean,name,&p)!=kOfxStatOK)throw std::runtime_error("param define bool");prop->propSetString(p,kOfxPropLabel,0,label);prop->propSetInt(p,kOfxParamPropDefault,0,value?1:0);prop->propSetInt(p,kOfxParamPropAnimates,0,0);}
+void defineBoolean(OfxParamSetHandle set,const char *name,const char *label,bool value,const char*group=nullptr){OfxPropertySetHandle p=nullptr;if(param->paramDefine(set,kOfxParamTypeBoolean,name,&p)!=kOfxStatOK)throw std::runtime_error("param define bool");prop->propSetString(p,kOfxPropLabel,0,label);prop->propSetInt(p,kOfxParamPropDefault,0,value?1:0);prop->propSetInt(p,kOfxParamPropAnimates,0,0);if(group)prop->propSetString(p,kOfxParamPropParent,0,group);}
 void defineNativeGroup(OfxParamSetHandle ps,const char*name,const char*label,bool open){
   OfxPropertySetHandle props=nullptr;
   if(param->paramDefine(ps,kOfxParamTypeGroup,name,&props)!=kOfxStatOK)
@@ -211,7 +212,7 @@ void defineVersionLabel(OfxParamSetHandle ps){
   prop->propSetInt(props,kOfxParamPropPersistant,0,0);
   prop->propSetInt(props,kOfxParamPropAnimates,0,0);
 }
-void defineDiagnosticChoice(OfxParamSetHandle ps){
+void defineDiagnosticChoice(OfxParamSetHandle ps,const char*group=nullptr){
   OfxPropertySetHandle p=nullptr;
   if(param->paramDefine(ps,kOfxParamTypeChoice,"DiagnosticMode",&p)!=kOfxStatOK)
     throw std::runtime_error("cannot create diagnostic choice");
@@ -221,6 +222,7 @@ void defineDiagnosticChoice(OfxParamSetHandle ps){
   const char *names[]{"Normal map","RGB bars","Grayscale ramp","Alpha split","Solid white"};
   for(int index=0;index<5;++index)
     prop->propSetString(p,kOfxParamPropChoiceOption,index,names[index]);
+  if(group)prop->propSetString(p,kOfxParamPropParent,0,group);
 }
 void stringAt(OfxParamHandle handle,double time,std::string &str){char *value=nullptr;if(param->paramGetValueAtTime(handle,time,&value)==kOfxStatOK&&value)str=value;}
 double doubleAt(OfxParamHandle handle,double time,double fallback){double value=fallback;if(handle)param->paramGetValueAtTime(handle,time,&value);return value;}
@@ -270,7 +272,7 @@ OfxStatus describeInContext(OfxImageEffectHandle e,bool filter){
  defineNativeDouble(ps,"RouteStartLatitude","Start latitude",0,-85,85,"RouteControls");
  defineNativeDouble(ps,"RouteEndLongitude","End longitude",20,-180,180,"RouteControls");
  defineNativeDouble(ps,"RouteEndLatitude","End latitude",0,-85,85,"RouteControls");
- defineDouble(ps,"RouteProgress","Route reveal (animate 0 to 1)",1,-1,1);
+ defineDouble(ps,"RouteProgress","Route reveal (animate 0 to 1)",1,-1,1,"RouteControls");
  defineNativeDouble(ps,"NativeRouteCurve","Route curvature",-20,-100,100,"RouteControls");
  defineNativeDouble(ps,"NativeRouteWidth","Route width",3,.5,30,"RouteControls");
  defineNativeToggle(ps,"RouteMarkers","Show route endpoints",true,"RouteControls");
@@ -290,12 +292,12 @@ OfxStatus describeInContext(OfxImageEffectHandle e,bool filter){
  defineNativeDouble(ps,"HighlightB","Highlight blue",192,0,255,"MapColors");
 
  defineNativeGroup(ps,"AdvancedScene","Advanced: import custom scenes",false);
- defineString(ps,"SceneFile","Scene .json (blank: empty map)");
- defineString(ps,"CatalogFile","GeoJSON (blank: offline countries)");
- defineMultiline(ps,"EmbeddedSceneJSON","Embedded scene JSON (portable)");
- defineMultiline(ps,"EmbeddedCatalogJSON","Embedded GeoJSON (portable)");
- defineDiagnosticChoice(ps);
- defineBoolean(ps,"DiagnosticLog","Write OFX diagnostic log",false);
+ defineString(ps,"SceneFile","Scene .json (blank: empty map)","AdvancedScene");
+ defineString(ps,"CatalogFile","GeoJSON (blank: offline countries)","AdvancedScene");
+ defineMultiline(ps,"EmbeddedSceneJSON","Embedded scene JSON (portable)","AdvancedScene");
+ defineMultiline(ps,"EmbeddedCatalogJSON","Embedded GeoJSON (portable)","AdvancedScene");
+ defineDiagnosticChoice(ps,"AdvancedScene");
+ defineBoolean(ps,"DiagnosticLog","Write OFX diagnostic log",false,"AdvancedScene");
  return kOfxStatOK;
 }
 OfxStatus createInstance(OfxImageEffectHandle e,bool filter){auto i=std::make_unique<Instance>();i->overlay=filter;OfxParamSetHandle ps=nullptr;if(fx->getParamSet(e,&ps)!=kOfxStatOK)return kOfxStatFailed;
