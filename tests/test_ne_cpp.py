@@ -37,6 +37,12 @@ with tempfile.TemporaryDirectory() as directory:
         INSERT INTO gpkg_geometry_columns VALUES('ne_10m_populated_places','geometry','POINT',4326);
         INSERT INTO ne_10m_populated_places(name,adm0name)
           VALUES('São Paulo','Brazil');
+        CREATE TABLE ne_10m_rivers_lake_centerlines(fid INTEGER PRIMARY KEY,
+          name TEXT,geometry BLOB);
+        INSERT INTO gpkg_contents VALUES('ne_10m_rivers_lake_centerlines','features');
+        INSERT INTO gpkg_geometry_columns VALUES(
+          'ne_10m_rivers_lake_centerlines','geometry','LINESTRING',4326);
+        INSERT INTO ne_10m_rivers_lake_centerlines(name) VALUES('Test River');
         """)
     def gp(wkb):
         return b"GP" + bytes([0,1]) + struct.pack("<I",4326) + wkb
@@ -48,6 +54,9 @@ with tempfile.TemporaryDirectory() as directory:
                   b"".join(p(x,y) for x,y in pts))
     def point(x,y):
         return gp(b"\x01"+struct.pack("<I",1)+p(x,y))
+    def line(coords):
+        return gp(b"\x01"+struct.pack("<II",2,len(coords))+
+                  b"".join(p(x,y) for x,y in coords))
     local=sqlite3.connect(gpkg)
     local.execute("UPDATE ne_10m_admin_0_countries SET geometry=? WHERE adm0_a3='BRA'",
                   (polygon(),))
@@ -55,6 +64,8 @@ with tempfile.TemporaryDirectory() as directory:
                   (polygon(),))
     local.execute("UPDATE ne_10m_populated_places SET geometry=? WHERE name='São Paulo'",
                   (point(-46.633,-23.55),))
+    local.execute("UPDATE ne_10m_rivers_lake_centerlines SET geometry=?",
+                  (line([(-49,-19),(-45,-15),(-41,-12)]),))
     local.commit()
     local.close()
     # Python SQLite connection context manager commits but does NOT close.
@@ -73,6 +84,22 @@ with tempfile.TemporaryDirectory() as directory:
                            capture_output=True,text=True,encoding="utf-8",timeout=20)
     assert painted.returncode==0,(painted.stdout,painted.stderr)
     assert "countries=1" in painted.stdout and "polygons=1" in painted.stdout,painted.stdout
+    # Real Pixel render over the unchanged countries map; verify all three
+    # GeoPackage geometry families and reject unsafe SQL identifiers.
+    for table in ("ne_10m_populated_places",
+                  "ne_10m_rivers_lake_centerlines",
+                  "ne_10m_admin_1_states_provinces"):
+        overlay=subprocess.run([str(preview),str(gpkg),"10m",table],
+             capture_output=True,text=True,encoding="utf-8",timeout=20)
+        assert overlay.returncode==0,(table,overlay.stdout,overlay.stderr)
+        assert "overlay_features=1" in overlay.stdout,overlay.stdout
+        assert overlay.stdout!=painted.stdout,"overlay must change rendered pixels"
+    unsafe=subprocess.run([str(preview),str(gpkg),"10m",
+                           "ne_10m_populated_places;DROP TABLE gpkg_contents"],
+         capture_output=True,text=True,encoding="utf-8",timeout=20)
+    assert unsafe.returncode!=0,"untrusted layer name must be rejected"
+    with sqlite3.connect(gpkg) as check_db:
+        assert check_db.execute("SELECT COUNT(*) FROM gpkg_contents").fetchone()[0]==4
     assert "Brazil" in query("country","Brasil")
     r=subprocess.run([str(exe),str(catalog),"country","Brasil",str(gpkg)],
                      capture_output=True,text=True,encoding="utf-8",timeout=20)
