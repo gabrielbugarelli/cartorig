@@ -11,7 +11,7 @@ import subprocess
 from tools.natural_earth.inventory import download_and_hash
 from tools.natural_earth.build_rasters import compile_archives
 
-OFFICIAL_URL="https://www.naturalearthdata.com/download/50m/raster/MSR_50M.zip"
+OFFICIAL_URL="https://naturalearth.s3.amazonaws.com/50m_raster/MSR_50M.zip"
 
 def main():
     p=argparse.ArgumentParser(description=__doc__)
