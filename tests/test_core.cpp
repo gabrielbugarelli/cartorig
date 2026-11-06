@@ -29,6 +29,48 @@ int main(){
   Route r=s.routes[0];check(routeFraction(r,0)==0&&routeFraction(r,20)==0&&routeFraction(r,70)==0.5&&routeFraction(r,200)==1,"route progress boundaries");
   auto fit=fitBounds({{-67,10},{-47,-15}},1280,720,.1);check(fit.zoom>=0&&fit.zoom<=16,"fit bounds zoom range");
   check(!readText(std::string(CARTORIG_ROOT)+"/data/countries.geojson").empty(),"offline asset I/O");
+
+  // Regression: camera-opposite seam was projecting adjacent Asian vertices
+  // to opposite world copies, drawing kilometer-wide screen scanlines over
+  // South America. A small polygon around lon +118 must remain offscreen
+  // when the camera is at lon -62 (world seam is 180 degrees away).
+  Camera seamCamera;seamCamera.lon=-62;seamCamera.lat=-11;seamCamera.zoom=2.8;seamCamera.bearing=0;
+  Polygon seamPolygon;seamPolygon.rings={{{117.5,15},{118.5,15},{118.5,20},{117.5,20},{117.5,15}}};
+  auto seamRings=projectPolygonContinuous(seamPolygon,seamCamera,640,360);
+  const double worldPixels=256.0*std::pow(2.0,seamCamera.zoom)*.5;
+  bool continuous=true;
+  for(size_t i=1;i<seamRings[0].size();++i)
+    continuous&=std::abs(seamRings[0][i].x-seamRings[0][i-1].x)<worldPixels*.5;
+  check(continuous,"dateline continuity: adjacent longitude edges do not cross whole viewport");
+  Dataset seamDataset;Feature seamFeature;seamFeature.id="SEAM";seamFeature.polygons.push_back(seamPolygon);
+  seamDataset.features.push_back(seamFeature);seamDataset.byId["SEAM"]=0;
+  Scene seamScene;seamScene.camera=seamCamera;seamScene.style.border.a=0;
+  View seamView;seamView.width=640;seamView.height=360;seamView.camera=seamCamera;
+  std::vector<uint8_t> baseline(640*360*4),seamBytes(640*360*4);
+  Surface baseSurface{baseline.data(),0,0,640,360,640*4,PixelFormat::ByteRGBA};
+  Surface seamSurface{seamBytes.data(),0,0,640,360,640*4,PixelFormat::ByteRGBA};
+  Dataset emptyDataset;
+  render(seamScene,emptyDataset,seamView,baseSurface);
+  render(seamScene,seamDataset,seamView,seamSurface);
+  check(baseline==seamBytes,"remote seam polygon cannot create horizontal stripe");
+  // Exercise real offline geometry: Chinese and Indonesian polygons contain
+  // adjacent vertices around the seam at longitude +118.
+  bool worldContinuous=true;
+  for(const auto *id:{"CHN","IDN","MYS","AUS"}){
+    const auto &feature=world.features.at(world.byId.at(id));
+    for(const auto &polygon:feature.polygons){
+      auto rings=projectPolygonContinuous(polygon,seamCamera,1920,1080);
+      const double fullWorld=256.0*std::pow(2.0,seamCamera.zoom)*1.5;
+      for(const auto &ring:rings)for(size_t j=1;j<ring.size();++j)
+        worldContinuous&=std::abs(ring[j].x-ring[j-1].x)<fullWorld*.5;
+    }
+  }
+  check(worldContinuous,"real-world Asian topology continuous across opposite seam");
+  // Hole coordinates follow the same world repeat as their outer ring.
+  auto holes=projectPolygonContinuous(data.features[0].polygons[0],seamCamera,640,360);
+  check(holes.size()==2&&holes[0].size()>3&&holes[1].size()>3,
+        "polygon outer ring and hole retained during continuous projection");
+
   reject("{");reject("[]");reject(R"({"schemaVersion":99})");reject(R"({"camera":{"lat":900}})");reject(R"({"routes":[{"id":"a","from":"x","to":"y"}]})");
   reject(R"({"type":"FeatureCollection","features":[{"properties":{"iso3":"AA"},"geometry":{"type":"Polygon","coordinates":[[[0,999],[1,0],[2,0]]]}}]})",true);
   std::vector<uint8_t> bytes(320*180*4);View view;view.width=320;view.height=180;view.camera=s.camera;view.frame=0;Surface dest{bytes.data(),0,0,320,180,320*4,PixelFormat::ByteRGBA};

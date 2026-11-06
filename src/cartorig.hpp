@@ -39,6 +39,10 @@ Camera evaluateCamera(const Scene &s, double frame);
 double routeFraction(const Route &r, double frame);
 double normalizeLon(double lon);
 ScreenPoint project(GeoPoint p, const Camera &camera, int width, int height);
+// Geographic rings must be projected continuously: wrapping each vertex
+// independently creates >world-width edges and spurious scanline fills.
+std::vector<std::vector<ScreenPoint>> projectPolygonContinuous(
+    const Polygon &polygon,const Camera &camera,int width,int height);
 GeoPoint unproject(ScreenPoint p, const Camera &camera, int width, int height);
 Camera fitBounds(const std::vector<GeoPoint>& points, int width,int height,double padding=0.08);
 // Intersect an OFX image allocation with the RenderWindow without copying pixels.

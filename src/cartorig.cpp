@@ -53,6 +53,49 @@ Scene parseScene(const std::string &json){require(json.size()<=2*1024*1024,"scen
  return s;}
 double normalizeLon(double lon){finite(lon);double n=std::fmod(lon+180,360);if(n<0)n+=360;return n-180;}
 ScreenPoint project(GeoPoint p,const Camera &cam,int w,int h){require(w>0&&h>0,"invalid viewport");const double world=256*std::pow(2,cam.zoom)*(w/1280.0);double dx=(normalizeLon(p.lon)-normalizeLon(cam.lon))/360;while(dx>0.5)dx-=1;while(dx<-.5)dx+=1;double dy=mercatorY(p.lat)-mercatorY(cam.lat);double xx=dx*world,yy=dy*world,ang=cam.bearing*pi/180;return {w/2.0+std::cos(ang)*xx-std::sin(ang)*yy,h/2.0+std::sin(ang)*xx+std::cos(ang)*yy};}
+
+std::vector<std::vector<ScreenPoint>> projectPolygonContinuous(
+    const Polygon &polygon,const Camera &cam,int width,int height){
+  if(width<=0||height<=0)throw std::invalid_argument("invalid projection viewport");
+  const double world=256.0*std::pow(2.0,cam.zoom)*(width/1280.0);
+  const double angle=cam.bearing*pi/180.0;
+  const double cosA=std::cos(angle),sinA=std::sin(angle);
+  const double cameraLon=normalizeLon(cam.lon);
+  const double cameraY=mercatorY(cam.lat);
+  std::vector<std::vector<ScreenPoint>> result;
+  result.reserve(polygon.rings.size());
+  double outerMeanLon=cameraLon;
+  for(size_t ringIndex=0;ringIndex<polygon.rings.size();++ringIndex){
+    const auto &ring=polygon.rings[ringIndex];
+    if(ring.empty()){result.emplace_back();continue;}
+    std::vector<double> unwrapped;unwrapped.reserve(ring.size());
+    double longitude=cameraLon+normalizeLon(ring[0].lon-cameraLon);
+    unwrapped.push_back(longitude);
+    for(size_t j=1;j<ring.size();++j){
+      // Edges follow their shortest geographic longitude displacement.
+      // This preserves topology at the camera-opposite world seam.
+      longitude+=normalizeLon(ring[j].lon-ring[j-1].lon);
+      unwrapped.push_back(longitude);
+    }
+    double sum=0;size_t count=unwrapped.size();
+    // Ignore duplicated closing point when choosing a world repeat.
+    if(count>1&&ring.front().lon==ring.back().lon&&ring.front().lat==ring.back().lat)
+      --count;
+    for(size_t j=0;j<count;++j)sum+=unwrapped[j];
+    const double mean=sum/std::max(size_t(1),count);
+    const double reference=ringIndex==0?cameraLon:outerMeanLon;
+    const double offset=360.0*std::round((reference-mean)/360.0);
+    if(ringIndex==0)outerMeanLon=mean+offset;
+    std::vector<ScreenPoint> points;points.reserve(ring.size());
+    for(size_t j=0;j<ring.size();++j){
+      const double xx=(unwrapped[j]+offset-cameraLon)/360.0*world;
+      const double yy=(mercatorY(ring[j].lat)-cameraY)*world;
+      points.push_back({width*.5+cosA*xx-sinA*yy,height*.5+sinA*xx+cosA*yy});
+    }
+    result.push_back(std::move(points));
+  }
+  return result;
+}
 GeoPoint unproject(ScreenPoint s,const Camera &cam,int w,int h){require(w>0&&h>0,"invalid viewport");const double world=256*std::pow(2,cam.zoom)*(w/1280.0),ang=cam.bearing*pi/180,dx=s.x-w/2.0,dy=s.y-h/2.0;double xx=std::cos(ang)*dx+std::sin(ang)*dy,yy=-std::sin(ang)*dx+std::cos(ang)*dy;return {normalizeLon(cam.lon+xx/world*360),inverseY(mercatorY(cam.lat)+yy/world)};}
 Camera evaluateCamera(const Scene &s,double frame){if(s.cameraKeys.empty())return s.camera;const auto &keys=s.cameraKeys;if(frame<=keys.front().frame)return keys.front().camera;if(frame>=keys.back().frame)return keys.back().camera;auto after=std::upper_bound(keys.begin(),keys.end(),frame,[](double f,const CameraKey &k){return f<k.frame;});const CameraKey &a=*(after-1),&b=*after;double t=(frame-a.frame)/(b.frame-a.frame);if(a.easing=="hold")t=0;else if(a.easing=="smoothstep")t=smooth(t);const double delta=normalizeLon(b.camera.lon-a.camera.lon);double bearing=std::fmod(b.camera.bearing-a.camera.bearing+540,360)-180;Camera c;c.lon=normalizeLon(a.camera.lon+delta*t);c.lat=inverseY(lerp(mercatorY(a.camera.lat),mercatorY(b.camera.lat),t));c.zoom=lerp(a.camera.zoom,b.camera.zoom,t);c.bearing=a.camera.bearing+bearing*t;return c;}
 double routeFraction(const Route &r,double frame){if(frame<r.start)return 0;if(r.end<=r.start)return 1;return std::clamp((frame-r.start)/(r.end-r.start),0.0,1.0);}

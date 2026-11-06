@@ -117,7 +117,36 @@ void renderDiagnosticPattern(Surface s,int width,int height,int mode){
 void render(const Scene &scene,const Dataset &data,const View &view,Surface dst,RasterStats *stats){
  if(view.width<=0||view.height<=0||view.width>16384||view.height>16384||!dst.data||dst.x1>=dst.x2||dst.y1>=dst.y2||dst.rowBytes==0)throw std::invalid_argument("invalid image target");
  Painter p{dst,view.width,view.height,stats};if(!view.preserveBackground)p.fill(scene.style.transparent?Color{0,0,0,0}:scene.style.ocean);
- const auto drawFeature=[&](const Feature &f,Color fillColor,bool border){for(auto &poly:f.polygons){std::vector<std::vector<ScreenPoint>> rings;rings.reserve(poly.rings.size());for(auto &r:poly.rings){std::vector<ScreenPoint> projected;projected.reserve(r.size());for(const auto &pt:r)projected.push_back(project(pt,view.camera,view.width,view.height));rings.push_back(std::move(projected));}p.polygon(rings,fillColor,border?scene.style.border:Color{0,0,0,0});}};
+ const auto drawFeature=[&](const Feature &f,Color fillColor,bool border){
+   const double world=256.0*std::pow(2.0,view.camera.zoom)*(view.width/1280.0);
+   const double angle=view.camera.bearing*3.14159265358979323846/180.0;
+   const ScreenPoint wrap{world*std::cos(angle),world*std::sin(angle)};
+   // At low zoom more than one copy of the world may be visible; at normal
+   // zoom copies outside the RenderWindow are culled without any painting.
+   const int maxRepeat=std::clamp(static_cast<int>(
+     std::ceil(std::hypot(view.width,view.height)/world))+2,2,32);
+   const double clipX0=dst.x1,clipX1=dst.x2;
+   const double clipY0=view.height-dst.y2,clipY1=view.height-dst.y1;
+   for(const auto &poly:f.polygons){
+     const auto rings=projectPolygonContinuous(poly,view.camera,view.width,view.height);
+     if(rings.empty()||rings[0].empty())continue;
+     double xmin=1e15,xmax=-1e15,ymin=1e15,ymax=-1e15;
+     for(const auto &pt:rings[0]){
+       xmin=std::min(xmin,pt.x);xmax=std::max(xmax,pt.x);
+       ymin=std::min(ymin,pt.y);ymax=std::max(ymax,pt.y);
+     }
+     // Group the outer ring and holes before translating; shifting each
+     // ring independently would break holes in dateline-crossing polygons.
+     for(int copy=-maxRepeat;copy<=maxRepeat;++copy){
+       const double ox=copy*wrap.x,oy=copy*wrap.y;
+       if(xmax+ox<clipX0-4||xmin+ox>clipX1+4||
+          ymax+oy<clipY0-4||ymin+oy>clipY1+4)continue;
+       std::vector<std::vector<ScreenPoint>> translated=rings;
+       for(auto &ring:translated)for(auto &pt:ring){pt.x+=ox;pt.y+=oy;}
+       p.polygon(translated,fillColor,border?scene.style.border:Color{0,0,0,0});
+     }
+   }
+ };
  for(auto &f:data.features)drawFeature(f,scene.style.land,true);
  for(auto &id:scene.highlighted){auto it=data.byId.find(id);if(it!=data.byId.end())drawFeature(data.features[it->second],scene.style.highlight,false);}
  for(const auto &r:scene.routes){auto find=[&](const std::string &id)->const Marker*{for(auto &m:scene.markers)if(m.id==id)return &m;return nullptr;};auto from=find(r.from),to=find(r.to);if(!from||!to)continue;auto a=project(from->at,view.camera,view.width,view.height),b=project(to->at,view.camera,view.width,view.height);double dx=b.x-a.x,dy=b.y-a.y,curve=r.curve/100.0;ScreenPoint control{(a.x+b.x)/2-dy*curve,(a.y+b.y)/2+dx*curve};auto at=[&](double t){return ScreenPoint{(1-t)*(1-t)*a.x+2*t*(1-t)*control.x+t*t*b.x,(1-t)*(1-t)*a.y+2*t*(1-t)*control.y+t*t*b.y};};std::vector<ScreenPoint> points;std::vector<double> lengths;double total=0;for(int i=0;i<=96;++i){auto q=at(i/96.0);if(!points.empty())total+=std::hypot(q.x-points.back().x,q.y-points.back().y);points.push_back(q);lengths.push_back(total);}double f=view.routeProgress>=0?std::clamp(view.routeProgress,0.0,1.0):routeFraction(r,view.frame);double progress=total*f;ScreenPoint tip=a;for(size_t i=1;i<points.size();++i){if(lengths[i-1]>=progress)break;double t=std::clamp((progress-lengths[i-1])/std::max(lengths[i]-lengths[i-1],1e-9),0.0,1.0);ScreenPoint q{points[i-1].x+t*(points[i].x-points[i-1].x),points[i-1].y+t*(points[i].y-points[i-1].y)};p.line(points[i-1],q,r.width,r.color);tip=q;if(t<1)break;}
