@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(CartoRigNative VERSION 0.1.0 LANGUAGES CXX)
+project(CartoRigNative VERSION 0.2.0 LANGUAGES CXX)
 option(CARTORIG_BUILD_TESTS "Build the standalone C++ core tests" ON)
 option(CARTORIG_SANITIZERS "Build with address/undefined-behavior sanitizers (Clang/GCC)" OFF)
 if(CARTORIG_SANITIZERS AND NOT MSVC)
@@ -25,8 +25,22 @@ else()
   target_compile_options(cartorig_core PRIVATE -Wall -Wextra -Wpedantic)
 endif()
 
+# Include the exact git revision in the Inspector and optional diagnostic logs.
+find_package(Git QUIET)
+set(CARTORIG_BUILD_SHA "local")
+if(GIT_FOUND)
+  execute_process(COMMAND ${GIT_EXECUTABLE} rev-parse --short=12 HEAD
+                  WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+                  OUTPUT_VARIABLE CARTORIG_COMMIT_OUTPUT
+                  OUTPUT_STRIP_TRAILING_WHITESPACE
+                  ERROR_QUIET)
+  if(CARTORIG_COMMIT_OUTPUT MATCHES "^[0-9a-f]+$")
+    set(CARTORIG_BUILD_SHA "${CARTORIG_COMMIT_OUTPUT}")
+  endif()
+endif()
 add_library(CartoRigNative MODULE src/ofx_plugin.cpp)
 target_link_libraries(CartoRigNative PRIVATE cartorig_core)
+target_compile_definitions(CartoRigNative PRIVATE CARTORIG_BUILD_SHA="\"${CARTORIG_BUILD_SHA}\"")
 target_include_directories(CartoRigNative PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/third_party/openfx/include)
 if(UNIX AND NOT APPLE)
   target_link_libraries(CartoRigNative PRIVATE ${CMAKE_DL_LIBS})

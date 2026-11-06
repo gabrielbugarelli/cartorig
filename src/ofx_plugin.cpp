@@ -5,6 +5,9 @@
 #include "ofxImageEffect.h"
 #include "ofxParam.h"
 #include "ofxProperty.h"
+#ifndef CARTORIG_BUILD_SHA
+#define CARTORIG_BUILD_SHA "local"
+#endif
 #include <algorithm>
 #include <atomic>
 #include <chrono>
@@ -77,7 +80,7 @@ void writeDiagnostics(const std::string &message) noexcept {
       if(file) {
         file<<std::chrono::duration_cast<std::chrono::seconds>(
           std::chrono::system_clock::now().time_since_epoch()).count()
-          <<" CartoRigNative 0.1.0-dev "<<message<<"\n";
+          <<" CartoRigNative 0.2.0-dev/"<<CARTORIG_BUILD_SHA<<" "<<message<<"\n";
         file.flush();
         if(file.good())return;
       }
@@ -150,6 +153,17 @@ void defineMultiline(OfxParamSetHandle set,const char *name,const char *label){
   prop->propSetInt(props,kOfxParamPropAnimates,0,0);
 }
 void defineBoolean(OfxParamSetHandle set,const char *name,const char *label,bool value){OfxPropertySetHandle p=nullptr;if(param->paramDefine(set,kOfxParamTypeBoolean,name,&p)!=kOfxStatOK)throw std::runtime_error("param define bool");prop->propSetString(p,kOfxPropLabel,0,label);prop->propSetInt(p,kOfxParamPropDefault,0,value?1:0);prop->propSetInt(p,kOfxParamPropAnimates,0,0);}
+void defineVersionLabel(OfxParamSetHandle ps){
+  OfxPropertySetHandle props=nullptr;
+  if(param->paramDefine(ps,kOfxParamTypeString,"CartoRigBuildInfo",&props)!=kOfxStatOK)
+    throw std::runtime_error("version label parameter failed");
+  prop->propSetString(props,kOfxPropLabel,0,"Installed plugin build");
+  prop->propSetString(props,kOfxParamPropStringMode,0,kOfxParamStringIsLabel);
+  const std::string info=std::string("0.2.0-dev / ")+CARTORIG_BUILD_SHA;
+  prop->propSetString(props,kOfxParamPropDefault,0,info.c_str());
+  prop->propSetInt(props,kOfxParamPropPersistant,0,0);
+  prop->propSetInt(props,kOfxParamPropAnimates,0,0);
+}
 void defineDiagnosticChoice(OfxParamSetHandle ps){
   OfxPropertySetHandle p=nullptr;
   if(param->paramDefine(ps,kOfxParamTypeChoice,"DiagnosticMode",&p)!=kOfxStatOK)
@@ -189,6 +203,7 @@ OfxStatus describeInContext(OfxImageEffectHandle e,bool filter){OfxPropertySetHa
  defineDouble(ps,"SceneTimeScale","Scene time scale / reverse",1,-8,8);
  defineDouble(ps,"Longitude","Camera longitude",-61,-180,180);defineDouble(ps,"Latitude","Camera latitude",-12,-85,85);defineDouble(ps,"Zoom","Camera zoom",3.2,0,18);defineDouble(ps,"Bearing","Camera bearing (degrees)",0,-360,360);
  defineDouble(ps,"RouteProgress","Route reveal (-1: scene)",-1,-1,1);defineDouble(ps,"Opacity","Cartography opacity (entire map)",filter?0.7:1,0,1);
+ defineVersionLabel(ps);
  defineDiagnosticChoice(ps);defineBoolean(ps,"DiagnosticLog","Write OFX diagnostic log",false);
  return kOfxStatOK;
 }
@@ -358,12 +373,19 @@ OfxStatus entry(const char *action,const void *handle,OfxPropertySetHandle args,
    if(prop->propSetInt(out,kOfxImageEffectFrameVarying,0,1)!=kOfxStatOK)return kOfxStatFailed;
    // Explicitly request RGBA on the Output clip (OpenFX clip preferences).
    // Some Resolve 20 generator images still expose None despite this request.
-   if(!filter){
+   {
      const auto status=prop->propSetString(
        out,"OfxImageClipPropComponents_Output",0,kOfxImageComponentRGBA);
      if(status!=kOfxStatOK)
        writeDiagnostics("GetClipPreferences Output RGBA request not accepted: "+
          std::to_string(status));
+     if(filter){
+       const auto inputStatus=prop->propSetString(
+         out,"OfxImageClipPropComponents_Source",0,kOfxImageComponentRGBA);
+       if(inputStatus!=kOfxStatOK)
+         writeDiagnostics("GetClipPreferences Source RGBA request not accepted: "+
+           std::to_string(inputStatus));
+     }
    }
    // Both contexts now produce premultiplied output, including translucent
    // graphics composited onto live video by the Overlay Filter.
