@@ -120,9 +120,15 @@ Open **Geographic region** in the Inspector:
 4. Set independent **Region red / green / blue / opacity** controls.
 5. Click **Add / update selected region**. Selecting the same feature and
    clicking again replaces *only that feature's* color.
-6. Repeat for more regions, or click **Remove selected region** to delete a
-   specific feature. The persistent selected-region JSON stays with the
-   clip/project; it is not written to a global settings file.
+6. To animate a region, choose it under **Selected region to animate / edit**
+   and position the Resolve playhead. Choose **Smoothstep**, **Linear**, or
+   **Hold**, edit the RGBA controls, then click **Capture RGBA key at playhead**.
+   Repeat at another frame. Each selection maintains its own bounded,
+   persistent 64-key timeline, evaluated on `SceneTimeOffset/SceneTimeScale`.
+7. To delete a region, click **Remove saved region** for the selected
+   persistent item; **Remove matching search result** remains an alternative.
+   The persistent selected-region JSON stays with the clip/project; it is not
+   written to a global settings file.
 
 City entries in Natural Earth are **point features** and are rendered as such,
 not as invented municipality borders. A derived continent uses published
@@ -132,8 +138,10 @@ admin-0 country polygons. Source geometries remain 4326.
 
 - Result names in the Inspector label rely on the host accepting an OpenFX
   `InstanceChanged` label update. The stored selected feature IDs and styles
-  are host-agnostic, but dynamic label refresh is **not yet confirmed in
-  DaVinci Resolve Studio 20**.
+  are host-agnostic, but dynamic label and dropdown refresh are **not yet
+  confirmed in DaVinci Resolve Studio 20**. Capture buttons also require
+  host acceptance of the `kOfxPropTime` passed to `InstanceChanged`; when
+  the host supplies no playhead time, a capture uses the default time zero.
 - The Inspector exposes a result ordinal rather than a genuinely dynamic
   dropdown of arbitrary location names; there is no click-to-select-in-Viewer
   or per-region native bezier keyframing yet.
@@ -155,7 +163,8 @@ admin-0 country polygons. Source geometries remain 4326.
 
 - [x] Native CPU raster atlas path implemented and synthetic RGBA pixel tests.
 - [x] Deterministic offline data pack builder and SHA256 installer source.
-- [x] Geographic search, stable multi-selection, independent RGBA and tests.
+- [x] Geographic search, stable multi-selection, independent RGBA and
+  persisted per-region color keyframes with synthetic OpenFX action tests.
 - [ ] Convert and certify **every** official inventoried raster variant from
   its actual publisher archive.
 - [ ] Confirm all vector classes and 10m high-detail LOD under realistic
