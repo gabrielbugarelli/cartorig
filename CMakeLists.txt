@@ -14,6 +14,7 @@ add_library(cartorig_core STATIC
   src/cartorig.cpp
   src/raster.cpp
   src/compositing.cpp
+  src/native_controls.cpp
   third_party/json11/json11.cpp)
 target_include_directories(cartorig_core PUBLIC
   ${CMAKE_CURRENT_SOURCE_DIR}/src
@@ -71,7 +72,7 @@ endforeach()
 file(MAKE_DIRECTORY "${CARTORIG_BUNDLE}/Contents/Resources")
 configure_file(data/countries.geojson "${CARTORIG_BUNDLE}/Contents/Resources/countries.geojson" COPYONLY)
 configure_file(data/LICENSE-COUNTRYINFO.txt "${CARTORIG_BUNDLE}/Contents/Resources/LICENSE-COUNTRYINFO.txt" COPYONLY)
-configure_file(samples/brasil-venezuela.cartorig-native.json "${CARTORIG_BUNDLE}/Contents/Resources/brasil-venezuela.cartorig-native.json" COPYONLY)
+configure_file(data/default-map.cartorig-native.json "${CARTORIG_BUNDLE}/Contents/Resources/default-map.cartorig-native.json" COPYONLY)
 
 if(CARTORIG_BUILD_TESTS)
   enable_testing()

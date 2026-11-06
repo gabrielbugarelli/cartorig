@@ -13,7 +13,7 @@ struct Color { uint8_t r=0,g=0,b=0,a=255; };
 struct Polygon { std::vector<std::vector<GeoPoint>> rings; };
 struct Feature { std::string id,name; std::vector<Polygon> polygons; };
 struct Dataset { std::vector<Feature> features; std::map<std::string,size_t> byId; };
-struct Marker { std::string id,label; GeoPoint at; Color color{255,200,100,255}; double size=6; };
+struct Marker { std::string id,label; GeoPoint at; Color color{255,200,100,255}; double size=6; bool visible=true; };
 struct Route { std::string id,from,to; Color color{255,200,100,255}; double width=3,curve=0; int start=0,end=120; };
 struct Style { Color ocean{13,30,50,255},land{35,59,82,255},border{90,120,147,255},highlight{40,157,192,220}; bool transparent=false; };
 struct Scene {
