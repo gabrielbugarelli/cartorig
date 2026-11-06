@@ -1,6 +1,7 @@
 #include "natural_earth_catalog.hpp"
 #include "natural_earth_geometry.hpp"
 #include <cstring>
+#include <iterator>
 #include <algorithm>
 #include <cctype>
 #include <stdexcept>
@@ -243,5 +244,61 @@ NaturalEarthGeometry NaturalEarthCatalog::featureGeometry(
   if(!data||bytes<=0)
     throw std::invalid_argument("Natural Earth feature geometry is empty");
   return decodeGeoPackageGeometry(data,static_cast<std::size_t>(bytes));
+}
+} // namespace cartorig
+
+namespace cartorig {
+Dataset NaturalEarthCatalog::countryPolygons(
+    const std::filesystem::path &geoPackage,const std::string &scale){
+  if(scale!="10m"&&scale!="50m"&&scale!="110m")
+    throw std::invalid_argument("unsupported Natural Earth vector scale");
+  SqliteApi api;
+  DB db(api,geoPackage);
+  const std::string table="ne_"+scale+"_admin_0_countries";
+  Stmt meta(api,db.db,
+    "SELECT column_name, srs_id FROM gpkg_geometry_columns WHERE table_name=?");
+  meta.bind(1,table);
+  if(api.step(meta.statement)!=SQLITE_ROW_)
+    throw std::invalid_argument("Natural Earth country polygons unavailable at requested scale");
+  const auto column=str(api,meta.statement,0);
+  if(!allowedIdentifier(column)||api.column_int64(meta.statement,1)!=4326)
+    throw std::invalid_argument("invalid Natural Earth source geometry schema");
+  const std::string sql="SELECT name, adm0_a3, \""+column+"\" FROM \""+
+                         table+"\" ORDER BY rowid";
+  Stmt rows(api,db.db,sql.c_str());
+  Dataset dataset;
+  std::size_t features=0;
+  std::size_t totalPolygons=0;
+  int code=SQLITE_DONE_;
+  while((code=api.step(rows.statement))==SQLITE_ROW_){
+    if(++features>5000)
+      throw std::invalid_argument("Natural Earth country layer exceeds feature budget");
+    auto name=str(api,rows.statement,0);
+    auto id=str(api,rows.statement,1);
+    const auto data=api.column_blob(rows.statement,2);
+    const auto bytes=api.column_bytes(rows.statement,2);
+    if(id.empty()||id=="-99"||!data||bytes<=0)continue;
+    auto geom=decodeGeoPackageGeometry(data,static_cast<std::size_t>(bytes));
+    if(geom.polygons.empty())continue;
+    totalPolygons+=geom.polygons.size();
+    if(totalPolygons>100000)
+      throw std::invalid_argument("Natural Earth polygons exceed safe complexity");
+    auto it=dataset.byId.find(id);
+    if(it==dataset.byId.end()){
+      Feature feature;feature.id=id;feature.name=name.empty()?id:name;
+      feature.polygons=std::move(geom.polygons);
+      dataset.byId.emplace(id,dataset.features.size());
+      dataset.features.push_back(std::move(feature));
+    }else{
+      auto &target=dataset.features[it->second].polygons;
+      target.insert(target.end(),std::make_move_iterator(geom.polygons.begin()),
+                    std::make_move_iterator(geom.polygons.end()));
+    }
+  }
+  if(code!=SQLITE_DONE_)
+    throw std::runtime_error(std::string("Natural Earth source query failed: ")+api.errmsg(db.db));
+  if(dataset.features.empty())
+    throw std::runtime_error("Natural Earth country GeoPackage contains no renderable polygons");
+  return dataset;
 }
 } // namespace cartorig

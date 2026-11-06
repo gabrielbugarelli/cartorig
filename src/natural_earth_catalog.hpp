@@ -22,5 +22,10 @@ struct NaturalEarthCatalog {
   // strictly validated. Does not fabricate city administrative boundaries.
   static NaturalEarthGeometry featureGeometry(
       const std::filesystem::path &geoPackage,const NaturalEarthRegion &region);
+  // Directly convert the offline Natural Earth country layer at a chosen
+  // scale to the existing proven CPU map renderer's country Dataset. The
+  // GeoPackage is opened READ-ONLY; no network or import-time mutations.
+  static Dataset countryPolygons(const std::filesystem::path &geoPackage,
+                                 const std::string &scale);
 };
 } // namespace cartorig
