@@ -75,6 +75,10 @@ Restart DaVinci Resolve Studio 20. If the Generator is supported, search for **C
 
 A PPM is produced for engineering tests only; this is **not** a pre-render requirement in the actual OFX runtime.
 
+## Resolve 20 host compatibility — ComponentNone RGBA Float4
+
+Initial host logs conclusively showed the generator output allocation was reported as `OfxBitDepthFloat` with `OfxImageComponentNone`, but stride matched 4×32-bit channels (1920×16). This invalid metadata made the render callback reject every frame. The plugin now explicitly requests `Output=RGBA` from clip preferences and supports a **strict** opt-in internal compatibility path for this exact Generator Float4 allocation. This remains under real-host validation; it does not imply arbitrary ComponentNone buffers are valid. See [diagnostics](docs/RESOLVE20_DIAGNOSTICS.md).
+
 ## Resolve Studio 20: image corruption diagnostics
 
 The first in-host tests exposed severe green/white pixel noise and striping. The root cause has **not** been certified. Do not treat the native build as usable in production yet. The Inspector now exposes **Diagnostic output (test only)** (RGB bars, grayscale, alpha split, white) and an opt-in **Write OFX diagnostic log**. Run the controlled [Resolve 20 diagnostic procedure](docs/RESOLVE20_DIAGNOSTICS.md) before proposing another pixel-format fix.

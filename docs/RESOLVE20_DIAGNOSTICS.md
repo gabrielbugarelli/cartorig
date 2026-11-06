@@ -1,3 +1,31 @@
+## Resultado conclusivo do log de 06/11 — ComponentNone no Generator
+
+O usuário enviou `ofx-diagnostics.log` (300 linhas). Entre os eventos brutos registrados, 36 mensagens `IMAGE_RAW` confirmam:
+
+```text
+boundsStatus=0 strideStatus=0 depthStatus=0 componentsStatus=0
+rect=0,0,1920,1080
+rowBytes=30720
+depth=OfxBitDepthFloat
+components=OfxImageComponentNone
+```
+
+Após cada obtenção de imagem, o plugin terminava a ação `OfxImageEffectActionRender` com `only RGBA is supported`. Portanto **nenhum quadro RGB foi renderizado com sucesso**. Os contornos/artefatos vistos no Viewer eram produzidos durante uma ação que falhava, não evidência de cores geográficas intencionalmente erradas.
+
+Segundo o padrão OpenFX, `OfxImageComponentNone` significa imagem sem componentes definidos e não deveria rotular um buffer de imagem válido. Entretanto, o stride de 30.720 bytes corresponde exatamente a `1920 × 4 canais × sizeof(float)`.
+
+**Correção experimental em `e527d904`:**
+1. Solicitar `OfxImageClipPropComponents_Output = OfxImageComponentRGBA` no `GetClipPreferences` do Generator.
+2. Se o Resolve 20 continuar retornando `ComponentNone`, permitir uma exceção **somente** para a saída do Generator, com `Float`, pitch positivo **exatamente** `width×16`, dimensões válidas e sem componentes alternativos.
+3. A decisão é isolada em `classifyOfxLayout` com 16 casos automatizados (aceite e rejeição). Não se aplica ao Overlay/Filter nem à saída Byte sem metadados.
+4. Emitir `COMPAT` no log para indicar quando a exceção foi utilizada.
+
+O contrato de metadados continua inconforme à especificação no cenário de fallback. Esta compatibilidade não deve ser generalizada nem marcada como certificada até observar o resultado no host.
+
+**Revalidação prioritária com Artifact novo:** modo `RGB bars` e log ativado. O esperado é eliminar `only RGBA is supported` e produzir as barras inteiras. Depois repetir com `Normal map`, `Grayscale ramp` e `Alpha split`. Se a imagem ainda falhar, analisar as linhas `GetClipPreferences`, `COMPAT`, `render` e qualquer novo `ERROR` do log.
+
+Referências: https://openfx.readthedocs.io/en/main/Reference/ofxClipPreferences.html e https://openfx.readthedocs.io/en/main/Reference/api/file/ofxImageEffect_8h.html.
+
 # CartoRig Native — diagnóstico de buffers na página Edit (Resolve Studio 20)
 
 ## Sintoma documentado (6/11/2026)
