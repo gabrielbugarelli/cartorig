@@ -2,6 +2,7 @@
 #include "cartorig.hpp"
 #include "native_controls.hpp"
 #include "natural_earth_catalog.hpp"
+#include "natural_earth_raster.hpp"
 #include "ofx_pixel_layout.hpp"
 #include "ofxCore.h"
 #include "ofxImageEffect.h"
@@ -37,7 +38,7 @@ const OfxParameterSuiteV1 *param=nullptr;
 struct Instance {
   OfxImageClipHandle output=nullptr,source=nullptr;
   OfxParamHandle sceneFile=nullptr,datasetFile=nullptr,sceneInline=nullptr,datasetInline=nullptr;
-  OfxParamHandle naturalEarthGpkg=nullptr,naturalEarthDetail=nullptr,naturalEarthLayer=nullptr,naturalEarthLayerFile=nullptr;
+  OfxParamHandle naturalEarthGpkg=nullptr,naturalEarthDetail=nullptr,naturalEarthLayer=nullptr,naturalEarthLayerFile=nullptr,naturalEarthRasterRoot=nullptr,naturalEarthRasterAsset=nullptr;
   OfxParamHandle useSceneKeys=nullptr,lon=nullptr,lat=nullptr,zoom=nullptr,bearing=nullptr,route=nullptr,opacity=nullptr;
   OfxParamHandle frameOffset=nullptr,timeScale=nullptr,diagnosticMode=nullptr,diagnosticLog=nullptr;
   OfxParamHandle countryA=nullptr,countryB=nullptr,countryList=nullptr,highlightStrength=nullptr;
@@ -66,6 +67,11 @@ struct VectorLayerCache {
   std::shared_ptr<const std::vector<cartorig::NaturalEarthGeometry>> features;
 };
 std::unordered_map<std::string,VectorLayerCache> vectorLayerCache;
+struct RasterCacheEntry {
+  std::filesystem::file_time_type modified;
+  std::shared_ptr<const cartorig::NaturalEarthRaster> raster;
+};
+std::unordered_map<std::string,RasterCacheEntry> rasterCache;
 std::mutex diagnosticsMutex;
 std::atomic<unsigned> diagnosticsCount{0};
 void writeDiagnostics(const std::string &message) noexcept {
@@ -151,6 +157,23 @@ naturalEarthLayerAt(const std::string &path,const std::string &name){
       cartorig::NaturalEarthCatalog::layerGeometries(path,name));
   if(vectorLayerCache.size()>=8)vectorLayerCache.clear();
   vectorLayerCache[key]={stamp,value};
+  return value;
+}
+std::shared_ptr<const cartorig::NaturalEarthRaster> naturalEarthRasterAt(
+    const std::string &root,const std::string &assetId){
+  std::lock_guard<std::mutex> lock(cacheMutex);
+  // Cache immutable source metadata only; all per-render tile buffers remain
+  // thread-local, preventing races during asynchronous Resolve frame requests.
+  const auto index=std::filesystem::path(root)/assetId/"index.json";
+  const auto stamp=std::filesystem::last_write_time(index);
+  const auto key=root+":"+assetId;
+  const auto it=rasterCache.find(key);
+  if(it!=rasterCache.end()&&it->second.modified==stamp)
+    return it->second.raster;
+  auto value=std::make_shared<const cartorig::NaturalEarthRaster>(
+      cartorig::loadNaturalEarthRaster(root,assetId));
+  if(rasterCache.size()>=12)rasterCache.clear();
+  rasterCache[key]={stamp,value};
   return value;
 }
 std::shared_ptr<const cartorig::Dataset> datasetAt(const std::string &path){
@@ -347,6 +370,8 @@ OfxStatus describeInContext(OfxImageEffectHandle e,bool filter){
  // Optional raw publisher table name. Never changes existing map clips unless set.
  defineString(ps,"NaturalEarthLayer","Additional vector layer (ne_...)","AdvancedScene");
  defineString(ps,"NaturalEarthLayerGpkg","Additional layer GeoPackage (optional)","AdvancedScene");
+ defineString(ps,"NaturalEarthRasterRoot","Raster tiles directory (offline)","AdvancedScene");
+ defineNativeText(ps,"NaturalEarthRasterAsset","Raster asset ID (blank: disabled)","AdvancedScene");
  defineString(ps,"SceneFile","Scene .json (blank: empty map)","AdvancedScene");
  defineString(ps,"CatalogFile","GeoJSON (blank: offline countries)","AdvancedScene");
  defineMultiline(ps,"EmbeddedSceneJSON","Embedded scene JSON (portable)","AdvancedScene");
@@ -362,6 +387,8 @@ OfxStatus createInstance(OfxImageEffectHandle e,bool filter){auto i=std::make_un
  {"NaturalEarthVectorGpkg",&i->naturalEarthGpkg},{"NaturalEarthDetail",&i->naturalEarthDetail},
  {"NaturalEarthLayer",&i->naturalEarthLayer},
  {"NaturalEarthLayerGpkg",&i->naturalEarthLayerFile},
+ {"NaturalEarthRasterRoot",&i->naturalEarthRasterRoot},
+ {"NaturalEarthRasterAsset",&i->naturalEarthRasterAsset},
  {"EmbeddedSceneJSON",&i->sceneInline},{"EmbeddedCatalogJSON",&i->datasetInline},
  {"SceneTimeOffset",&i->frameOffset},{"SceneTimeScale",&i->timeScale},
  {"UseSceneCamera",&i->useSceneKeys},{"Longitude",&i->lon},{"Latitude",&i->lat},{"Zoom",&i->zoom},
@@ -550,6 +577,15 @@ OfxStatus render(OfxImageEffectHandle e,OfxPropertySetHandle args){Instance *i=i
    view.preserveBackground=true;
  }
  cartorig::render(copy,*dataset,view,target);
+ std::string rasterRoot,rasterAsset;
+ stringAt(i->naturalEarthRasterRoot,time,rasterRoot);
+ stringAt(i->naturalEarthRasterAsset,time,rasterAsset);
+ if(!rasterAsset.empty()){
+   if(rasterRoot.empty())
+     throw std::invalid_argument("Natural Earth raster asset requires offline tile directory");
+   const auto atlas=naturalEarthRasterAt(rasterRoot,rasterAsset);
+   cartorig::renderNaturalEarthRaster(*atlas,view,target);
+ }
  std::string extraLayer,extraLayerPath;
  stringAt(i->naturalEarthLayer,time,extraLayer);
  stringAt(i->naturalEarthLayerFile,time,extraLayerPath);
@@ -570,7 +606,7 @@ OfxStatus render(OfxImageEffectHandle e,OfxPropertySetHandle args){Instance *i=i
 }
 OfxStatus entry(const char *action,const void *handle,OfxPropertySetHandle args,OfxPropertySetHandle out,bool filter){try {
  if(!std::strcmp(action,kOfxActionLoad))return onLoad();
- if(!std::strcmp(action,kOfxActionUnload)){std::lock_guard<std::mutex> lock(cacheMutex);cache.clear();vectorLayerCache.clear();return kOfxStatOK;}
+ if(!std::strcmp(action,kOfxActionUnload)){std::lock_guard<std::mutex> lock(cacheMutex);cache.clear();vectorLayerCache.clear();rasterCache.clear();return kOfxStatOK;}
  if(!std::strcmp(action,kOfxActionDescribe))return describe((OfxImageEffectHandle)handle,filter);
  if(!std::strcmp(action,kOfxImageEffectActionDescribeInContext))return describeInContext((OfxImageEffectHandle)handle,filter);
  if(!std::strcmp(action,kOfxActionInstanceChanged)){
