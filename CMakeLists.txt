@@ -51,7 +51,7 @@ if(CARTORIG_BUILD_SHA MATCHES "^[0-9a-f]+$" AND
 endif()
 # The native Natural Earth search adapter is isolated from the already-validated
 # rasterizer/OpenFX binary until host UX and dataset packaging are verified.
-add_library(cartorig_ne_catalog STATIC src/natural_earth_catalog.cpp)
+add_library(cartorig_ne_catalog STATIC src/natural_earth_catalog.cpp src/natural_earth_geometry.cpp)
 target_include_directories(cartorig_ne_catalog PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
 if(UNIX AND NOT APPLE)
   target_link_libraries(cartorig_ne_catalog PUBLIC ${CMAKE_DL_LIBS})
@@ -98,6 +98,9 @@ configure_file(data/default-map.cartorig-native.json "${CARTORIG_BUNDLE}/Content
 
 if(CARTORIG_BUILD_TESTS)
   enable_testing()
+  add_executable(cartorig_ne_geometry_tests tests/test_ne_geometry.cpp)
+  target_link_libraries(cartorig_ne_geometry_tests PRIVATE cartorig_ne_catalog)
+  add_test(NAME cartorig_ne_wkb_geopackage_geometry COMMAND cartorig_ne_geometry_tests)
   add_executable(cartorig_ne_lookup tools/ne_lookup.cpp)
   target_link_libraries(cartorig_ne_lookup PRIVATE cartorig_ne_catalog)
   find_package(Python3 COMPONENTS Interpreter QUIET)
