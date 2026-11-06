@@ -36,6 +36,9 @@ with tempfile.TemporaryDirectory() as directory:
         INSERT INTO ne_10m_populated_places(name,adm0name)
           VALUES('São Paulo','Brazil');
         """)
+    # Python SQLite connection context manager commits but does NOT close.
+    # Windows keeps the GeoPackage locked until an explicit close.
+    db.close()
     catalog=target/"catalog.sqlite"
     result=index_source(gpkg,catalog)
     assert result["region_records"]==4,result
