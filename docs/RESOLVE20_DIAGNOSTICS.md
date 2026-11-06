@@ -1,3 +1,31 @@
+## Segundo teste real — 06/11/2026 02:37 (Edit / Resolve 20)
+
+O usuário forneceu `ofx-diagnostics(1).log` e `DaVinci Resolve_2026.11.06-02.37.mp4`. O arquivo de log contém linhas acumuladas de uma sessão anterior; as entradas do teste novo começam aproximadamente na linha 301. **Não confundir os erros antigos `only RGBA is supported` com o estado atual.**
+
+Evidência da sessão mais recente:
+
+- `1920×1080`, `OfxBitDepthFloat`, `OfxImageComponentRGBA`, `rowBytes=30720`, `renderWindow=0,0,1920,1080`.
+- `premult=OfxImageAlphaPremultiplied` — requer testes posteriores de transparência/composição.
+- Sem `ERROR` da sessão nova no recorte capturado; o RenderWindow é solicitado normalmente.
+- O vídeo mostra `RGB bars` corretas e estáveis, mas `Normal map` com faixas horizontais na superfície cartográfica.
+- Os valores `time=0,1,2,...` aparecem mesmo com timecode de timeline 01:00:xx; **não foi demonstrado bug de offset temporal**.
+
+### Causa cartográfica comprovada em reprodução isolada
+
+A implementação anterior usava `project()` para cada ponto de um polígono independentemente. `project()` escolhe a cópia do mundo mais próxima da câmera para cada vértice; ao cruzar o meridiano oposto ao centro (-62° ⇒ seam ~118°E), dois pontos geograficamente próximos passavam a coordenadas de tela distantes em um mundo inteiro. Exemplos reais do GeoJSON incluem `CHN`, `IDN`, `MYS`, `AUS` e `ANT`.
+
+A triangulação 2D por scanlines interpretava estas ligações falsas como arestas longas, desenhando blocos horizontais sobre o oceano Atlântico e a América do Sul.
+
+Em `242e49d8`, o CartoRig projeta anéis geográficos por longitudes contínuas, preservando anéis interiores (buracos), gerenciando cópias do mundo como conjuntos completos e eliminando cópias fora do RenderWindow.
+
+**Validação A/B independente:** o `previews/f000.ppm` do CI anterior reproduzia as faixas exatamente no oceano; o mesmo quadro, mesma câmera e mesmo GeoJSON no novo CI não apresenta as faixas. A correção foi compilada e testada com sanitizadores. Há ainda um teste usando a cena real e amostras precisas de pixels de oceano que teriam falhado no renderizador anterior.
+
+### GATE: não fechar sem teste real
+
+Substituir completamente o bundle OFX no Windows, reiniciar Resolve e reproduzir o trecho 0–90 com `Normal map`. Esperado: oceano uniforme e sem listras em todos os enquadramentos. Depois testar `RGB bars`, `Alpha split` sobre outra faixa e `Overlay` sobre clipe de vídeo real.
+
+**Riscos não resolvidos por esta mudança:** alfa premultiplicado para fundos transparentes, semântica do filtro Overlay, interpolação e zoom, desempenho 4K ao fazer seek, projetos salvos/reabertos e cache de render do Resolve. O teste em C++ não certifica a experiência dentro da Edit.
+
 ## Resultado conclusivo do log de 06/11 — ComponentNone no Generator
 
 O usuário enviou `ofx-diagnostics.log` (300 linhas). Entre os eventos brutos registrados, 36 mensagens `IMAGE_RAW` confirmam:
