@@ -45,5 +45,9 @@ Camera fitBounds(const std::vector<GeoPoint>& points, int width,int height,doubl
 // The returned data pointer is rebased to (x1,y1) and supports negative rowBytes.
 // An empty intersection returns data=nullptr.
 Surface cropSurface(Surface image,int x1,int y1,int x2,int y2);
+// Pure pixel-pattern diagnostics. Intentionally bypasses all geography, caching, blending
+// and OFX host code to isolate output pixel packing, stride, bounds, and alpha.
+// 1=red/green/blue/white bars; 2=gray ramp; 3=alpha split; 4=solid white.
+void renderDiagnosticPattern(Surface target,int width,int height,int mode);
 void render(const Scene &scene,const Dataset &data,const View &view,Surface dst, RasterStats *stats=nullptr);
 }

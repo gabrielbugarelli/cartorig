@@ -79,6 +79,41 @@ Surface cropSurface(Surface s,int x1,int y1,int x2,int y2){
   s.x1=nx1;s.y1=ny1;s.x2=nx2;s.y2=ny2;
   return s;
 }
+
+void renderDiagnosticPattern(Surface s,int width,int height,int mode){
+  if(!s.data||width<=0||height<=0||s.rowBytes==0||s.x1<0||s.x2>width||
+     s.y1<0||s.y2>height||s.x1>=s.x2||s.y1>=s.y2||mode<1||mode>4)
+    throw std::invalid_argument("invalid diagnostic surface");
+  const int pixelBytes=s.format==PixelFormat::ByteRGBA?4:16;
+  for(int y=s.y1;y<s.y2;++y) {
+    char *row=static_cast<char*>(s.data)+static_cast<ptrdiff_t>(y-s.y1)*s.rowBytes;
+    for(int x=s.x1;x<s.x2;++x) {
+      float c[4]{0,0,0,1};
+      if(mode==1) {
+        int band=static_cast<int>(static_cast<int64_t>(x)*4/width);
+        if(band==0)c[0]=1;else if(band==1)c[1]=1;
+        else if(band==2)c[2]=1;else c[0]=c[1]=c[2]=1;
+      }else if(mode==2) {
+        c[0]=c[1]=c[2]=width>1?static_cast<float>(x)/static_cast<float>(width-1):0;
+      }else if(mode==3) {
+        if(x<width/2)c[3]=0;
+        else if(x<width*3/4){c[0]=1;c[3]=0.5f;}
+        else c[0]=c[1]=c[2]=1;
+      }else{
+        c[0]=c[1]=c[2]=1;
+      }
+      char *dest=row+static_cast<ptrdiff_t>(x-s.x1)*pixelBytes;
+      if(s.format==PixelFormat::ByteRGBA) {
+        auto *out=reinterpret_cast<uint8_t*>(dest);
+        for(int k=0;k<4;k++)out[k]=static_cast<uint8_t>(std::lround(c[k]*255.0f));
+      }else {
+        auto *out=reinterpret_cast<float*>(dest);
+        for(int k=0;k<4;k++)out[k]=c[k];
+      }
+    }
+  }
+}
+
 void render(const Scene &scene,const Dataset &data,const View &view,Surface dst,RasterStats *stats){
  if(view.width<=0||view.height<=0||view.width>16384||view.height>16384||!dst.data||dst.x1>=dst.x2||dst.y1>=dst.y2||dst.rowBytes==0)throw std::invalid_argument("invalid image target");
  Painter p{dst,view.width,view.height,stats};if(!view.preserveBackground)p.fill(scene.style.transparent?Color{0,0,0,0}:scene.style.ocean);

@@ -66,6 +66,31 @@ int main(){
   for(size_t i=0;i<dirtyFloats.size();++i)
     floatOpaqueDeterministic&=std::isfinite(dirtyFloats[i])&&std::abs(dirtyFloats[i]-cleanFloats[i])<1e-6f;
   check(floatOpaqueDeterministic,"opaque float render overwrites prior NaN data deterministically");
+
+  // Diagnostic pixels bypass the map engine and must have exact RGBA packing.
+  std::vector<uint8_t> bars(8*2*4,0xDB);
+  Surface barsSurface{bars.data(),0,0,8,2,8*4,PixelFormat::ByteRGBA};
+  renderDiagnosticPattern(barsSurface,8,2,1);
+  auto pixel=[&](int x,int y,int channel){return bars[(y*8+x)*4+channel];};
+  check(pixel(0,0,0)==255&&pixel(0,0,1)==0&&pixel(0,0,2)==0&&pixel(0,0,3)==255,"diagnostic red exact RGBA8");
+  check(pixel(2,1,0)==0&&pixel(2,1,1)==255&&pixel(2,1,2)==0,"diagnostic green exact RGBA8");
+  check(pixel(4,1,2)==255&&pixel(4,1,0)==0&&pixel(4,1,1)==0,"diagnostic blue exact RGBA8");
+  check(pixel(6,0,0)==255&&pixel(6,0,1)==255&&pixel(6,0,2)==255,"diagnostic white exact RGBA8");
+  std::vector<float> barFloats(8*2*4,std::numeric_limits<float>::quiet_NaN());
+  Surface barFloatSurface{barFloats.data(),0,0,8,2,8*16,PixelFormat::FloatRGBA};
+  renderDiagnosticPattern(barFloatSurface,8,2,1);
+  check(barFloats[0]==1&&barFloats[1]==0&&barFloats[2]==0&&barFloats[3]==1,"diagnostic red exact RGBA float");
+  check(barFloats[8]==0&&barFloats[9]==1&&barFloats[10]==0&&barFloats[11]==1,"diagnostic green exact RGBA float");
+  renderDiagnosticPattern(barFloatSurface,8,2,3);
+  check(barFloats[3]==0&&barFloats[(4)*4+3]==0.5f&&barFloats[(6)*4+3]==1,"diagnostic alpha split float");
+  // A small RenderWindow should not mutate pixels outside the tile.
+  std::fill(bars.begin(),bars.end(),0xDB);
+  auto barTile=cropSurface(barsSurface,2,0,5,2);
+  renderDiagnosticPattern(barTile,8,2,1);
+  bool outsideGood=true;
+  for(int y=0;y<2;y++)for(int x=0;x<8;x++)if(x<2||x>=5)
+    for(int channel=0;channel<4;channel++)outsideGood &= pixel(x,y,channel)==0xDB;
+  check(outsideGood,"diagnostic respects cropped output tile");
   std::vector<float> floats(320*180*4,0);Surface f{floats.data(),0,0,320,180,320*16,PixelFormat::FloatRGBA};render(s,data,view,f);check(std::all_of(floats.begin(),floats.end(),[](float x){return std::isfinite(x)&&x>=0&&x<=1;}),"float RGBA finite bounds");
   s.style.transparent=true;render(s,data,view,dest);check(bytes[3]==0,"transparent empty ocean pixel");
   s.cameraKeys.clear();check(evaluateCamera(s,15).lon==s.camera.lon,"static camera");
