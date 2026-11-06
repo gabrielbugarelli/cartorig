@@ -1,0 +1,243 @@
+{
+  "schema_version": 1,
+  "upstream_repository": "https://github.com/nvkelso/natural-earth-vector",
+  "upstream_ref": "v5.1.2",
+  "upstream_tree_sha": "f1890d9f152c896d250a77557a5751a93d494776",
+  "role": "33 official GeoJSON layers absent from 2026 official aggregate vector GeoPackage",
+  "source_asset_status": "PINNED_NOT_DOWNLOADED",
+  "count": 33,
+  "estimated_bytes": 87459785,
+  "entries": [
+    {
+      "layer": "ne_10m_bathymetry_A_10000",
+      "source_geojson_path": "geojson/ne_10m_bathymetry_A_10000.geojson",
+      "pinned_git_blob_sha1": "42418ceff188837d6f5c1c2c62e719fbbea6198c",
+      "bytes": 2860,
+      "source_shape_path": "10m_physical/ne_10m_bathymetry_all/ne_10m_bathymetry_A_10000.shp"
+    },
+    {
+      "layer": "ne_10m_bathymetry_B_9000",
+      "source_geojson_path": "geojson/ne_10m_bathymetry_B_9000.geojson",
+      "pinned_git_blob_sha1": "f88240cc387540b032afce9d5250f2eac47d577c",
+      "bytes": 18667,
+      "source_shape_path": "10m_physical/ne_10m_bathymetry_all/ne_10m_bathymetry_B_9000.shp"
+    },
+    {
+      "layer": "ne_10m_bathymetry_C_8000",
+      "source_geojson_path": "geojson/ne_10m_bathymetry_C_8000.geojson",
+      "pinned_git_blob_sha1": "25e3363bce5bba7718e5e17f0f083e4749a89923",
+      "bytes": 34943,
+      "source_shape_path": "10m_physical/ne_10m_bathymetry_all/ne_10m_bathymetry_C_8000.shp"
+    },
+    {
+      "layer": "ne_10m_bathymetry_D_7000",
+      "source_geojson_path": "geojson/ne_10m_bathymetry_D_7000.geojson",
+      "pinned_git_blob_sha1": "c100cdd9af37ca09077cb25b965cc85c44926501",
+      "bytes": 100076,
+      "source_shape_path": "10m_physical/ne_10m_bathymetry_all/ne_10m_bathymetry_D_7000.shp"
+    },
+    {
+      "layer": "ne_10m_bathymetry_E_6000",
+      "source_geojson_path": "geojson/ne_10m_bathymetry_E_6000.geojson",
+      "pinned_git_blob_sha1": "71f797c985365da63e40c8e24ae86f073019f813",
+      "bytes": 1006550,
+      "source_shape_path": "10m_physical/ne_10m_bathymetry_all/ne_10m_bathymetry_E_6000.shp"
+    },
+    {
+      "layer": "ne_10m_bathymetry_F_5000",
+      "source_geojson_path": "geojson/ne_10m_bathymetry_F_5000.geojson",
+      "pinned_git_blob_sha1": "33c195b2d7c7b3695ff2a3797e59216f76e5e1c8",
+      "bytes": 9759029,
+      "source_shape_path": "10m_physical/ne_10m_bathymetry_all/ne_10m_bathymetry_F_5000.shp"
+    },
+    {
+      "layer": "ne_10m_bathymetry_G_4000",
+      "source_geojson_path": "geojson/ne_10m_bathymetry_G_4000.geojson",
+      "pinned_git_blob_sha1": "e4d0f157dc83d8f43a6726c17735e36d9196a00b",
+      "bytes": 12182812,
+      "source_shape_path": "10m_physical/ne_10m_bathymetry_all/ne_10m_bathymetry_G_4000.shp"
+    },
+    {
+      "layer": "ne_10m_bathymetry_H_3000",
+      "source_geojson_path": "geojson/ne_10m_bathymetry_H_3000.geojson",
+      "pinned_git_blob_sha1": "d0b5795bfa4cfc6f23b5360c248a949daf853269",
+      "bytes": 8479402,
+      "source_shape_path": "10m_physical/ne_10m_bathymetry_all/ne_10m_bathymetry_H_3000.shp"
+    },
+    {
+      "layer": "ne_10m_bathymetry_I_2000",
+      "source_geojson_path": "geojson/ne_10m_bathymetry_I_2000.geojson",
+      "pinned_git_blob_sha1": "5e67422c79949abd6a91adabbea203d293c48d70",
+      "bytes": 4280462,
+      "source_shape_path": "10m_physical/ne_10m_bathymetry_all/ne_10m_bathymetry_I_2000.shp"
+    },
+    {
+      "layer": "ne_10m_bathymetry_J_1000",
+      "source_geojson_path": "geojson/ne_10m_bathymetry_J_1000.geojson",
+      "pinned_git_blob_sha1": "72c01420ce8a2dbff7898300ef6bfb7065e7f210",
+      "bytes": 2509878,
+      "source_shape_path": "10m_physical/ne_10m_bathymetry_all/ne_10m_bathymetry_J_1000.shp"
+    },
+    {
+      "layer": "ne_10m_bathymetry_K_200",
+      "source_geojson_path": "geojson/ne_10m_bathymetry_K_200.geojson",
+      "pinned_git_blob_sha1": "52b2085636b1104d2c4bc1ac5e416965bc5c89ac",
+      "bytes": 4229885,
+      "source_shape_path": "10m_physical/ne_10m_bathymetry_all/ne_10m_bathymetry_K_200.shp"
+    },
+    {
+      "layer": "ne_10m_bathymetry_L_0",
+      "source_geojson_path": "geojson/ne_10m_bathymetry_L_0.geojson",
+      "pinned_git_blob_sha1": "3c22bd8cd4953dce5dd93559ca8982569a027e2b",
+      "bytes": 9474354,
+      "source_shape_path": "10m_physical/ne_10m_bathymetry_all/ne_10m_bathymetry_L_0.shp"
+    },
+    {
+      "layer": "ne_10m_graticules_1",
+      "source_geojson_path": "geojson/ne_10m_graticules_1.geojson",
+      "pinned_git_blob_sha1": "4935ab90fe1d19f932f365c704bf4e5dde6899be",
+      "bytes": 8949472,
+      "source_shape_path": "10m_physical/ne_10m_graticules_all/ne_10m_graticules_1.shp"
+    },
+    {
+      "layer": "ne_10m_graticules_10",
+      "source_geojson_path": "geojson/ne_10m_graticules_10.geojson",
+      "pinned_git_blob_sha1": "397ba524c71c3abb4b227914e237d55eea44555d",
+      "bytes": 617059,
+      "source_shape_path": "10m_physical/ne_10m_graticules_all/ne_10m_graticules_10.shp"
+    },
+    {
+      "layer": "ne_10m_graticules_15",
+      "source_geojson_path": "geojson/ne_10m_graticules_15.geojson",
+      "pinned_git_blob_sha1": "32b0cd5c3db716ef86b84d636f40e22576af7c90",
+      "bytes": 400593,
+      "source_shape_path": "10m_physical/ne_10m_graticules_all/ne_10m_graticules_15.shp"
+    },
+    {
+      "layer": "ne_10m_graticules_20",
+      "source_geojson_path": "geojson/ne_10m_graticules_20.geojson",
+      "pinned_git_blob_sha1": "72a9df0cc4f97c5f12ac13be037aec7a35cba429",
+      "bytes": 310445,
+      "source_shape_path": "10m_physical/ne_10m_graticules_all/ne_10m_graticules_20.shp"
+    },
+    {
+      "layer": "ne_10m_graticules_30",
+      "source_geojson_path": "geojson/ne_10m_graticules_30.geojson",
+      "pinned_git_blob_sha1": "db0874191f736d0f987acb8fc4f1be088b7a9478",
+      "bytes": 188322,
+      "source_shape_path": "10m_physical/ne_10m_graticules_all/ne_10m_graticules_30.shp"
+    },
+    {
+      "layer": "ne_10m_graticules_5",
+      "source_geojson_path": "geojson/ne_10m_graticules_5.geojson",
+      "pinned_git_blob_sha1": "05c0865f6fa6fc973c4f9799ab53ded211230eb6",
+      "bytes": 1310973,
+      "source_shape_path": "10m_physical/ne_10m_graticules_all/ne_10m_graticules_5.shp"
+    },
+    {
+      "layer": "ne_10m_wgs84_bounding_box",
+      "source_geojson_path": "geojson/ne_10m_wgs84_bounding_box.geojson",
+      "pinned_git_blob_sha1": "eefffa4ed9331b0cb857cd38a90bc440e3a7915c",
+      "bytes": 36345,
+      "source_shape_path": "10m_physical/ne_10m_graticules_all/ne_10m_wgs84_bounding_box.shp"
+    },
+    {
+      "layer": "ne_110m_graticules_1",
+      "source_geojson_path": "geojson/ne_110m_graticules_1.geojson",
+      "pinned_git_blob_sha1": "481cf88d61baca42415b9698c446d7f69d721299",
+      "bytes": 8949393,
+      "source_shape_path": "110m_physical/ne_110m_graticules_all/ne_110m_graticules_1.shp"
+    },
+    {
+      "layer": "ne_110m_graticules_10",
+      "source_geojson_path": "geojson/ne_110m_graticules_10.geojson",
+      "pinned_git_blob_sha1": "31b6606bf5a1d4def7bb7f7adf118363693a62f4",
+      "bytes": 617060,
+      "source_shape_path": "110m_physical/ne_110m_graticules_all/ne_110m_graticules_10.shp"
+    },
+    {
+      "layer": "ne_110m_graticules_15",
+      "source_geojson_path": "geojson/ne_110m_graticules_15.geojson",
+      "pinned_git_blob_sha1": "292f2dfff32e00c3f6ceaf68927d0adf1b94b1f6",
+      "bytes": 400594,
+      "source_shape_path": "110m_physical/ne_110m_graticules_all/ne_110m_graticules_15.shp"
+    },
+    {
+      "layer": "ne_110m_graticules_20",
+      "source_geojson_path": "geojson/ne_110m_graticules_20.geojson",
+      "pinned_git_blob_sha1": "ef6b18805df185bc3a34454afebfc58402cfb686",
+      "bytes": 310446,
+      "source_shape_path": "110m_physical/ne_110m_graticules_all/ne_110m_graticules_20.shp"
+    },
+    {
+      "layer": "ne_110m_graticules_30",
+      "source_geojson_path": "geojson/ne_110m_graticules_30.geojson",
+      "pinned_git_blob_sha1": "98fc905bedb618f28cc044cb351d3073d29db779",
+      "bytes": 188323,
+      "source_shape_path": "110m_physical/ne_110m_graticules_all/ne_110m_graticules_30.shp"
+    },
+    {
+      "layer": "ne_110m_graticules_5",
+      "source_geojson_path": "geojson/ne_110m_graticules_5.geojson",
+      "pinned_git_blob_sha1": "c754d132eb310ae030286668323430131a2f3744",
+      "bytes": 1310974,
+      "source_shape_path": "110m_physical/ne_110m_graticules_all/ne_110m_graticules_5.shp"
+    },
+    {
+      "layer": "ne_110m_wgs84_bounding_box",
+      "source_geojson_path": "geojson/ne_110m_wgs84_bounding_box.geojson",
+      "pinned_git_blob_sha1": "07a0b60f8a89e37d16cd79bce3de93770f9181a6",
+      "bytes": 4813,
+      "source_shape_path": "110m_physical/ne_110m_graticules_all/ne_110m_wgs84_bounding_box.shp"
+    },
+    {
+      "layer": "ne_50m_graticules_1",
+      "source_geojson_path": "geojson/ne_50m_graticules_1.geojson",
+      "pinned_git_blob_sha1": "3514503fdd42524f4eb658b19befda51ec852027",
+      "bytes": 8949392,
+      "source_shape_path": "50m_physical/ne_50m_graticules_all/ne_50m_graticules_1.shp"
+    },
+    {
+      "layer": "ne_50m_graticules_10",
+      "source_geojson_path": "geojson/ne_50m_graticules_10.geojson",
+      "pinned_git_blob_sha1": "056026d7cdf95d11e6a5724789778786a22de1ca",
+      "bytes": 617059,
+      "source_shape_path": "50m_physical/ne_50m_graticules_all/ne_50m_graticules_10.shp"
+    },
+    {
+      "layer": "ne_50m_graticules_15",
+      "source_geojson_path": "geojson/ne_50m_graticules_15.geojson",
+      "pinned_git_blob_sha1": "a632469ec510f89ab632fefbd7e5342f1f26f7f4",
+      "bytes": 400593,
+      "source_shape_path": "50m_physical/ne_50m_graticules_all/ne_50m_graticules_15.shp"
+    },
+    {
+      "layer": "ne_50m_graticules_20",
+      "source_geojson_path": "geojson/ne_50m_graticules_20.geojson",
+      "pinned_git_blob_sha1": "93788c5b1c37c2311eeefc9b156ee0e4dc59081a",
+      "bytes": 310445,
+      "source_shape_path": "50m_physical/ne_50m_graticules_all/ne_50m_graticules_20.shp"
+    },
+    {
+      "layer": "ne_50m_graticules_30",
+      "source_geojson_path": "geojson/ne_50m_graticules_30.geojson",
+      "pinned_git_blob_sha1": "f107c18981d68eaf4ce6b27d8ebbb49f8a253841",
+      "bytes": 188322,
+      "source_shape_path": "50m_physical/ne_50m_graticules_all/ne_50m_graticules_30.shp"
+    },
+    {
+      "layer": "ne_50m_graticules_5",
+      "source_geojson_path": "geojson/ne_50m_graticules_5.geojson",
+      "pinned_git_blob_sha1": "1f986734bbf3ebf4dbb0e5c87c566d050e201c50",
+      "bytes": 1310973,
+      "source_shape_path": "50m_physical/ne_50m_graticules_all/ne_50m_graticules_5.shp"
+    },
+    {
+      "layer": "ne_50m_wgs84_bounding_box",
+      "source_geojson_path": "geojson/ne_50m_wgs84_bounding_box.geojson",
+      "pinned_git_blob_sha1": "93b037dd3ba061ff1d71be0e361ff0319b12f908",
+      "bytes": 9271,
+      "source_shape_path": "50m_physical/ne_50m_graticules_all/ne_50m_wgs84_bounding_box.shp"
+    }
+  ]
+}
