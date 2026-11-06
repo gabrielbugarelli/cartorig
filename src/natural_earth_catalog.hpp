@@ -27,5 +27,12 @@ struct NaturalEarthCatalog {
   // GeoPackage is opened READ-ONLY; no network or import-time mutations.
   static Dataset countryPolygons(const std::filesystem::path &geoPackage,
                                  const std::string &scale);
+  // Read one explicitly selected official vector table, including Point,
+  // LineString and Polygon features. Bounded, read-only, and fail-closed;
+  // a separate large-data-pack renderer will eventually stream by viewport.
+  static std::vector<NaturalEarthGeometry> layerGeometries(
+      const std::filesystem::path &geoPackage,const std::string &table,
+      std::size_t maxFeatures=20000);
+
 };
 } // namespace cartorig
