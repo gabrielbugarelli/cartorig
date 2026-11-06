@@ -43,6 +43,7 @@ struct Instance {
   OfxParamHandle regionCatalog=nullptr,regionKind=nullptr,regionQuery=nullptr,regionMatch=nullptr;
   OfxParamHandle regionRed=nullptr,regionGreen=nullptr,regionBlue=nullptr,regionAlpha=nullptr;
   OfxParamHandle regionAdd=nullptr,regionRemove=nullptr,regionSaved=nullptr,regionStatus=nullptr;
+  OfxParamHandle regionEdit=nullptr,regionCaptureKey=nullptr,regionRemoveSaved=nullptr,regionEase=nullptr;
   OfxParamHandle useSceneKeys=nullptr,lon=nullptr,lat=nullptr,zoom=nullptr,bearing=nullptr,route=nullptr,opacity=nullptr;
   OfxParamHandle frameOffset=nullptr,timeScale=nullptr,diagnosticMode=nullptr,diagnosticLog=nullptr;
   OfxParamHandle countryA=nullptr,countryB=nullptr,countryList=nullptr,highlightStrength=nullptr;
@@ -363,7 +364,22 @@ void defineGeographicRegionUI(OfxParamSetHandle ps){
   defineNativeDouble(ps,"GeographicRegionBlue","Region blue",192,0,255,"GeographicRegion");
   defineNativeDouble(ps,"GeographicRegionAlpha","Region opacity (0-255)",220,0,255,"GeographicRegion");
   defineGeographicButton(ps,"GeographicRegionAdd","Add / update selected region");
-  defineGeographicButton(ps,"GeographicRegionRemove","Remove selected region");
+  defineGeographicButton(ps,"GeographicRegionRemove","Remove matching search result");
+  OfxPropertySetHandle existing=nullptr;
+  if(param->paramDefine(ps,kOfxParamTypeChoice,"GeographicRegionEdit",&existing)!=kOfxStatOK)
+    throw std::runtime_error("saved geographic region choice unavailable");
+  prop->propSetString(existing,kOfxPropLabel,0,"Selected region to animate / edit");
+  prop->propSetString(existing,kOfxParamPropParent,0,"GeographicRegion");
+  prop->propSetInt(existing,kOfxParamPropDefault,0,0);
+  prop->propSetInt(existing,kOfxParamPropAnimates,0,0);
+  for(int i=0;i<64;++i){
+    const std::string option="No selected region "+std::to_string(i+1);
+    prop->propSetString(existing,kOfxParamPropChoiceOption,i,option.c_str());
+  }
+  const char *ease[]={"Smoothstep","Linear","Hold"};
+  defineGeographicChoice(ps,"GeographicRegionEase","Color keyframe easing",ease,3,0);
+  defineGeographicButton(ps,"GeographicRegionCaptureKey","Capture RGBA key at playhead");
+  defineGeographicButton(ps,"GeographicRegionRemoveSaved","Remove saved region");
   defineMultiline(ps,"GeographicRegionSaved",
                   "Selected regions (persistent project state)","GeographicRegion");
 }
@@ -490,6 +506,9 @@ OfxStatus createInstance(OfxImageEffectHandle e,bool filter){auto i=std::make_un
  {"GeographicRegionRed",&i->regionRed},{"GeographicRegionGreen",&i->regionGreen},
  {"GeographicRegionBlue",&i->regionBlue},{"GeographicRegionAlpha",&i->regionAlpha},
  {"GeographicRegionAdd",&i->regionAdd},{"GeographicRegionRemove",&i->regionRemove},
+ {"GeographicRegionEdit",&i->regionEdit},{"GeographicRegionEase",&i->regionEase},
+ {"GeographicRegionCaptureKey",&i->regionCaptureKey},
+ {"GeographicRegionRemoveSaved",&i->regionRemoveSaved},
  {"GeographicRegionSaved",&i->regionSaved},
  {"EmbeddedSceneJSON",&i->sceneInline},{"EmbeddedCatalogJSON",&i->datasetInline},
  {"SceneTimeOffset",&i->frameOffset},{"SceneTimeScale",&i->timeScale},
@@ -716,7 +735,10 @@ OfxStatus render(OfxImageEffectHandle e,OfxPropertySetHandle args){Instance *i=i
      // Independent RGBA per region, following a stable publisher feature ID.
      // City points stay points; no fabricated administrative polygons.
      cartorig::renderNaturalEarthLayer(
-         *geometries,view,target,selection.fill,selection.fill,selection.fill);
+         *geometries,view,target,
+         cartorig::evaluateGeographicRegionColor(selection,sceneFrame),
+         cartorig::evaluateGeographicRegionColor(selection,sceneFrame),
+         cartorig::evaluateGeographicRegionColor(selection,sceneFrame));
    }
  }
  return kOfxStatOK;
