@@ -43,6 +43,20 @@ jobs:
           "$EXE" data/countries.geojson samples/brasil-venezuela.cartorig-native.json 239 build/previews/f239.ppm
           "$EXE" data/countries.geojson samples/brasil-venezuela.cartorig-native.json 96 build/previews/f096-1440p.ppm 2560 1440
           "$EXE" data/countries.geojson samples/brasil-venezuela.cartorig-native.json 96 build/previews/f096-4k.ppm 3840 2160
+      - name: Validate Windows installer (dry-run)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $errors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path ./packaging/Install.ps1),[ref]$null,[ref]$errors) | Out-Null
+          if ($errors.Count -gt 0) { throw ($errors | Out-String) }
+          ./packaging/Install.ps1 -BundlePath ./build/CartoRigNative.ofx.bundle -Upgrade -WhatIf
+      - name: Stage Windows installation scripts
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          Copy-Item ./packaging/Install.ps1 ./build/Install-CartoRigNative.ps1
+          Copy-Item ./packaging/Uninstall.ps1 ./build/Uninstall-CartoRigNative.ps1
       - name: Upload native OFX bundle and previews
         uses: actions/upload-artifact@v4
         with:
@@ -50,6 +64,8 @@ jobs:
           path: |
             build/CartoRigNative.ofx.bundle/
             build/previews/
+            build/Install-CartoRigNative.ps1
+            build/Uninstall-CartoRigNative.ps1
           if-no-files-found: error
   source-snapshot:
     runs-on: ubuntu-24.04
