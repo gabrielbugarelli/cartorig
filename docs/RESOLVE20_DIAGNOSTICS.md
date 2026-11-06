@@ -31,6 +31,22 @@ O render diagnóstico ignora a rasterização geográfica, mistura de polígonos
 7. Voltar para `Normal map` e gravar um trecho. Nos quadros 0 e 120, conferir câmera (quando os controles do SceneCamera estiverem ativos). Se as barras forem corretas e o mapa continuar corrompido, a falha está no caminho próprio do motor de mapas ou no tempo/caching, não na conversão básica dos buffers.
 8. Fechar o Resolve e anexar o log `%TEMP%\CartoRigNative\ofx-diagnostics.log` juntamente com uma captura do modo RGB bars e de Normal map. O log não contém caminhos pessoais por projeto, mas deve ser revisado antes de compartilhar.
 
+## Resultado da gravação de 01:58 (2026-11-06)
+
+O usuário ativou `RGB bars` e `Write OFX diagnostic log` no Inspector. No vídeo de 29,2 segundos, as barras não aparecem como quatro faixas coloridas: há linhas verticais, pixels brancos e padrões verdes ruidosos. Isso confirma que a falha independe da leitura de GeoJSON e da avaliação da câmera **durante a tentativa de renderizar os padrões**. Também foi confirmado que o arquivo `%TEMP%\\CartoRigNative\\ofx-diagnostics.log` não foi encontrado.
+
+### Revisão do pipeline de diagnóstico
+
+O logger anterior só era acionado depois de `clipGetImage` e `surfaceOf`; qualquer erro nessas chamadas terminava o render sem log. O novo logger:
+
+1. Registra a alteração de `Write OFX diagnostic log` diretamente pelo callback `kOfxActionInstanceChanged`, antes mesmo de uma renderização bem-sucedida.
+2. Registra `RENDER_BEGIN` antes da consulta à imagem de saída.
+3. Registra os status brutos de `kOfxImagePropBounds`, `kOfxImagePropRowBytes`, `kOfxImageEffectPropPixelDepth` e `kOfxImageEffectPropComponents` **antes** de validar o buffer.
+4. Registra exceções ocorridas em qualquer callback OpenFX, sem conteúdo dos arquivos de projeto.
+5. Tenta primeiro `%LOCALAPPDATA%\\CartoRigNative\\ofx-diagnostics.log`, depois `%TEMP%\\CartoRigNative\\ofx-diagnostics.log`. Caso ambos falhem, emite mensagem `OutputDebugStringA` para ferramentas de depuração Windows.
+
+**Novo procedimento:** após instalar o artifact do commit com esta alteração, abra projeto descartável, ative `Write OFX diagnostic log` desligando e ligando a opção uma vez, selecione `RGB bars`, mova o playhead por dois quadros e feche o Resolve. Verifique os **dois** caminhos acima. Se nenhum existir, registre como falha independente de logging; não deduza automaticamente que o render foi bem-sucedido.
+
 ## Árvore de decisão
 
 | Observação | Próxima investigação |
