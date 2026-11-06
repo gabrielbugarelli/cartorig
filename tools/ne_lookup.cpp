@@ -8,14 +8,21 @@
 #endif
 namespace {
 int run(const std::vector<std::string>&args){
-  if(args.size()!=3){
-    std::cerr<<"Usage: cartorig_ne_lookup INDEX.sqlite KIND SEARCH\n";return 2;
+  if(args.size()!=3&&args.size()!=4){
+    std::cerr<<"Usage: cartorig_ne_lookup INDEX.sqlite KIND SEARCH [SOURCE.gpkg]\n";return 2;
   }
   try {
     const auto results=cartorig::NaturalEarthCatalog::search(args[0],args[2],args[1]);
     for(const auto &r:results)
-      std::cout<<r.kind<<"\t"<<r.name<<"\t"<<r.parent<<"\t"<<r.geometryType
-               <<"\t"<<r.sourceLayer<<"\t"<<r.featureKey<<"\n";
+      {std::cout<<r.kind<<"\t"<<r.name<<"\t"<<r.parent<<"\t"<<r.geometryType
+               <<"\t"<<r.sourceLayer<<"\t"<<r.featureKey;
+        if(args.size()==4){
+          const auto geom=cartorig::NaturalEarthCatalog::featureGeometry(args[3],r);
+          std::cout<<"\tPOINTS="<<geom.points.size()
+                   <<"\tLINES="<<geom.lines.size()
+                   <<"\tPOLYGONS="<<geom.polygons.size();
+        }
+        std::cout<<"\n";}
     return 0;
   }catch(const std::exception &e){
     std::cerr<<"CartoRig Natural Earth: "<<e.what()<<"\n";return 1;

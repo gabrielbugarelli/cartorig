@@ -5,6 +5,7 @@
 #include <filesystem>
 #include <string>
 #include <vector>
+#include "natural_earth_geometry.hpp"
 namespace cartorig {
 struct NaturalEarthRegion {
   std::string featureKey,kind,name,parent,geometryType,sourceLayer,scale;
@@ -16,5 +17,10 @@ struct NaturalEarthCatalog {
                                                 const std::string &text,
                                                 const std::string &kind,
                                                 int limit=20);
+  // Fetch true publisher WKB geometry from the installed GeoPackage by the
+  // stable source layer/row reference returned by search(). Read-only and
+  // strictly validated. Does not fabricate city administrative boundaries.
+  static NaturalEarthGeometry featureGeometry(
+      const std::filesystem::path &geoPackage,const NaturalEarthRegion &region);
 };
 } // namespace cartorig

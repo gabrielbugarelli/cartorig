@@ -1,4 +1,6 @@
 #include "natural_earth_catalog.hpp"
+#include "natural_earth_geometry.hpp"
+#include <cstring>
 #include <algorithm>
 #include <cctype>
 #include <stdexcept>
@@ -31,6 +33,9 @@ struct SqliteApi {
   int (*bind_text)(sqlite3_stmt*,int,const char*,int,void(*)(void*))=nullptr;
   int (*step)(sqlite3_stmt*)=nullptr;
   const unsigned char* (*column_text)(sqlite3_stmt*,int)=nullptr;
+  const void* (*column_blob)(sqlite3_stmt*,int)=nullptr;
+  int (*column_bytes)(sqlite3_stmt*,int)=nullptr;
+  int (*bind_int64)(sqlite3_stmt*,int,std::int64_t)=nullptr;
   std::int64_t (*column_int64)(sqlite3_stmt*,int)=nullptr;
   int (*finalize)(sqlite3_stmt*)=nullptr;
   const char* (*errmsg)(sqlite3*)=nullptr;
@@ -55,6 +60,9 @@ struct SqliteApi {
       LOAD_SYMBOL(bind_text,"sqlite3_bind_text");
       LOAD_SYMBOL(step,"sqlite3_step");
       LOAD_SYMBOL(column_text,"sqlite3_column_text");
+      LOAD_SYMBOL(column_blob,"sqlite3_column_blob");
+      LOAD_SYMBOL(column_bytes,"sqlite3_column_bytes");
+      LOAD_SYMBOL(bind_int64,"sqlite3_bind_int64");
       LOAD_SYMBOL(column_int64,"sqlite3_column_int64");
       LOAD_SYMBOL(finalize,"sqlite3_finalize");
       LOAD_SYMBOL(errmsg,"sqlite3_errmsg");
@@ -140,7 +148,19 @@ struct Stmt {
     if(a.bind_text(statement,index,value.c_str(),static_cast<int>(value.size()),nullptr)!=SQLITE_OK_)
       throw std::runtime_error("Natural Earth search parameter binding failed");
   }
+  void bindId(int index,std::int64_t value){
+    if(a.bind_int64(statement,index,value)!=SQLITE_OK_)
+      throw std::runtime_error("Natural Earth feature ID binding failed");
+  }
 };
+bool allowedIdentifier(const std::string&text){
+  if(text.empty()||text.size()>128)return false;
+  for(unsigned char c:text){
+    if(!((c>='a'&&c<='z')||(c>='A'&&c<='Z')||
+         (c>='0'&&c<='9')||c=='_'))return false;
+  }
+  return true;
+}
 } // namespace
 
 std::vector<NaturalEarthRegion> NaturalEarthCatalog::search(
@@ -188,5 +208,40 @@ std::vector<NaturalEarthRegion> NaturalEarthCatalog::search(
   if(status!=SQLITE_DONE_&&status!=SQLITE_ROW_)
     throw std::runtime_error(std::string("Natural Earth FTS query failed: ")+api.errmsg(db.db));
   return matches;
+}
+} // namespace cartorig
+
+namespace cartorig {
+NaturalEarthGeometry NaturalEarthCatalog::featureGeometry(
+    const std::filesystem::path &geoPackage,const NaturalEarthRegion &region){
+  // This path is only used with a verified local Natural Earth data pack.
+  // SQL identifiers cannot be bound: validate them against the installed
+  // GeoPackage schema and a strict ASCII identifier allowlist first.
+  if(region.sourceRowId<1||!allowedIdentifier(region.sourceLayer)||
+     region.sourceLayer.rfind("ne_",0)!=0||region.geometryType=="DERIVED_GROUP_ONLY")
+    throw std::invalid_argument("invalid Natural Earth feature geometry reference");
+  SqliteApi api;
+  DB db(api,geoPackage);
+  Stmt meta(api,db.db,
+            "SELECT column_name, srs_id FROM gpkg_geometry_columns WHERE table_name=?");
+  meta.bind(1,region.sourceLayer);
+  if(api.step(meta.statement)!=SQLITE_ROW_)
+    throw std::invalid_argument("Natural Earth geometry layer absent from GeoPackage");
+  const auto column=str(api,meta.statement,0);
+  const auto srs=api.column_int64(meta.statement,1);
+  if(!allowedIdentifier(column)||srs!=4326)
+    throw std::invalid_argument("Natural Earth geometry column or SRS is invalid");
+  const std::string query="SELECT \""+column+"\" FROM \""+
+                          region.sourceLayer+"\" WHERE rowid=?";
+  Stmt geometryQuery(api,db.db,query.c_str());
+  geometryQuery.bindId(1,region.sourceRowId);
+  const auto status=api.step(geometryQuery.statement);
+  if(status!=SQLITE_ROW_)
+    throw std::invalid_argument("Natural Earth feature ID was not found");
+  const void *data=api.column_blob(geometryQuery.statement,0);
+  const int bytes=api.column_bytes(geometryQuery.statement,0);
+  if(!data||bytes<=0)
+    throw std::invalid_argument("Natural Earth feature geometry is empty");
+  return decodeGeoPackageGeometry(data,static_cast<std::size_t>(bytes));
 }
 } // namespace cartorig

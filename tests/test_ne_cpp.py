@@ -1,6 +1,7 @@
 """End-to-end offline test: synthetic GeoPackage -> SQLite index -> C++ runtime."""
 from pathlib import Path
 import sqlite3
+import struct
 import subprocess
 import sys
 import tempfile
@@ -16,26 +17,43 @@ with tempfile.TemporaryDirectory() as directory:
     with sqlite3.connect(gpkg) as db:
         db.executescript("""
         CREATE TABLE gpkg_contents(table_name TEXT,data_type TEXT);
-        CREATE TABLE gpkg_geometry_columns(table_name TEXT,column_name TEXT,geometry_type_name TEXT);
+        CREATE TABLE gpkg_geometry_columns(table_name TEXT,column_name TEXT,geometry_type_name TEXT,srs_id INTEGER);
         CREATE TABLE ne_10m_admin_0_countries(fid INTEGER PRIMARY KEY,name TEXT,
             name_pt TEXT,adm0_a3 TEXT,continent TEXT,geometry BLOB);
         INSERT INTO gpkg_contents VALUES('ne_10m_admin_0_countries','features');
-        INSERT INTO gpkg_geometry_columns VALUES('ne_10m_admin_0_countries','geometry','MULTIPOLYGON');
+        INSERT INTO gpkg_geometry_columns VALUES('ne_10m_admin_0_countries','geometry','MULTIPOLYGON',4326);
         INSERT INTO ne_10m_admin_0_countries(name,name_pt,adm0_a3,continent)
           VALUES('Brazil','Brasil','BRA','South America');
         CREATE TABLE ne_10m_admin_1_states_provinces(fid INTEGER PRIMARY KEY,name TEXT,
           admin TEXT,geometry BLOB);
         INSERT INTO gpkg_contents VALUES('ne_10m_admin_1_states_provinces','features');
-        INSERT INTO gpkg_geometry_columns VALUES('ne_10m_admin_1_states_provinces','geometry','POLYGON');
+        INSERT INTO gpkg_geometry_columns VALUES('ne_10m_admin_1_states_provinces','geometry','POLYGON',4326);
         INSERT INTO ne_10m_admin_1_states_provinces(name,admin)
           VALUES('São Paulo','Brazil');
         CREATE TABLE ne_10m_populated_places(fid INTEGER PRIMARY KEY,name TEXT,
           adm0name TEXT,geometry BLOB);
         INSERT INTO gpkg_contents VALUES('ne_10m_populated_places','features');
-        INSERT INTO gpkg_geometry_columns VALUES('ne_10m_populated_places','geometry','POINT');
+        INSERT INTO gpkg_geometry_columns VALUES('ne_10m_populated_places','geometry','POINT',4326);
         INSERT INTO ne_10m_populated_places(name,adm0name)
           VALUES('São Paulo','Brazil');
         """)
+    def gp(wkb):
+        return b"GP" + bytes([0,1]) + struct.pack("<I",4326) + wkb
+    def p(x,y):
+        return struct.pack("<dd",x,y)
+    def polygon():
+        pts=[(-50,-20),(-40,-20),(-40,-10),(-50,-10),(-50,-20)]
+        return gp(b"\x01"+struct.pack("<III",3,1,len(pts))+
+                  b"".join(p(x,y) for x,y in pts))
+    def point(x,y):
+        return gp(b"\x01"+struct.pack("<I",1)+p(x,y))
+    with sqlite3.connect(gpkg) as local:
+        local.execute("UPDATE ne_10m_admin_0_countries SET geometry=? WHERE adm0_a3='BRA'",
+                      (polygon(),))
+        local.execute("UPDATE ne_10m_admin_1_states_provinces SET geometry=? WHERE name='São Paulo'",
+                      (polygon(),))
+        local.execute("UPDATE ne_10m_populated_places SET geometry=? WHERE name='São Paulo'",
+                      (point(-46.633,-23.55),))
     # Python SQLite connection context manager commits but does NOT close.
     # Windows keeps the GeoPackage locked until an explicit close.
     db.close()
@@ -48,6 +66,13 @@ with tempfile.TemporaryDirectory() as directory:
         assert (p.returncode==0)==success,(kind,text,p.returncode,p.stdout,p.stderr)
         return p.stdout
     assert "Brazil" in query("country","Brasil")
+    r=subprocess.run([str(exe),str(catalog),"country","Brasil",str(gpkg)],
+                     capture_output=True,text=True,encoding="utf-8",timeout=20)
+    assert r.returncode==0 and "POLYGONS=1" in r.stdout,(r.stdout,r.stderr)
+    r=subprocess.run([str(exe),str(catalog),"city","São Paulo",str(gpkg)],
+                     capture_output=True,text=True,encoding="utf-8",timeout=20)
+    assert r.returncode==0 and "POINTS=1" in r.stdout,(r.stdout,r.stderr)
+
     assert "Brazil" in query("country","BRA")
     assert "São Paulo" in query("state","Sao Paulo")
     assert "\tPOINT\t" in query("city","São Paulo")
