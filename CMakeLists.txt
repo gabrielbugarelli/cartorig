@@ -13,6 +13,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 add_library(cartorig_core STATIC
   src/cartorig.cpp
   src/raster.cpp
+  src/compositing.cpp
   third_party/json11/json11.cpp)
 target_include_directories(cartorig_core PUBLIC
   ${CMAKE_CURRENT_SOURCE_DIR}/src

@@ -25,10 +25,11 @@ struct Scene {
   std::vector<Marker> markers;
   std::vector<Route> routes;
 };
-struct View { int width=1920,height=1080; Camera camera; double frame=0, routeProgress=-1; bool preserveBackground=false; };
+struct View { int width=1920,height=1080; Camera camera; double frame=0, routeProgress=-1; bool preserveBackground=false; double opacity=1; };
 enum class PixelFormat { ByteRGBA, FloatRGBA };
 struct Surface {
   void *data=nullptr; int x1=0,y1=0,x2=0,y2=0,rowBytes=0; PixelFormat format=PixelFormat::ByteRGBA;
+  bool premultiplied=false; // OpenFX output/input alpha association; default remains straight for standalone tests.
   // Pixel coordinates use the OpenFX convention (origin at bottom-left).
 };
 struct RasterStats { uint64_t written=0; };
@@ -53,5 +54,10 @@ Surface cropSurface(Surface image,int x1,int y1,int x2,int y2);
 // and OFX host code to isolate output pixel packing, stride, bounds, and alpha.
 // 1=red/green/blue/white bars; 2=gray ramp; 3=alpha split; 4=solid white.
 void renderDiagnosticPattern(Surface target,int width,int height,int mode);
+// Blend a straight RGBA UI color into a straight or premultiplied target.
+void compositeColor(Surface dst,int x,int y,Color color,double opacity=1.0);
+// Copy an OFX source image into a clipped destination, converting alpha
+// association and byte/float depth without modifying source pixels.
+void copySurface(Surface source,Surface destination);
 void render(const Scene &scene,const Dataset &data,const View &view,Surface dst, RasterStats *stats=nullptr);
 }
