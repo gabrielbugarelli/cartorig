@@ -40,7 +40,12 @@ if(GIT_FOUND)
 endif()
 add_library(CartoRigNative MODULE src/ofx_plugin.cpp)
 target_link_libraries(CartoRigNative PRIVATE cartorig_core)
-target_compile_definitions(CartoRigNative PRIVATE CARTORIG_BUILD_SHA="\"${CARTORIG_BUILD_SHA}\"")
+configure_file(
+  "${CMAKE_CURRENT_SOURCE_DIR}/src/build_info.h.in"
+  "${CMAKE_CURRENT_BINARY_DIR}/generated/cartorig_build_info.hpp"
+  @ONLY
+)
+target_include_directories(CartoRigNative PRIVATE "${CMAKE_CURRENT_BINARY_DIR}/generated")
 target_include_directories(CartoRigNative PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/third_party/openfx/include)
 if(UNIX AND NOT APPLE)
   target_link_libraries(CartoRigNative PRIVATE ${CMAKE_DL_LIBS})

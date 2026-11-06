@@ -5,9 +5,7 @@
 #include "ofxImageEffect.h"
 #include "ofxParam.h"
 #include "ofxProperty.h"
-#ifndef CARTORIG_BUILD_SHA
-#define CARTORIG_BUILD_SHA "local"
-#endif
+#include "cartorig_build_info.hpp"
 #include <algorithm>
 #include <atomic>
 #include <chrono>

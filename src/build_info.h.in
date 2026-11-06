@@ -1,0 +1,3 @@
+#pragma once
+// Git commit SHA is captured at CMake configure time.
+#define CARTORIG_BUILD_SHA "@CARTORIG_BUILD_SHA@"
