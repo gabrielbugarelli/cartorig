@@ -49,6 +49,18 @@ if(CARTORIG_BUILD_SHA MATCHES "^[0-9a-f]+$" AND
     string(SUBSTRING "${CARTORIG_BUILD_SHA}" 0 12 CARTORIG_BUILD_SHA)
   endif()
 endif()
+# The native Natural Earth search adapter is isolated from the already-validated
+# rasterizer/OpenFX binary until host UX and dataset packaging are verified.
+add_library(cartorig_ne_catalog STATIC src/natural_earth_catalog.cpp)
+target_include_directories(cartorig_ne_catalog PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
+if(UNIX AND NOT APPLE)
+  target_link_libraries(cartorig_ne_catalog PUBLIC ${CMAKE_DL_LIBS})
+endif()
+if(MSVC)
+  target_compile_options(cartorig_ne_catalog PRIVATE /W4 /EHsc)
+else()
+  target_compile_options(cartorig_ne_catalog PRIVATE -Wall -Wextra -Wpedantic)
+endif()
 add_library(CartoRigNative MODULE src/ofx_plugin.cpp)
 target_link_libraries(CartoRigNative PRIVATE cartorig_core)
 configure_file(
@@ -86,6 +98,14 @@ configure_file(data/default-map.cartorig-native.json "${CARTORIG_BUNDLE}/Content
 
 if(CARTORIG_BUILD_TESTS)
   enable_testing()
+  add_executable(cartorig_ne_lookup tools/ne_lookup.cpp)
+  target_link_libraries(cartorig_ne_lookup PRIVATE cartorig_ne_catalog)
+  find_package(Python3 COMPONENTS Interpreter QUIET)
+  if(Python3_Interpreter_FOUND)
+    add_test(NAME cartorig_ne_native_offline_search
+      COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tests/test_ne_cpp.py
+        $<TARGET_FILE:cartorig_ne_lookup> ${CMAKE_CURRENT_SOURCE_DIR})
+  endif()
   add_executable(cartorig_native_controls_tests tests/test_native_controls.cpp)
   target_link_libraries(cartorig_native_controls_tests PRIVATE cartorig_core)
   target_compile_definitions(cartorig_native_controls_tests PRIVATE CARTORIG_ROOT="${CMAKE_CURRENT_SOURCE_DIR}")

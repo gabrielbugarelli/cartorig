@@ -36,8 +36,9 @@ struct SqliteApi {
   const char* (*errmsg)(sqlite3*)=nullptr;
   SqliteApi(){
 #ifdef _WIN32
-    module=LoadLibraryW(L"winsqlite3.dll");
-    if(!module)module=LoadLibraryW(L"sqlite3.dll");
+    // Do not search the current directory or PATH for an untrusted DLL.
+    // WinSQLite3 is present in the Windows 10/11 system directory.
+    module=LoadLibraryExW(L"winsqlite3.dll",nullptr,LOAD_LIBRARY_SEARCH_SYSTEM32);
 #else
     module=dlopen("libsqlite3.so.0",RTLD_NOW|RTLD_LOCAL);
     if(!module)module=dlopen("libsqlite3.so",RTLD_NOW|RTLD_LOCAL);
