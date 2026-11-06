@@ -14,6 +14,7 @@ add_library(cartorig_core STATIC
   src/cartorig.cpp
   src/raster.cpp
   src/natural_earth_raster.cpp
+  src/natural_earth_regions.cpp
   src/compositing.cpp
   src/native_controls.cpp
   third_party/json11/json11.cpp)
@@ -103,12 +104,20 @@ if(CARTORIG_BUILD_TESTS)
   add_executable(cartorig_ne_geometry_tests tests/test_ne_geometry.cpp)
   target_link_libraries(cartorig_ne_geometry_tests PRIVATE cartorig_ne_catalog)
   add_test(NAME cartorig_ne_wkb_geopackage_geometry COMMAND cartorig_ne_geometry_tests)
+  add_executable(cartorig_ne_raster_preview tools/ne_raster_preview.cpp)
+  target_link_libraries(cartorig_ne_raster_preview PRIVATE cartorig_core)
+  add_executable(cartorig_ne_regions_tests tests/test_ne_regions.cpp)
+  target_link_libraries(cartorig_ne_regions_tests PRIVATE cartorig_core)
+  add_test(NAME cartorig_ne_persistent_region_styles COMMAND cartorig_ne_regions_tests)
   add_executable(cartorig_ne_preview tools/ne_country_preview.cpp)
   target_link_libraries(cartorig_ne_preview PRIVATE cartorig_ne_catalog cartorig_core)
   add_executable(cartorig_ne_lookup tools/ne_lookup.cpp)
   target_link_libraries(cartorig_ne_lookup PRIVATE cartorig_ne_catalog)
   find_package(Python3 COMPONENTS Interpreter QUIET)
   if(Python3_Interpreter_FOUND)
+    add_test(NAME cartorig_ne_raster_native_offline_pixels
+      COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tests/test_ne_raster_cpp.py
+        $<TARGET_FILE:cartorig_ne_raster_preview>)
     add_test(NAME cartorig_ne_native_offline_search
       COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tests/test_ne_cpp.py
         $<TARGET_FILE:cartorig_ne_lookup> ${CMAKE_CURRENT_SOURCE_DIR}
