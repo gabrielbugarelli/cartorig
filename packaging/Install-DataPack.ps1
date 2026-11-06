@@ -18,7 +18,7 @@ function Assert-Pack([string]$Root,[bool]$AllowExperimental) {
     throw 'Offline Natural Earth pack manifest is missing.'
   }
   $manifest = Get-Content -LiteralPath $manifestPath -Raw -Encoding UTF8 |
-              ConvertFrom-Json -Depth 20
+              ConvertFrom-Json
   if ($manifest.schema_version -ne 1 -or
       $manifest.format -ne 'cartorig-natural-earth-offline-v1') {
     throw 'Unsupported Natural Earth pack manifest.'
