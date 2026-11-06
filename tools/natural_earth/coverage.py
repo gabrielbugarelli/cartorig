@@ -79,13 +79,48 @@ def audit(expected:dict,catalog:Path|None=None,
     raster_missing=[x.get("resource_id") for x in raster_sources if not any(
         d.get("source_id")==x.get("resource_id") and d.get("status")=="VALIDATED"
         for d in raster_installed)]
-    source_unverified=[x.get("resource_id") for x in source_assets if
-                       x.get("status")!="VERIFIED" or not x.get("sha256")]
+    # Discovery records intentionally remain DISCOVERED_UNVERIFIED. Their
+    # corresponding acquired assets are recorded by materialize() in a
+    # *separate*, SHA256-verified manifest. Compare source IDs and URLs
+    # explicitly rather than requiring discovery itself to be verified.
+    verified_assets={}
+    archive_records=(archives or {}).get("resources",[])
+    duplicates=[]
+    for asset in archive_records:
+        key=asset.get("resource_id")
+        if not key or key in verified_assets:
+            duplicates.append(key)
+        else:
+            verified_assets[key]=asset
+    source_unverified=[]
+    for item in source_assets:
+        ident=item.get("resource_id")
+        local=verified_assets.get(ident,{})
+        valid=(local.get("status")=="VERIFIED"
+               and local.get("url")==item.get("url")
+               and isinstance(local.get("sha256"),str)
+               and len(local["sha256"])==64
+               and isinstance(local.get("archive_bytes"),int)
+               and local["archive_bytes"]>0)
+        if not valid:source_unverified.append(ident)
+    source_unverified+=duplicates
     page_blocked=[x.get("url") for x in source_pages if x.get("status")!="INDEXED"]
     vector_ok=bool(pinned) and not missing and not supplement_invalid
     sources_ok=bool(source_assets) and not missing_categories and not page_blocked
-    raster_ok=bool(raster_sources) and not raster_missing and not any(raster_family_missing.values())
-    archives_ok=bool(archives and archives.get("complete")) and not source_unverified
+    raster_report=raster_derivatives or {}
+    raster_ok=(bool(raster_sources) and not raster_missing
+               and not any(raster_family_missing.values())
+               and raster_report.get("complete") is True
+               and raster_report.get("sources_converted")==
+                   raster_report.get("sources_expected")==len(raster_sources)
+               and not raster_report.get("failures"))
+    source_ids={entry.get("resource_id") for entry in source_assets}
+    archives_complete=bool(archives and
+        ((archives.get("summary") or {}).get("complete") is True or
+         archives.get("complete") is True))
+    archives_ok=(archives_complete and not source_unverified
+                 and len(archive_records)==len(source_assets)
+                 and len(verified_assets)==len(source_ids))
     complete=vector_ok and sources_ok and raster_ok and archives_ok
     return {
         "schema_version":1,"complete":complete,
