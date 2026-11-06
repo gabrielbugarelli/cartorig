@@ -293,6 +293,9 @@ int main(int argc,char**argv){
  if(argc==4){
    Effect styled;init(generator,styled,kOfxImageEffectContextGenerator);
    overrideParam(styled,"NaturalEarthVectorGpkg",std::string(argv[3]));
+   // Synthetic fixture intentionally contains only 10m countries, while
+   // Auto at default zoom selects 110m. Force the published 10m layer here.
+   overrideParam(styled,"NaturalEarthDetail",3);
    overrideParam(styled,"GeographicCatalog",std::string(argv[2]));
    overrideParam(styled,"GeographicRegionKind",1);
    overrideParam(styled,"GeographicRegionQuery",std::string("Brasil"));
