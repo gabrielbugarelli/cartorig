@@ -20,6 +20,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python }}
+      - name: Install release-builder-only TIFF/PSD decoder
+        run: python -m pip install Pillow==11.3.0
       - name: Exercise offline builder without network
         run: python -m unittest discover -s tests -p "test_natural_earth*.py" -v
       - name: Assert pinned official layer manifest
