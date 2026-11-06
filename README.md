@@ -1,8 +1,18 @@
-# CartoRig Native — Edit-first OpenFX prototype
+# CartoRig Native — Edit-first OpenFX developer preview
 
-**Status: developer preview v0.1.0; not a complete production plugin and not yet validated in DaVinci Resolve Studio 20.**
+**Status: developer preview v0.2.0.** The Map Generator and its antimeridian rendering fix have been validated by a user in DaVinci Resolve Studio 20. The new Overlay/alpha, persistence, keyframe/retime controls and 4K pipeline still require formal in-Resolve acceptance.
 
 This repository is a new, independently compiled C++ project. It does not require Electron, SVG screenshots, `fuscript.exe`, the Workflow Integration bridge or the Fusion page for normal image generation.
+
+## Integration and stability phase (0.2-dev)
+
+- **Generator + Filter:** source-over compositing of geographic graphics on live video with alpha-aware 8-bit/Float32 premultiplied pipelines, global opacity, clean transparent ocean for Overlay, validated CPU pixels and source-preserving `Opacity=0`.
+- **Native Edit animation:** keyframe-able camera/route knobs plus `SceneTimeOffset` and `SceneTimeScale` (reverse/hold). Use the Edit Curve Editor for the OpenFX-exposed controls; no built-in HTML timeline.
+- **Portable data:** `EmbeddedSceneJSON` and `EmbeddedCatalogJSON` are persistent OFX multiline string params. Values stored there override external file paths and can survive project transfer *if the Resolve host persists them*, subject to the manual test gate.
+- **Tests:** real plugin loaded inside a simulated OpenFX host for Generator/Filter, pixel-level alpha/overlay tests, parallel seeks and tile equivalence, 1440p/4K previews, Windows installer dry-run and sanitizer tests.
+- **Windows upgrades:** from the Windows GitHub Actions artifact, run `./Install-CartoRigNative.ps1 -Upgrade -Confirm:$false` in elevated PowerShell with Resolve closed. The script stages the bundle and keeps a rollback copy during the switch. `-WhatIf` performs no installation.
+
+The verified current features and required **manual Resolve 20** checks are documented in [Edit-first release gate](docs/EDIT_FIRST_RELEASE_GATE.md).
 
 ## What exists today
 
@@ -63,9 +73,13 @@ Restart DaVinci Resolve Studio 20. If the Generator is supported, search for **C
 | Use camera keyframes from scene | Enabled: evaluate the JSON camera track; disabled: use the native OFX camera parameters |
 | Camera longitude / latitude / zoom / bearing | Keyframe-capable native OFX parameters when JSON camera keys are disabled |
 | Route reveal | -1 uses the JSON timing; 0..1 controls progress via OFX keyframes |
-| Cartography opacity | Multiplies alpha of highlights, route graphics and markers |
+| Cartography opacity | Global opacity for all map paints, including Filter overlay (default 0.7) |
+| Embedded scene JSON | Portable in-project scene; overrides external scene file |
+| Embedded GeoJSON | Portable in-project data; overrides external GeoJSON |
+| Scene offset / time scale | Shift, freeze and reverse JSON camera/route animation |
+| Installed plugin build | Shows the compiled build revision to distinguish stale binaries |
 
-**No automatic host-scene synchronization:** changing the JSON on disk will invalidate the internal file cache, but the host might not know to rerender. Force an effect refresh or adjust a parameter. Portable self-contained scene embedding and custom UI are later work.
+**No automatic host-scene synchronization:** an external JSON file change may not invalidate a cached host frame until an Inspector parameter changes. Embed assets for project portability, or explicitly refresh the host when editing external files.
 
 ## Preview without Resolve
 
@@ -81,7 +95,7 @@ Initial host logs conclusively showed the generator output allocation was report
 
 ## Resolve Studio 20: image corruption diagnostics
 
-The first in-host tests exposed severe green/white pixel noise and striping. The root cause has **not** been certified. Do not treat the native build as usable in production yet. The Inspector now exposes **Diagnostic output (test only)** (RGB bars, grayscale, alpha split, white) and an opt-in **Write OFX diagnostic log**. Run the controlled [Resolve 20 diagnostic procedure](docs/RESOLVE20_DIAGNOSTICS.md) before proposing another pixel-format fix.
+The initial image corruption and moving horizontal stripes were addressed by output RGBA negotiation and continuous longitude polygon projection; the Map Generator was subsequently confirmed stable in a first actual Resolve 20 test. The newly added Filter and project persistence workflows are **not yet host-certified**. The Inspector now exposes **Diagnostic output (test only)** (RGB bars, grayscale, alpha split, white) and an opt-in **Write OFX diagnostic log**. Run the controlled [Resolve 20 diagnostic procedure](docs/RESOLVE20_DIAGNOSTICS.md) before proposing another pixel-format fix.
 
 ## Tests and safety
 
