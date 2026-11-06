@@ -1,5 +1,6 @@
 // CartoRig Native: minimal OpenFX 1.x C ABI, no Resolve private SDK.
 #include "cartorig.hpp"
+#include "ofx_pixel_layout.hpp"
 #include "ofxCore.h"
 #include "ofxImageEffect.h"
 #include "ofxParam.h"
@@ -166,9 +167,25 @@ OfxStatus createInstance(OfxImageEffectHandle e,bool filter){auto i=std::make_un
 OfxStatus destroyInstance(OfxImageEffectHandle e){Instance *i=instance(e);if(!i)return kOfxStatOK;OfxPropertySetHandle p=nullptr;fx->getPropertySet(e,&p);prop->propSetPointer(p,kOfxPropInstanceData,0,nullptr);delete i;return kOfxStatOK;}
 struct ImageLease {OfxPropertySetHandle image=nullptr;~ImageLease(){if(image)fx->clipReleaseImage(image);}ImageLease(const ImageLease&)=delete;ImageLease& operator=(const ImageLease&)=delete;ImageLease()=default;};
 void clearRegion(cartorig::Surface surface){int bpp=surface.format==cartorig::PixelFormat::ByteRGBA?4:16;for(int y=surface.y1;y<surface.y2;++y)std::memset(static_cast<char*>(surface.data)+(y-surface.y1)*surface.rowBytes,0,static_cast<size_t>(surface.x2-surface.x1)*bpp);}
-cartorig::Surface surfaceOf(OfxPropertySetHandle image){cartorig::Surface s;void *buffer=nullptr;int rect[4]{},rowBytes=0;char *depth=nullptr,*components=nullptr;
+cartorig::Surface surfaceOf(OfxPropertySetHandle image,bool generator){cartorig::Surface s;void *buffer=nullptr;int rect[4]{},rowBytes=0;char *depth=nullptr,*components=nullptr;
  if(prop->propGetPointer(image,kOfxImagePropData,0,&buffer)!=kOfxStatOK||!buffer||prop->propGetIntN(image,kOfxImagePropBounds,4,rect)!=kOfxStatOK||prop->propGetInt(image,kOfxImagePropRowBytes,0,&rowBytes)!=kOfxStatOK||prop->propGetString(image,kOfxImageEffectPropPixelDepth,0,&depth)!=kOfxStatOK||prop->propGetString(image,kOfxImageEffectPropComponents,0,&components)!=kOfxStatOK)throw std::runtime_error("unsupported image properties");
- if(!components||std::strcmp(components,kOfxImageComponentRGBA))throw std::runtime_error("only RGBA is supported");
+ const auto layout=cartorig::classifyOfxLayout(
+   components?components:"",depth?depth:"",rect[0],rect[1],rect[2],rect[3],
+   rowBytes,generator);
+ if(layout==cartorig::OfxLayout::Reject){
+   std::ostringstream detail;
+   detail<<"unsupported OFX image: components="<<(components?components:"missing")
+         <<" depth="<<(depth?depth:"missing")
+         <<" bounds="<<rect[0]<<","<<rect[1]<<","<<rect[2]<<","<<rect[3]
+         <<" rowBytes="<<rowBytes;
+   throw std::runtime_error(detail.str());
+ }
+ if(layout==cartorig::OfxLayout::Resolve20FloatRGBAUnspecified){
+   static std::atomic<unsigned> warnings{0};
+   if(warnings.fetch_add(1,std::memory_order_relaxed)<3)
+     writeDiagnostics("COMPAT: Resolve 20 Generator returned ComponentNone with "
+       "tight Float4 row. Interpreting as RGBA after validating dimensions.");
+ }
  s.data=buffer;s.x1=rect[0];s.y1=rect[1];s.x2=rect[2];s.y2=rect[3];s.rowBytes=rowBytes;
  if(depth&&!strcmp(depth,kOfxBitDepthByte))s.format=cartorig::PixelFormat::ByteRGBA;
  else if(depth&&!strcmp(depth,kOfxBitDepthFloat))s.format=cartorig::PixelFormat::FloatRGBA;
@@ -215,7 +232,7 @@ OfxStatus render(OfxImageEffectHandle e,OfxPropertySetHandle args){Instance *i=i
       <<" components="<<(components?components:"missing");
    writeDiagnostics(msg.str());
  }
- auto target=surfaceOf(output.image);
+ auto target=surfaceOf(output.image,!i->overlay);
  OfxPropertySetHandle effProps=nullptr;fx->getPropertySet(e,&effProps);double w=0,h=0,scaleX=1,scaleY=1;
  if(prop->propGetDouble(effProps,kOfxImageEffectPropProjectSize,0,&w)!=kOfxStatOK||prop->propGetDouble(effProps,kOfxImageEffectPropProjectSize,1,&h)!=kOfxStatOK) {w=target.x2;h=target.y2;}
  prop->propGetDouble(args,kOfxImageEffectPropRenderScale,0,&scaleX);prop->propGetDouble(args,kOfxImageEffectPropRenderScale,1,&scaleY);
@@ -263,7 +280,7 @@ OfxStatus render(OfxImageEffectHandle e,OfxPropertySetHandle args){Instance *i=i
  if(!intAt(i->useSceneKeys,time,1)){view.camera.lon=doubleAt(i->lon,time,view.camera.lon);view.camera.lat=doubleAt(i->lat,time,view.camera.lat);view.camera.zoom=doubleAt(i->zoom,time,view.camera.zoom);view.camera.bearing=doubleAt(i->bearing,time,view.camera.bearing);}
  view.routeProgress=doubleAt(i->route,time,-1);double opacity=std::clamp(doubleAt(i->opacity,time,1),0.0,1.0);
  auto copy=*scene;copy.style.highlight.a=static_cast<uint8_t>(copy.style.highlight.a*opacity);for(auto &m:copy.markers)m.color.a=static_cast<uint8_t>(m.color.a*opacity);for(auto &r:copy.routes)r.color.a=static_cast<uint8_t>(r.color.a*opacity);
- ImageLease source;if(i->overlay&&fx->clipGetImage(i->source,time,nullptr,&source.image)==kOfxStatOK&&source.image){copySource(surfaceOf(source.image),target);copy.style.transparent=true;view.preserveBackground=true;}
+ ImageLease source;if(i->overlay&&fx->clipGetImage(i->source,time,nullptr,&source.image)==kOfxStatOK&&source.image){copySource(surfaceOf(source.image,false),target);copy.style.transparent=true;view.preserveBackground=true;}
  else {copy.style.transparent=i->overlay||copy.style.transparent;}
  cartorig::render(copy,*dataset,view,target);
  return kOfxStatOK;
@@ -285,6 +302,15 @@ OfxStatus entry(const char *action,const void *handle,OfxPropertySetHandle args,
    // JSON-based camera/route motion changes per frame without animating any OFX parameter.
    if(!out)return kOfxStatFailed;
    if(prop->propSetInt(out,kOfxImageEffectFrameVarying,0,1)!=kOfxStatOK)return kOfxStatFailed;
+   // Explicitly request RGBA on the Output clip (OpenFX clip preferences).
+   // Some Resolve 20 generator images still expose None despite this request.
+   if(!filter){
+     const auto status=prop->propSetString(
+       out,"OfxImageClipPropComponents_Output",0,kOfxImageComponentRGBA);
+     if(status!=kOfxStatOK)
+       writeDiagnostics("GetClipPreferences Output RGBA request not accepted: "+
+         std::to_string(status));
+   }
    // Our generator produces straight RGBA; without this, generator defaults may be opaque.
    // Filter output retains the host's source premultiplication pending source conversion.
    if(!filter&&prop->propSetString(out,kOfxImageEffectPropPreMultiplication,0,kOfxImageUnPreMultiplied)!=kOfxStatOK)return kOfxStatFailed;
