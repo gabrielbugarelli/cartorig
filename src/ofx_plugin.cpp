@@ -318,6 +318,55 @@ void defineNaturalEarthDetailChoice(OfxParamSetHandle ps){
   for(int n=0;n<4;++n)
     prop->propSetString(properties,kOfxParamPropChoiceOption,n,levels[n]);
 }
+void defineGeographicChoice(OfxParamSetHandle ps,const char*name,
+                            const char*label,const char *const *options,
+                            int count,int selected){
+  OfxPropertySetHandle props=nullptr;
+  if(param->paramDefine(ps,kOfxParamTypeChoice,name,&props)!=kOfxStatOK)
+    throw std::runtime_error("Geographic region dropdown unavailable");
+  prop->propSetString(props,kOfxPropLabel,0,label);
+  prop->propSetString(props,kOfxParamPropParent,0,"GeographicRegion");
+  prop->propSetInt(props,kOfxParamPropDefault,0,selected);
+  prop->propSetInt(props,kOfxParamPropAnimates,0,0);
+  for(int index=0;index<count;++index)
+    prop->propSetString(props,kOfxParamPropChoiceOption,index,options[index]);
+}
+void defineGeographicButton(OfxParamSetHandle ps,const char *name,
+                            const char *label){
+  OfxPropertySetHandle props=nullptr;
+  if(param->paramDefine(ps,kOfxParamTypePushButton,name,&props)!=kOfxStatOK)
+    throw std::runtime_error("Geographic region action button unavailable");
+  prop->propSetString(props,kOfxPropLabel,0,label);
+  prop->propSetString(props,kOfxParamPropParent,0,"GeographicRegion");
+}
+void defineGeographicRegionUI(OfxParamSetHandle ps){
+  defineNativeGroup(ps,"GeographicRegion","Geographic region",false);
+  defineString(ps,"GeographicCatalog","Offline search index (catalog.sqlite)","GeographicRegion");
+  const char *kinds[]={"Continent","Country","State / Province","City"};
+  defineGeographicChoice(ps,"GeographicRegionKind","Geographic region",kinds,4,1);
+  defineNativeText(ps,"GeographicRegionQuery","Search location","GeographicRegion");
+  const char *matches[]={"Result 1","Result 2","Result 3","Result 4","Result 5",
+                         "Result 6","Result 7","Result 8","Result 9","Result 10"};
+  defineGeographicChoice(ps,"GeographicRegionMatch","Search result",matches,10,0);
+  // Native OpenFX text label is best effort: Resolve may not refresh it
+  // immediately on InstanceChanged; selected content still persists in JSON.
+  OfxPropertySetHandle info=nullptr;
+  if(param->paramDefine(ps,kOfxParamTypeString,"GeographicRegionStatus",&info)!=kOfxStatOK)
+    throw std::runtime_error("Geographic result label unavailable");
+  prop->propSetString(info,kOfxPropLabel,0,"Matches / selected");
+  prop->propSetString(info,kOfxParamPropStringMode,0,kOfxParamStringIsLabel);
+  prop->propSetString(info,kOfxParamPropDefault,0,"Choose type and search a location");
+  prop->propSetInt(info,kOfxParamPropAnimates,0,0);
+  prop->propSetString(info,kOfxParamPropParent,0,"GeographicRegion");
+  defineNativeDouble(ps,"GeographicRegionRed","Region red",40,0,255,"GeographicRegion");
+  defineNativeDouble(ps,"GeographicRegionGreen","Region green",157,0,255,"GeographicRegion");
+  defineNativeDouble(ps,"GeographicRegionBlue","Region blue",192,0,255,"GeographicRegion");
+  defineNativeDouble(ps,"GeographicRegionAlpha","Region opacity (0-255)",220,0,255,"GeographicRegion");
+  defineGeographicButton(ps,"GeographicRegionAdd","Add / update selected region");
+  defineGeographicButton(ps,"GeographicRegionRemove","Remove selected region");
+  defineMultiline(ps,"GeographicRegionSaved",
+                  "Selected regions (persistent project state)","GeographicRegion");
+}
 void defineVersionLabel(OfxParamSetHandle ps){
   OfxPropertySetHandle props=nullptr;
   if(param->paramDefine(ps,kOfxParamTypeString,"CartoRigBuildInfo",&props)!=kOfxStatOK)
@@ -384,6 +433,7 @@ OfxStatus describeInContext(OfxImageEffectHandle e,bool filter){
  defineNativeText(ps,"CountryList","More countries (ISO3 list)","CountryControls");
  defineNativeDouble(ps,"HighlightStrength","Highlight opacity",1,0,1,"CountryControls");
 
+ defineGeographicRegionUI(ps);
  defineNativeGroup(ps,"RouteControls","Manual geographic route",true);
  defineNativeToggle(ps,"NativeRouteEnabled","Enable manual route",false,"RouteControls");
  defineNativeDouble(ps,"RouteStartLongitude","Start longitude",-20,-180,180,"RouteControls");
@@ -434,6 +484,13 @@ OfxStatus createInstance(OfxImageEffectHandle e,bool filter){auto i=std::make_un
  {"NaturalEarthLayerGpkg",&i->naturalEarthLayerFile},
  {"NaturalEarthRasterRoot",&i->naturalEarthRasterRoot},
  {"NaturalEarthRasterAsset",&i->naturalEarthRasterAsset},
+ {"GeographicCatalog",&i->regionCatalog},
+ {"GeographicRegionKind",&i->regionKind},{"GeographicRegionQuery",&i->regionQuery},
+ {"GeographicRegionMatch",&i->regionMatch},{"GeographicRegionStatus",&i->regionStatus},
+ {"GeographicRegionRed",&i->regionRed},{"GeographicRegionGreen",&i->regionGreen},
+ {"GeographicRegionBlue",&i->regionBlue},{"GeographicRegionAlpha",&i->regionAlpha},
+ {"GeographicRegionAdd",&i->regionAdd},{"GeographicRegionRemove",&i->regionRemove},
+ {"GeographicRegionSaved",&i->regionSaved},
  {"EmbeddedSceneJSON",&i->sceneInline},{"EmbeddedCatalogJSON",&i->datasetInline},
  {"SceneTimeOffset",&i->frameOffset},{"SceneTimeScale",&i->timeScale},
  {"UseSceneCamera",&i->useSceneKeys},{"Longitude",&i->lon},{"Latitude",&i->lat},{"Zoom",&i->zoom},
