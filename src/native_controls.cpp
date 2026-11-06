@@ -73,3 +73,4 @@ Scene sceneWithNativeControls(const Scene &original,const NativeMapControls &n) 
   }
   return s;
 }
+} // namespace cartorig
