@@ -20,6 +20,17 @@ jobs:
         run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCARTORIG_BUILD_TESTS=ON
       - name: Compile
         run: cmake --build build --config Release --parallel 2
+      - name: Validate distributable OFX bundle layout
+        shell: bash
+        run: |
+          if [[ "${{ runner.os }}" == "Windows" ]]; then
+            test -f build/CartoRigNative.ofx.bundle/Contents/Win64/CartoRigNative.ofx
+            test ! -e build/CartoRigNative.ofx.bundle/Contents/Win64/Release/CartoRigNative.ofx
+          else
+            test -f build/CartoRigNative.ofx.bundle/Contents/Linux-x86-64/CartoRigNative.ofx
+          fi
+          test -f build/CartoRigNative.ofx.bundle/Contents/Resources/countries.geojson
+          test -f build/CartoRigNative.ofx.bundle/Contents/Resources/brasil-venezuela.cartorig-native.json
       - name: Run standalone core tests
         run: ctest --test-dir build -C Release --output-on-failure
       - name: Render 3 representative frames
