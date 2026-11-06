@@ -35,6 +35,17 @@ int main(){
   view.frame=90;render(s,data,view,dest);check(h0!=checksum(bytes),"route progression alters frame");
   check(*std::max_element(bytes.begin(),bytes.end())==255,"opaque raster alpha");
   const size_t w=32,h=16;std::vector<uint8_t> tile(w*h*4+64,0xCD);Surface sub{tile.data()+32,20,50,52,66,int(w*4),PixelFormat::ByteRGBA};view.frame=0;render(s,data,view,sub);check(std::all_of(tile.begin(),tile.begin()+32,[](auto b){return b==0xCD;})&&std::all_of(tile.end()-32,tile.end(),[](auto b){return b==0xCD;}),"tile rendering memory safety");
+  // RenderWindow must not overwrite pixels outside the requested rectangle.
+  std::vector<uint8_t> sentinel(16*12*4,0xCD);Surface whole{sentinel.data(),0,0,16,12,16*4,PixelFormat::ByteRGBA};
+  auto cropped=cropSurface(whole,3,2,13,9);View small;small.width=16;small.height=12;small.camera=s.camera;render(s,data,small,cropped);
+  bool regionIsolated=true;
+  for(int y=0;y<12;y++)for(int x=0;x<16;x++)if(x<3||x>=13||y<2||y>=9){for(int k=0;k<4;k++)regionIsolated&=sentinel[(y*16+x)*4+k]==0xCD;}
+  check(regionIsolated,"RenderWindow cannot overwrite outside requested tile");
+  auto empty=cropSurface(whole,30,30,40,40);check(empty.data==nullptr,"non-overlapping render window is empty");
+  // Signed row stride is legal in OFX (top-down native allocations).
+  auto reversed=whole;reversed.data=sentinel.data()+static_cast<ptrdiff_t>(11)*16*4;reversed.rowBytes=-16*4;
+  auto reversedCrop=cropSurface(reversed,2,1,9,7);
+  check(reversedCrop.data==sentinel.data()+static_cast<ptrdiff_t>(10)*16*4+2*4&&reversedCrop.rowBytes==-16*4,"negative rowBytes crop offset");
   std::vector<float> floats(320*180*4,0);Surface f{floats.data(),0,0,320,180,320*16,PixelFormat::FloatRGBA};render(s,data,view,f);check(std::all_of(floats.begin(),floats.end(),[](float x){return std::isfinite(x)&&x>=0&&x<=1;}),"float RGBA finite bounds");
   s.style.transparent=true;render(s,data,view,dest);check(bytes[3]==0,"transparent empty ocean pixel");
   s.cameraKeys.clear();check(evaluateCamera(s,15).lon==s.camera.lon,"static camera");

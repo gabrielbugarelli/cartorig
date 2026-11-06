@@ -43,6 +43,16 @@ constexpr std::array<std::array<uint8_t,7>,37> font={{{0,0,0,0,0,0,0}, // unsupp
 {30,1,1,14,1,1,30},{2,6,10,18,31,2,2},{31,16,16,30,1,1,30},{14,16,16,30,17,17,14},{31,1,2,4,8,8,8},{14,17,17,14,17,17,14},{14,17,17,15,1,1,14}}};
 void label(Painter &p,ScreenPoint anchor,const std::string &s,Color c){int x=static_cast<int>(anchor.x)+9,y=static_cast<int>(anchor.y)-11;int charCount=0;for(unsigned char ch:s){if(++charCount>48)break;unsigned n=0;if(ch>='A'&&ch<='Z')n=1+(ch-'A');else if(ch>='a'&&ch<='z')n=1+(ch-'a');else if(ch>='0'&&ch<='9')n=27+(ch-'0');for(int r=0;r<7;++r)for(int bit=0;bit<5;++bit)if(font[n][r]&(1<<(4-bit)))p.put(x+bit,y+r,c);x+=6;}}
 }
+Surface cropSurface(Surface s,int x1,int y1,int x2,int y2){
+  if(!s.data||s.x1>=s.x2||s.y1>=s.y2||s.rowBytes==0)throw std::invalid_argument("invalid source surface");
+  const int nx1=std::max(s.x1,x1),ny1=std::max(s.y1,y1);
+  const int nx2=std::min(s.x2,x2),ny2=std::min(s.y2,y2);
+  if(nx1>=nx2||ny1>=ny2){s.data=nullptr;s.x1=s.x2=nx1;s.y1=s.y2=ny1;return s;}
+  const int pixelBytes=s.format==PixelFormat::ByteRGBA?4:16;
+  s.data=static_cast<char*>(s.data)+static_cast<ptrdiff_t>(ny1-s.y1)*s.rowBytes+static_cast<ptrdiff_t>(nx1-s.x1)*pixelBytes;
+  s.x1=nx1;s.y1=ny1;s.x2=nx2;s.y2=ny2;
+  return s;
+}
 void render(const Scene &scene,const Dataset &data,const View &view,Surface dst,RasterStats *stats){
  if(view.width<=0||view.height<=0||view.width>16384||view.height>16384||!dst.data||dst.x1>=dst.x2||dst.y1>=dst.y2||dst.rowBytes==0)throw std::invalid_argument("invalid image target");
  Painter p{dst,view.width,view.height,stats};if(!view.preserveBackground)p.fill(scene.style.transparent?Color{0,0,0,0}:scene.style.ocean);

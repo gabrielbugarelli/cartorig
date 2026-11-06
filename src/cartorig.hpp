@@ -41,5 +41,9 @@ double normalizeLon(double lon);
 ScreenPoint project(GeoPoint p, const Camera &camera, int width, int height);
 GeoPoint unproject(ScreenPoint p, const Camera &camera, int width, int height);
 Camera fitBounds(const std::vector<GeoPoint>& points, int width,int height,double padding=0.08);
+// Intersect an OFX image allocation with the RenderWindow without copying pixels.
+// The returned data pointer is rebased to (x1,y1) and supports negative rowBytes.
+// An empty intersection returns data=nullptr.
+Surface cropSurface(Surface image,int x1,int y1,int x2,int y2);
 void render(const Scene &scene,const Dataset &data,const View &view,Surface dst, RasterStats *stats=nullptr);
 }

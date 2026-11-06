@@ -42,6 +42,12 @@ set_target_properties(CartoRigNative PROPERTIES
   PREFIX "" SUFFIX ".ofx" OUTPUT_NAME "CartoRigNative"
   RUNTIME_OUTPUT_DIRECTORY "${CARTORIG_BUNDLE}/Contents/${CARTORIG_PLATFORM}"
   LIBRARY_OUTPUT_DIRECTORY "${CARTORIG_BUNDLE}/Contents/${CARTORIG_PLATFORM}")
+# Visual Studio is multi-config and otherwise silently inserts Contents/Win64/Release/.
+foreach(CONFIG DEBUG RELEASE RELWITHDEBINFO MINSIZEREL)
+  set_target_properties(CartoRigNative PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY_${CONFIG} "${CARTORIG_BUNDLE}/Contents/${CARTORIG_PLATFORM}"
+    LIBRARY_OUTPUT_DIRECTORY_${CONFIG} "${CARTORIG_BUNDLE}/Contents/${CARTORIG_PLATFORM}")
+endforeach()
 file(MAKE_DIRECTORY "${CARTORIG_BUNDLE}/Contents/Resources")
 configure_file(data/countries.geojson "${CARTORIG_BUNDLE}/Contents/Resources/countries.geojson" COPYONLY)
 configure_file(data/LICENSE-COUNTRYINFO.txt "${CARTORIG_BUNDLE}/Contents/Resources/LICENSE-COUNTRYINFO.txt" COPYONLY)
