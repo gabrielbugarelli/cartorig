@@ -704,6 +704,21 @@ OfxStatus render(OfxImageEffectHandle e,OfxPropertySetHandle args){Instance *i=i
        cartorig::Color{96,193,231,235},
        cartorig::Color{255,207,115,245});
  }
+ std::string savedRegions;
+ stringAt(i->regionSaved,time,savedRegions);
+ if(!savedRegions.empty()){
+   if(naturalEarthPath.empty())
+     throw std::invalid_argument("Geographic region requires a local Vector GeoPackage");
+   const auto selections=cartorig::parseGeographicSelections(savedRegions);
+   for(const auto &selection:selections){
+     const auto geometries=geographicRegionAt(
+         naturalEarthPath,extraLayerPath,selection);
+     // Independent RGBA per region, following a stable publisher feature ID.
+     // City points stay points; no fabricated administrative polygons.
+     cartorig::renderNaturalEarthLayer(
+         *geometries,view,target,selection.fill,selection.fill,selection.fill);
+   }
+ }
  return kOfxStatOK;
 }
 OfxStatus onGeographicRegionChanged(OfxImageEffectHandle effect,
@@ -783,7 +798,7 @@ OfxStatus onGeographicRegionChanged(OfxImageEffectHandle effect,
 }
 OfxStatus entry(const char *action,const void *handle,OfxPropertySetHandle args,OfxPropertySetHandle out,bool filter){try {
  if(!std::strcmp(action,kOfxActionLoad))return onLoad();
- if(!std::strcmp(action,kOfxActionUnload)){std::lock_guard<std::mutex> lock(cacheMutex);cache.clear();vectorLayerCache.clear();rasterCache.clear();return kOfxStatOK;}
+ if(!std::strcmp(action,kOfxActionUnload)){std::lock_guard<std::mutex> lock(cacheMutex);cache.clear();vectorLayerCache.clear();rasterCache.clear();regionGeometryCache.clear();return kOfxStatOK;}
  if(!std::strcmp(action,kOfxActionDescribe))return describe((OfxImageEffectHandle)handle,filter);
  if(!std::strcmp(action,kOfxImageEffectActionDescribeInContext))return describeInContext((OfxImageEffectHandle)handle,filter);
  if(!std::strcmp(action,kOfxActionInstanceChanged)){
