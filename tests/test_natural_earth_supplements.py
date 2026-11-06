@@ -6,7 +6,7 @@ import sqlite3
 import tempfile
 import unittest
 
-from tools.natural_earth import supplements
+from tools.natural_earth import supplements, coverage
 
 def fake_manifest():
     layers=[f"ne_10m_bathymetry_{letter}_{depth}" for letter,depth in
@@ -66,6 +66,32 @@ class SupplementsTests(unittest.TestCase):
                 self.assertEqual(sample[0][8],1)
                 self.assertEqual(json.loads(sample[1])["label"],layer)
         finally:db.close()
+    def test_215_layer_combined_vector_coverage_and_tamper_detection(self):
+        root=Path(__file__).resolve().parents[1]
+        pin=json.loads((root/"data/natural-earth/vector_layers_v5.1.2.json").read_text())
+        supplements.create_geopackage(self.manifest,self.sources,self.out)
+        missing={x["layer"] for x in self.manifest["entries"]}
+        primary=self.folder/"catalog.sqlite"
+        with sqlite3.connect(primary) as db:
+            db.execute("CREATE TABLE layers(table_name TEXT PRIMARY KEY)")
+            db.executemany("INSERT INTO layers VALUES(?)",
+                [(Path(row["source_path"]).stem,) for row in pin["layers"]
+                 if Path(row["source_path"]).stem not in missing])
+        report=coverage.audit(pin,primary,supplemental_gpkg=self.out,
+                              supplement_pin=self.manifest)
+        self.assertEqual(report["vector"]["expected"],215)
+        self.assertEqual(report["vector"]["indexed"],215)
+        self.assertEqual(report["vector"]["supplemental_verified"],33)
+        self.assertTrue(report["vector"]["passed"])
+        self.assertFalse(report["complete"],"raster/archive gates must still fail")
+        with sqlite3.connect(self.out) as db:
+            db.execute("UPDATE provenance SET upstream_git_blob_sha1='f' || substr(upstream_git_blob_sha1,2) "
+                       "WHERE table_name=?",(self.manifest["entries"][0]["layer"],))
+        compromised=coverage.audit(pin,primary,supplemental_gpkg=self.out,
+                                   supplement_pin=self.manifest)
+        self.assertFalse(compromised["vector"]["passed"])
+        self.assertTrue(compromised["vector"]["supplemental_invalid"])
+
     def test_tampering_aborts_without_writing_destination(self):
         bad=self.manifest["entries"][12]
         path=self.sources/(bad["layer"]+".geojson")
