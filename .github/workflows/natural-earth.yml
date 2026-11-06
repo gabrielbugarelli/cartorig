@@ -47,6 +47,16 @@ jobs:
         run: |
           mkdir -p build/natural-earth
           python tools/natural_earth/inventory.py --output build/natural-earth/official_sources.json
+      - name: Verify a real 110m Shapefile archive from the publisher
+        continue-on-error: true
+        run: python -m tools.natural_earth.smoke
+      - name: Upload actual publisher archive verification (small smoke only)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: NaturalEarth-110m-Archive-Smoke
+          path: build/natural-earth/smoke/
+          if-no-files-found: warn
       - name: Always preserve the official source audit evidence
         if: always()
         uses: actions/upload-artifact@v4
