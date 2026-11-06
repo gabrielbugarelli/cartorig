@@ -41,6 +41,7 @@ jobs:
           "$EXE" data/countries.geojson samples/brasil-venezuela.cartorig-native.json 0 build/previews/f000.ppm
           "$EXE" data/countries.geojson samples/brasil-venezuela.cartorig-native.json 96 build/previews/f096.ppm
           "$EXE" data/countries.geojson samples/brasil-venezuela.cartorig-native.json 239 build/previews/f239.ppm
+          "$EXE" data/countries.geojson samples/brasil-venezuela.cartorig-native.json 96 build/previews/f096-1440p.ppm 2560 1440
           "$EXE" data/countries.geojson samples/brasil-venezuela.cartorig-native.json 96 build/previews/f096-4k.ppm 3840 2160
       - name: Upload native OFX bundle and previews
         uses: actions/upload-artifact@v4
