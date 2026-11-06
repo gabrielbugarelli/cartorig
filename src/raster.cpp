@@ -1,4 +1,5 @@
 #include "cartorig.hpp"
+#include "natural_earth_geometry.hpp"
 #include <algorithm>
 #include <array>
 #include <cmath>
@@ -130,3 +131,83 @@ void render(const Scene &scene,const Dataset &data,const View &view,Surface dst,
  for(auto &m:scene.markers){if(!m.visible)continue;auto a=project(m.at,view.camera,view.width,view.height);p.disk(a.x,a.y,m.size+1,{0,0,0,230});p.disk(a.x,a.y,m.size,m.color);if(!m.label.empty())label(p,a,m.label,m.color);}
 }
 }
+
+
+namespace cartorig {
+// Draw the selected (optional) Natural Earth layer after the unchanged base map.
+// Painter applies identical byte/float alpha blending and OFX tile clipping.
+void renderNaturalEarthLayer(const std::vector<NaturalEarthGeometry> &geometries,
+                             const View &view,Surface target,
+                             Color polygonFill,Color lineColor,Color pointColor,
+                             RasterStats *stats){
+  if(!target.data||view.width<=0||view.height<=0||
+     view.width>16384||view.height>16384||target.x1>=target.x2||
+     target.y1>=target.y2||target.rowBytes==0)
+    throw std::invalid_argument("invalid Natural Earth layer render target");
+  Painter painter{target,view.width,view.height,stats,view.opacity};
+  constexpr double pi=3.14159265358979323846;
+  const double world=256.0*std::pow(2.0,view.camera.zoom)*(view.width/1280.0);
+  if(!std::isfinite(world)||world<1.0)
+    throw std::invalid_argument("invalid Natural Earth layer camera");
+  const double angle=view.camera.bearing*pi/180.0;
+  const ScreenPoint wrap{world*std::cos(angle),world*std::sin(angle)};
+  const int repeats=std::clamp(static_cast<int>(
+      std::ceil(std::hypot(view.width,view.height)/world))+2,2,32);
+  const double clipTop=view.height-target.y2,clipBottom=view.height-target.y1;
+  // Grouped polygons preserve holes when translated across world repeats.
+  auto visible=[&](const std::vector<ScreenPoint>&points,double ox,double oy){
+    if(points.empty())return false;
+    double xmin=1e15,xmax=-1e15,ymin=1e15,ymax=-1e15;
+    for(const auto &pt:points){
+      xmin=std::min(xmin,pt.x);xmax=std::max(xmax,pt.x);
+      ymin=std::min(ymin,pt.y);ymax=std::max(ymax,pt.y);
+    }
+    return !(xmax+ox<target.x1-6||xmin+ox>target.x2+6||
+             ymax+oy<clipTop-6||ymin+oy>clipBottom+6);
+  };
+  for(const auto &geom:geometries){
+    for(const auto &poly:geom.polygons){
+      auto projected=projectPolygonContinuous(poly,view.camera,view.width,view.height);
+      if(projected.empty()||projected[0].empty())continue;
+      for(int repeat=-repeats;repeat<=repeats;++repeat){
+        const double ox=repeat*wrap.x,oy=repeat*wrap.y;
+        if(!visible(projected[0],ox,oy))continue;
+        auto shifted=projected;
+        for(auto &ring:shifted)
+          for(auto &pt:ring){pt.x+=ox;pt.y+=oy;}
+        painter.polygon(shifted,polygonFill,lineColor);
+      }
+    }
+    for(const auto &line:geom.lines){
+      if(line.size()<2)continue;
+      // The polygon projector also unwraps open WGS84 paths across longitude 180.
+      Polygon path;path.rings.push_back(line);
+      const auto projected=projectPolygonContinuous(
+          path,view.camera,view.width,view.height);
+      if(projected.empty())continue;
+      const auto &points=projected[0];
+      for(int repeat=-repeats;repeat<=repeats;++repeat){
+        const double ox=repeat*wrap.x,oy=repeat*wrap.y;
+        if(!visible(points,ox,oy))continue;
+        for(std::size_t k=1;k<points.size();++k){
+          const ScreenPoint a{points[k-1].x+ox,points[k-1].y+oy};
+          const ScreenPoint b{points[k].x+ox,points[k].y+oy};
+          if(std::max(a.x,b.x)<target.x1-3||std::min(a.x,b.x)>target.x2+3||
+             std::max(a.y,b.y)<clipTop-3||std::min(a.y,b.y)>clipBottom+3)
+            continue;
+          painter.line(a,b,1.7,lineColor);
+        }
+      }
+    }
+    for(const auto &geoPoint:geom.points){
+      const auto screen=project(geoPoint,view.camera,view.width,view.height);
+      for(int repeat=-repeats;repeat<=repeats;++repeat){
+        const double x=screen.x+repeat*wrap.x;
+        const double y=screen.y+repeat*wrap.y;
+        if(x>=target.x1-5&&x<target.x2+5&&y>=clipTop-5&&y<clipBottom+5)
+          painter.disk(x,y,3.2,pointColor);
+      }
+    }
+  }
+}
+} // namespace cartorig
