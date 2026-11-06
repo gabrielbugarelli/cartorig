@@ -16,6 +16,16 @@ void validate(const GeographicRegionSelection &region){
      (region.kind=="continent" ? region.sourceRowId!=0 :
                                  region.sourceRowId<1))
     throw std::invalid_argument("invalid Natural Earth geographic region selection");
+  if(region.colorKeys.size()>64)
+    throw std::invalid_argument("too many animation keys for region");
+  double previous=-1.0e10;
+  for(const auto &key:region.colorKeys){
+    if(!std::isfinite(key.frame)||std::abs(key.frame)>1.0e9||
+       key.frame<=previous||
+       (key.easing!="linear"&&key.easing!="smoothstep"&&key.easing!="hold"))
+      throw std::invalid_argument("invalid geographic region animation timeline");
+    previous=key.frame;
+  }
 }
 std::string requiredString(const json11::Json &j,const char* key){
   if(!j[key].is_string())throw std::invalid_argument("invalid geographic region text");
@@ -25,7 +35,7 @@ std::string requiredString(const json11::Json &j,const char* key){
 std::vector<GeographicRegionSelection> parseGeographicSelections(
     const std::string &source){
   if(source.empty())return {};
-  if(source.size()>128*1024)
+  if(source.size()>512*1024)
     throw std::invalid_argument("too many persisted geographic regions");
   std::string error;
   const auto root=json11::Json::parse(source,error);
@@ -59,6 +69,31 @@ std::vector<GeographicRegionSelection> parseGeographicSelections(
       rgba[index]=static_cast<std::uint8_t>(c[index].number_value());
     }
     r.fill={rgba[0],rgba[1],rgba[2],rgba[3]};
+    if(item["color_keys"].is_array()){
+      for(const auto &key:item["color_keys"].array_items()){
+        if(!key.is_object()||!key["frame"].is_number())
+          throw std::invalid_argument("malformed region animation key");
+        GeographicRegionColorKey stored;
+        stored.frame=key["frame"].number_value();
+        stored.easing=requiredString(key,"easing");
+        const auto colors=key["color"].array_items();
+        if(colors.size()!=4)
+          throw std::invalid_argument("malformed geographic region keyframe RGBA");
+        std::uint8_t v[4]{};
+        for(int i=0;i<4;++i){
+          const auto &ch=colors[static_cast<std::size_t>(i)];
+          if(!ch.is_number()||!std::isfinite(ch.number_value())||
+             ch.number_value()<0||ch.number_value()>255||
+             std::floor(ch.number_value())!=ch.number_value())
+            throw std::invalid_argument("invalid keyed region color channel");
+          v[i]=static_cast<std::uint8_t>(ch.number_value());
+        }
+        stored.color={v[0],v[1],v[2],v[3]};
+        r.colorKeys.push_back(std::move(stored));
+      }
+    }else if(!item["color_keys"].is_null()){
+      throw std::invalid_argument("geographic color keys must be array");
+    }
     validate(r);
     if(std::any_of(results.begin(),results.end(),[&](const auto &e){
          return e.featureKey==r.featureKey;}))
@@ -74,13 +109,23 @@ std::string saveGeographicSelections(
   json11::Json::array list;
   for(const auto &r:items){
     validate(r);
+    json11::Json::array keys;
+    for(const auto &key:r.colorKeys){
+      keys.push_back(json11::Json::object{
+        {"frame",key.frame},{"easing",key.easing},
+        {"color",json11::Json::array{
+          static_cast<int>(key.color.r),static_cast<int>(key.color.g),
+          static_cast<int>(key.color.b),static_cast<int>(key.color.a)}}
+      });
+    }
     list.push_back(json11::Json::object{
       {"feature_key",r.featureKey},{"kind",r.kind},{"name",r.name},
       {"parent",r.parent},{"source_layer",r.sourceLayer},
       {"scale",r.scale},{"rowid",static_cast<double>(r.sourceRowId)},
       {"fill",json11::Json::array{
         static_cast<int>(r.fill.r),static_cast<int>(r.fill.g),
-        static_cast<int>(r.fill.b),static_cast<int>(r.fill.a)}}
+        static_cast<int>(r.fill.b),static_cast<int>(r.fill.a)}},
+      {"color_keys",std::move(keys)}
     });
   }
   return json11::Json(list).dump();
@@ -92,8 +137,53 @@ std::string upsertGeographicSelection(
   const auto it=std::find_if(items.begin(),items.end(),[&](const auto &entry){
     return entry.featureKey==selection.featureKey;
   });
-  if(it!=items.end())*it=selection;else items.push_back(selection);
+  if(it!=items.end()){
+    auto replacement=selection;
+    if(replacement.colorKeys.empty())replacement.colorKeys=it->colorKeys;
+    *it=std::move(replacement);
+  }else items.push_back(selection);
   return saveGeographicSelections(items);
+}
+std::string upsertGeographicColorKey(
+    const std::string &json,const std::string &featureKey,double frame,
+    Color color,const std::string &easing){
+  if(!std::isfinite(frame)||std::abs(frame)>1.0e9||
+     (easing!="linear"&&easing!="smoothstep"&&easing!="hold"))
+    throw std::invalid_argument("invalid geographic keyframe time or easing");
+  auto items=parseGeographicSelections(json);
+  const auto found=std::find_if(items.begin(),items.end(),[&](const auto &item){
+    return item.featureKey==featureKey;
+  });
+  if(found==items.end())
+    throw std::invalid_argument("cannot animate nonselected geographic region");
+  auto &keys=found->colorKeys;
+  const auto key=std::lower_bound(keys.begin(),keys.end(),frame,
+       [](const auto &existing,double at){return existing.frame<at;});
+  const GeographicRegionColorKey value{frame,color,easing};
+  if(key!=keys.end()&&key->frame==frame)*key=value;
+  else keys.insert(key,value);
+  return saveGeographicSelections(items);
+}
+Color evaluateGeographicRegionColor(const GeographicRegionSelection &region,
+                                    double frame){
+  if(!std::isfinite(frame))
+    throw std::invalid_argument("invalid geographic animation evaluation time");
+  const auto &keys=region.colorKeys;
+  if(keys.empty())return region.fill;
+  if(frame<=keys.front().frame)return keys.front().color;
+  if(frame>=keys.back().frame)return keys.back().color;
+  const auto after=std::upper_bound(keys.begin(),keys.end(),frame,
+       [](double at,const auto &key){return at<key.frame;});
+  const auto &a=*(after-1),&b=*after;
+  double progress=(frame-a.frame)/(b.frame-a.frame);
+  if(a.easing=="hold")progress=0;
+  else if(a.easing=="smoothstep")progress=progress*progress*(3-2*progress);
+  const auto blend=[&](std::uint8_t lhs,std::uint8_t rhs){
+    return static_cast<std::uint8_t>(std::lround(
+        lhs+(static_cast<double>(rhs)-lhs)*progress));
+  };
+  return {blend(a.color.r,b.color.r),blend(a.color.g,b.color.g),
+          blend(a.color.b,b.color.b),blend(a.color.a,b.color.a)};
 }
 std::string removeGeographicSelection(
     const std::string &json,const std::string &featureKey){
