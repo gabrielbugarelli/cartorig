@@ -213,10 +213,10 @@ def create_geopackage(manifest:dict,directory:Path,output:Path) -> dict:
             kinds={entry[0] for entry in geoms}
             gtype=next(iter(kinds)) if len(kinds)==1 else "GEOMETRY"
             # All layer/table identifiers have already passed a strict regex.
-            con.execute("CREATE TABLE \\""+layer+"\\"("
+            con.execute(f'CREATE TABLE "{layer}"('
                         "fid INTEGER PRIMARY KEY,geom BLOB NOT NULL,"
                         "attributes_json TEXT NOT NULL)")
-            con.executemany("INSERT INTO \\""+layer+"\\"(geom,attributes_json) VALUES(?,?)",
+            con.executemany(f'INSERT INTO "{layer}"(geom,attributes_json) VALUES(?,?)',
                             [(geom,attrs) for _,geom,attrs in geoms])
             bounds=bbox if math.isfinite(bbox[0]) else [None,None,None,None]
             con.execute("INSERT INTO gpkg_contents(table_name,data_type,identifier,"
