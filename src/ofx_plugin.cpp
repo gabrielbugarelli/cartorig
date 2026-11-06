@@ -37,7 +37,7 @@ const OfxParameterSuiteV1 *param=nullptr;
 struct Instance {
   OfxImageClipHandle output=nullptr,source=nullptr;
   OfxParamHandle sceneFile=nullptr,datasetFile=nullptr,sceneInline=nullptr,datasetInline=nullptr;
-  OfxParamHandle naturalEarthGpkg=nullptr,naturalEarthDetail=nullptr;
+  OfxParamHandle naturalEarthGpkg=nullptr,naturalEarthDetail=nullptr,naturalEarthLayer=nullptr;
   OfxParamHandle useSceneKeys=nullptr,lon=nullptr,lat=nullptr,zoom=nullptr,bearing=nullptr,route=nullptr,opacity=nullptr;
   OfxParamHandle frameOffset=nullptr,timeScale=nullptr,diagnosticMode=nullptr,diagnosticLog=nullptr;
   OfxParamHandle countryA=nullptr,countryB=nullptr,countryList=nullptr,highlightStrength=nullptr;
@@ -60,6 +60,12 @@ struct CacheEntry {
 };
 std::mutex cacheMutex;
 std::unordered_map<std::string,CacheEntry> cache;
+// Optional typed overlay cache; keep it separate from country-only datasets.
+struct VectorLayerCache {
+  std::filesystem::file_time_type modified;
+  std::shared_ptr<const std::vector<cartorig::NaturalEarthGeometry>> features;
+};
+std::unordered_map<std::string,VectorLayerCache> vectorLayerCache;
 std::mutex diagnosticsMutex;
 std::atomic<unsigned> diagnosticsCount{0};
 void writeDiagnostics(const std::string &message) noexcept {
@@ -132,6 +138,20 @@ std::shared_ptr<const cartorig::Dataset> naturalEarthCountriesAt(
   if(cache.size()>16)cache.clear();
   cache[key]={stamp,result,nullptr};
   return result;
+}
+std::shared_ptr<const std::vector<cartorig::NaturalEarthGeometry>>
+naturalEarthLayerAt(const std::string &path,const std::string &name){
+  std::lock_guard<std::mutex> lock(cacheMutex);
+  const auto stamp=std::filesystem::last_write_time(path);
+  const auto key=path+":"+name;
+  auto it=vectorLayerCache.find(key);
+  if(it!=vectorLayerCache.end()&&it->second.modified==stamp)
+    return it->second.features;
+  auto value=std::make_shared<const std::vector<cartorig::NaturalEarthGeometry>>(
+      cartorig::NaturalEarthCatalog::layerGeometries(path,name));
+  if(vectorLayerCache.size()>=8)vectorLayerCache.clear();
+  vectorLayerCache[key]={stamp,value};
+  return value;
 }
 std::shared_ptr<const cartorig::Dataset> datasetAt(const std::string &path){
   std::lock_guard<std::mutex> lock(cacheMutex);
@@ -324,6 +344,8 @@ OfxStatus describeInContext(OfxImageEffectHandle e,bool filter){
  defineNativeGroup(ps,"AdvancedScene","Advanced: import custom scenes",false);
  defineString(ps,"NaturalEarthVectorGpkg","Vector GeoPackage","AdvancedScene");
  defineNaturalEarthDetailChoice(ps);
+ // Optional raw publisher table name. Never changes existing map clips unless set.
+ defineString(ps,"NaturalEarthLayer","Additional vector layer (ne_...)","AdvancedScene");
  defineString(ps,"SceneFile","Scene .json (blank: empty map)","AdvancedScene");
  defineString(ps,"CatalogFile","GeoJSON (blank: offline countries)","AdvancedScene");
  defineMultiline(ps,"EmbeddedSceneJSON","Embedded scene JSON (portable)","AdvancedScene");
@@ -337,6 +359,7 @@ OfxStatus createInstance(OfxImageEffectHandle e,bool filter){auto i=std::make_un
  if(filter&&fx->clipGetHandle(e,kOfxImageEffectSimpleSourceClipName,&i->source,nullptr)!=kOfxStatOK)return kOfxStatFailed;
  for(auto t:std::vector<std::pair<const char*,OfxParamHandle*>>{{"SceneFile",&i->sceneFile},{"CatalogFile",&i->datasetFile},
  {"NaturalEarthVectorGpkg",&i->naturalEarthGpkg},{"NaturalEarthDetail",&i->naturalEarthDetail},
+ {"NaturalEarthLayer",&i->naturalEarthLayer},
  {"EmbeddedSceneJSON",&i->sceneInline},{"EmbeddedCatalogJSON",&i->datasetInline},
  {"SceneTimeOffset",&i->frameOffset},{"SceneTimeScale",&i->timeScale},
  {"UseSceneCamera",&i->useSceneKeys},{"Longitude",&i->lon},{"Latitude",&i->lat},{"Zoom",&i->zoom},
@@ -525,11 +548,25 @@ OfxStatus render(OfxImageEffectHandle e,OfxPropertySetHandle args){Instance *i=i
    view.preserveBackground=true;
  }
  cartorig::render(copy,*dataset,view,target);
+ std::string extraLayer;
+ stringAt(i->naturalEarthLayer,time,extraLayer);
+ if(!extraLayer.empty()){
+   if(naturalEarthPath.empty())
+     throw std::invalid_argument("Additional vector layer requires a local Vector GeoPackage");
+   const auto geometry=naturalEarthLayerAt(naturalEarthPath,extraLayer);
+   // Selected non-country geometries are drawn over the existing map; no
+   // implicit geographic claims or fabricated city/municipal polygons.
+   cartorig::renderNaturalEarthLayer(
+       *geometry,view,target,
+       cartorig::Color{76,144,110,155},
+       cartorig::Color{96,193,231,235},
+       cartorig::Color{255,207,115,245});
+ }
  return kOfxStatOK;
 }
 OfxStatus entry(const char *action,const void *handle,OfxPropertySetHandle args,OfxPropertySetHandle out,bool filter){try {
  if(!std::strcmp(action,kOfxActionLoad))return onLoad();
- if(!std::strcmp(action,kOfxActionUnload)){std::lock_guard<std::mutex> lock(cacheMutex);cache.clear();return kOfxStatOK;}
+ if(!std::strcmp(action,kOfxActionUnload)){std::lock_guard<std::mutex> lock(cacheMutex);cache.clear();vectorLayerCache.clear();return kOfxStatOK;}
  if(!std::strcmp(action,kOfxActionDescribe))return describe((OfxImageEffectHandle)handle,filter);
  if(!std::strcmp(action,kOfxImageEffectActionDescribeInContext))return describeInContext((OfxImageEffectHandle)handle,filter);
  if(!std::strcmp(action,kOfxActionInstanceChanged)){
