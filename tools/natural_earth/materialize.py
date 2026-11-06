@@ -17,7 +17,7 @@ IDENT=re.compile(r"^[a-z0-9_-]{5,100}$")
 EXTENSIONS={".zip",".gpkg",".sqlite",".tif",".tiff",".psd",".7z",".gz"}
 OFFICIAL_S3="https://naturalearth.s3.amazonaws.com"
 SAFE_RASTER_ZIP=re.compile(
-    r"^/download/(10m|50m)/raster/([a-zA-Z0-9_-]{1,100}\\.zip)$",
+    r"^/download/(10m|50m)/raster/([a-zA-Z0-9_-]{1,100}\.zip)$",
     re.I,
 )
 def official_raster_mirror(record: dict) -> str | None:
