@@ -29,7 +29,32 @@ int main(){
     const auto both=parseGeographicSelections(multi);
     require(both.size()==2&&both[0].fill.r==200&&both[1].fill.g==255,
             "two independent persisted styles");
-    const auto removed=removeGeographicSelection(multi,brazil.featureKey);
+    // Each source feature owns its own color animation timeline.
+    const auto k0=upsertGeographicColorKey(
+        multi,brazil.featureKey,0,Color{0,0,0,255},"linear");
+    const auto k1=upsertGeographicColorKey(
+        k0,brazil.featureKey,100,Color{200,80,40,155},"linear");
+    const auto keyed=parseGeographicSelections(k1);
+    require(keyed.size()==2&&keyed[0].colorKeys.size()==2&&
+            keyed[1].colorKeys.empty(),"independent RGBA keyframe tracks");
+    const auto half=evaluateGeographicRegionColor(keyed[0],50);
+    require(half.r==100&&half.g==40&&half.b==20&&half.a==205,
+            "linear rgba interpolation at intermediate timeline frame");
+    require(evaluateGeographicRegionColor(keyed[1],50).g==255,
+            "unanimated city color unaffected by country animation");
+    const auto replaceFrame=upsertGeographicColorKey(
+        k1,brazil.featureKey,100,Color{10,10,10,255},"hold");
+    require(parseGeographicSelections(replaceFrame)[0].colorKeys.size()==2,
+            "upsert does not duplicate animation frame");
+    auto staticRecolor=brazil;staticRecolor.fill={40,40,40,180};
+    require(parseGeographicSelections(
+        upsertGeographicSelection(replaceFrame,staticRecolor))[0].colorKeys.size()==2,
+        "static color edits preserve existing animation keys");
+    bool missingRejected=false;
+    try{(void)upsertGeographicColorKey(multi,"imaginary",2,Color{}, "linear");}
+    catch(const std::invalid_argument&){missingRejected=true;}
+    require(missingRejected,"cannot keyframe a nonexistent geographic feature");
+    const auto removed=removeGeographicSelection(k1,brazil.featureKey);
     require(parseGeographicSelections(removed).size()==1&&
             parseGeographicSelections(removed)[0].kind=="city",
             "remove only selected stable geographical ID");
