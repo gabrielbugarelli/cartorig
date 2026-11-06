@@ -296,6 +296,10 @@ int main(int argc,char**argv){
  check(render(filter,o,W,H,0)==kOfxStatOK,"overlay at opacity zero");
  check(input==inputCopy&&composite==input,"zero opacity video pass-through");
  overrideParam(o,"EmbeddedCatalogJSON",std::string(R"({"type":"FeatureCollection","features":[{"type":"Feature","properties":{"iso3":"TST"},"geometry":{"type":"Polygon","coordinates":[[[-72,-20],[-52,-20],[-52,0],[-72,0],[-72,-20]]]}}]})"));
+ // This imported sample uses a regional camera. Native camera defaults to
+ // the world view, so explicitly opt in to the imported camera for the
+ // center-pixel alpha assertion.
+ overrideParam(o,"UseSceneCamera",1);
  overrideParam(o,"Opacity",0.5);
  check(render(filter,o,W,H,0)==kOfxStatOK,"overlay over source");
  check(input==inputCopy,"Source remains immutable");
