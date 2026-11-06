@@ -1,0 +1,35 @@
+name: Natural Earth offline backend checks
+on:
+  push:
+    branches: [feat/natural-earth-offline-data]
+  pull_request:
+    paths:
+      - "tools/natural_earth/**"
+      - "tests/test_natural_earth.py"
+      - "data/natural-earth/**"
+      - ".github/workflows/natural-earth.yml"
+  workflow_dispatch:
+jobs:
+  offline-data-tests:
+    runs-on: ubuntu-24.04
+    strategy:
+      matrix:
+        python: ["3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Exercise offline builder without network
+        run: python -m unittest discover -s tests -p "test_natural_earth.py" -v
+      - name: Assert pinned official layer manifest
+        run: |
+          python - <<'PY'
+          import json
+          d=json.load(open("data/natural-earth/vector_layers_v5.1.2.json",encoding="utf-8"))
+          assert d["layer_count"]==len(d["layers"])==215
+          assert len({x["source_path"] for x in d["layers"]})==215
+          assert all(x["status"]=="expected_not_installed" for x in d["layers"])
+          assert sum(d["summary"].values())==215
+          print("PASS: 215 upstream vector layers, none falsely marked imported")
+          PY
