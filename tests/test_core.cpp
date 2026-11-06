@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <functional>
 #include <iostream>
+#include <limits>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -46,6 +47,25 @@ int main(){
   auto reversed=whole;reversed.data=sentinel.data()+static_cast<ptrdiff_t>(11)*16*4;reversed.rowBytes=-16*4;
   auto reversedCrop=cropSurface(reversed,2,1,9,7);
   check(reversedCrop.data==sentinel.data()+static_cast<ptrdiff_t>(10)*16*4+2*4&&reversedCrop.rowBytes==-16*4,"negative rowBytes crop offset");
+  // OpenFX output allocations are not guaranteed to contain initialized pixels.
+  // A full-opaque map must be identical regardless of prior VRAM/RAM contents.
+  std::vector<uint8_t> dirtyBytes(320*180*4,0xCD);
+  Surface dirtyByteSurface{dirtyBytes.data(),0,0,320,180,320*4,PixelFormat::ByteRGBA};
+  View noAnim=view;noAnim.width=320;noAnim.height=180;noAnim.camera=s.camera;noAnim.preserveBackground=false;
+  s.style.transparent=false;
+  std::vector<uint8_t> cleanBytes(320*180*4,0);
+  Surface cleanByteSurface{cleanBytes.data(),0,0,320,180,320*4,PixelFormat::ByteRGBA};
+  render(s,data,noAnim,dirtyByteSurface);render(s,data,noAnim,cleanByteSurface);
+  check(dirtyBytes==cleanBytes,"opaque byte render independent of uninitialized destination");
+  std::vector<float> dirtyFloats(320*180*4,std::numeric_limits<float>::quiet_NaN());
+  std::vector<float> cleanFloats(320*180*4,0);
+  Surface dirtyFloatSurface{dirtyFloats.data(),0,0,320,180,320*16,PixelFormat::FloatRGBA};
+  Surface cleanFloatSurface{cleanFloats.data(),0,0,320,180,320*16,PixelFormat::FloatRGBA};
+  render(s,data,noAnim,dirtyFloatSurface);render(s,data,noAnim,cleanFloatSurface);
+  bool floatOpaqueDeterministic=true;
+  for(size_t i=0;i<dirtyFloats.size();++i)
+    floatOpaqueDeterministic&=std::isfinite(dirtyFloats[i])&&std::abs(dirtyFloats[i]-cleanFloats[i])<1e-6f;
+  check(floatOpaqueDeterministic,"opaque float render overwrites prior NaN data deterministically");
   std::vector<float> floats(320*180*4,0);Surface f{floats.data(),0,0,320,180,320*16,PixelFormat::FloatRGBA};render(s,data,view,f);check(std::all_of(floats.begin(),floats.end(),[](float x){return std::isfinite(x)&&x>=0&&x<=1;}),"float RGBA finite bounds");
   s.style.transparent=true;render(s,data,view,dest);check(bytes[3]==0,"transparent empty ocean pixel");
   s.cameraKeys.clear();check(evaluateCamera(s,15).lon==s.camera.lon,"static camera");

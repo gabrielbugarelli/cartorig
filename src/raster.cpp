@@ -16,9 +16,35 @@ struct Painter {
     if(x<s.x1||x>=s.x2||ofxY<s.y1||ofxY>=s.y2||!s.data)return;
     const int bytes=s.format==PixelFormat::ByteRGBA?4:16;
     char *p=static_cast<char *>(s.data)+static_cast<ptrdiff_t>(ofxY-s.y1)*s.rowBytes+static_cast<ptrdiff_t>(x-s.x1)*bytes;
-    double a=color.a/255.0;if(a<=0)return;
-    if(s.format==PixelFormat::ByteRGBA){auto *q=reinterpret_cast<uint8_t *>(p);double oldA=q[3]/255.0,outA=a+oldA*(1-a);for(int i=0;i<3;i++){double v=i==0?color.r:(i==1?color.g:color.b);q[i]=static_cast<uint8_t>(std::clamp((v*a+(oldA>0?q[i]*oldA*(1-a):0.0))/std::max(outA,1e-8),0.0,255.0)+0.5);}q[3]=static_cast<uint8_t>(outA*255+.5);}
-    else {auto *q=reinterpret_cast<float *>(p);double oldA=q[3],outA=a+oldA*(1-a);for(int i=0;i<3;i++){double v=(i==0?color.r:(i==1?color.g:color.b))/255.0;q[i]=static_cast<float>((v*a+q[i]*oldA*(1-a))/std::max(outA,1e-8));}q[3]=static_cast<float>(outA);}
+    // Opaque pixels overwrite without ever reading the host's destination memory.
+    // 1.0 + NaN * 0.0 is NaN: the previous blending path propagated undefined
+    // or uninitialized float output buffers into the entire map.
+    const double a=color.a/255.0;if(a<=0)return;
+    if(s.format==PixelFormat::ByteRGBA){
+      auto *q=reinterpret_cast<uint8_t *>(p);
+      if(color.a==255){q[0]=color.r;q[1]=color.g;q[2]=color.b;q[3]=255;}
+      else {
+        const double oldA=q[3]/255.0,outA=a+oldA*(1-a);
+        const uint8_t rgb[3]{color.r,color.g,color.b};
+        for(int i=0;i<3;i++)
+          q[i]=static_cast<uint8_t>(std::clamp((rgb[i]*a+(oldA>0?q[i]*oldA*(1-a):0.0))/std::max(outA,1e-8),0.0,255.0)+0.5);
+        q[3]=static_cast<uint8_t>(outA*255+.5);
+      }
+    }else{
+      auto *q=reinterpret_cast<float *>(p);
+      if(color.a==255){q[0]=color.r/255.0f;q[1]=color.g/255.0f;q[2]=color.b/255.0f;q[3]=1.0f;}
+      else {
+        double oldA=q[3];
+        if(!std::isfinite(oldA)||oldA<0.0||oldA>1.0)oldA=0.0;
+        const double outA=a+oldA*(1-a);
+        const uint8_t rgb[3]{color.r,color.g,color.b};
+        for(int i=0;i<3;i++){
+          const double old=oldA>0&&std::isfinite(q[i])?std::clamp(static_cast<double>(q[i]),0.0,1.0):0.0;
+          q[i]=static_cast<float>(std::clamp((rgb[i]/255.0*a+old*oldA*(1-a))/std::max(outA,1e-8),0.0,1.0));
+        }
+        q[3]=static_cast<float>(outA);
+      }
+    }
     if(stats)stats->written++;
   }
   void fill(Color color){if(color.a==0){for(int y=s.y1;y<s.y2;++y)std::memset(static_cast<char*>(s.data)+static_cast<ptrdiff_t>(y-s.y1)*s.rowBytes,0,static_cast<size_t>(s.x2-s.x1)*(s.format==PixelFormat::ByteRGBA?4:16));return;}for(int y=std::max(0,height-s.y2);y<std::min(height,height-s.y1);++y)for(int x=s.x1;x<s.x2;++x)put(x,y,color);}
