@@ -143,7 +143,7 @@ OfxStatus render(OfxImageEffectHandle e,OfxPropertySetHandle args){Instance *i=i
  cartorig::render(copy,*dataset,view,target);
  return kOfxStatOK;
 }
-OfxStatus entry(const char *action,const void *handle,OfxPropertySetHandle args,OfxPropertySetHandle /*output*/,bool filter){try {
+OfxStatus entry(const char *action,const void *handle,OfxPropertySetHandle args,OfxPropertySetHandle out,bool filter){try {
  if(!std::strcmp(action,kOfxActionLoad))return onLoad();
  if(!std::strcmp(action,kOfxActionUnload)){std::lock_guard<std::mutex> lock(cacheMutex);cache.clear();return kOfxStatOK;}
  if(!std::strcmp(action,kOfxActionDescribe))return describe((OfxImageEffectHandle)handle,filter);
