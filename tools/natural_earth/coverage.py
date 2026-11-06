@@ -14,7 +14,8 @@ RASTER_COUNTS={"10m":7,"50m":9}
 
 def audit(expected:dict,catalog:Path|None=None,
           sources:dict|None=None,archives:dict|None=None,
-          raster_derivatives:dict|None=None)->dict:
+          raster_derivatives:dict|None=None,
+          supplemental_gpkg:Path|None=None,supplement_pin:dict|None=None)->dict:
     pinned={Path(x["source_path"]).stem for x in expected.get("layers",[])}
     if len(pinned)!=expected.get("layer_count"):
         raise ValueError("duplicate or invalid pinned vector layers")
@@ -23,7 +24,42 @@ def audit(expected:dict,catalog:Path|None=None,
         db=sqlite3.connect(catalog.resolve().as_uri()+"?mode=ro",uri=True)
         try:found={x[0] for x in db.execute("SELECT table_name FROM layers")}
         finally:db.close()
-    missing=sorted(pinned-found)
+    supplement_invalid=[]
+    supplemental_names=set()
+    if supplemental_gpkg and supplemental_gpkg.is_file():
+        pin_entries=(supplement_pin or {}).get("entries",[])
+        pinned_supp={entry["layer"]:entry["pinned_git_blob_sha1"] for entry in pin_entries}
+        if len(pinned_supp)!=33 or len(pin_entries)!=33 or (supplement_pin or {}).get("upstream_ref")!="v5.1.2":
+            supplement_invalid.append("missing or invalid pinned supplement source manifest")
+        else:
+            db=sqlite3.connect(supplemental_gpkg.resolve().as_uri()+"?mode=ro",uri=True)
+            try:
+                metadata={row[0] for row in db.execute(
+                    "SELECT table_name FROM gpkg_geometry_columns WHERE srs_id=4326")}
+                layers={row[0] for row in db.execute(
+                    "SELECT table_name FROM gpkg_contents WHERE data_type='features'")}
+                for name,path,blob_sha,sha,features in db.execute(
+                    "SELECT table_name,upstream_path,upstream_git_blob_sha1,sha256,feature_count FROM provenance"):
+                    valid=(name in pinned_supp and name in metadata and name in layers
+                           and path=="geojson/"+name+".geojson"
+                           and blob_sha==pinned_supp[name]
+                           and isinstance(sha,str) and len(sha)==64
+                           and isinstance(features,int) and features>0)
+                    if valid:
+                        count=db.execute('SELECT COUNT(*) FROM "'+name+'"').fetchone()[0]
+                        valid=count==features
+                    if valid:
+                        supplemental_names.add(name)
+                    else:
+                        supplement_invalid.append(name)
+                if len(supplemental_names)!=33:
+                    supplement_invalid.append("not all 33 pinned sources are present")
+            except sqlite3.Error as error:
+                supplement_invalid.append("invalid supplemental GeoPackage: "+str(error))
+            finally:
+                db.close()
+    # Supplemental tables count only after provenance, schema and row checks.
+    missing=sorted(pinned-(found|supplemental_names))
     source_pages=(sources or {}).get("pages",[])
     source_assets=(sources or {}).get("resources",[])
     indexed=set()
@@ -46,7 +82,7 @@ def audit(expected:dict,catalog:Path|None=None,
     source_unverified=[x.get("resource_id") for x in source_assets if
                        x.get("status")!="VERIFIED" or not x.get("sha256")]
     page_blocked=[x.get("url") for x in source_pages if x.get("status")!="INDEXED"]
-    vector_ok=bool(pinned) and not missing
+    vector_ok=bool(pinned) and not missing and not supplement_invalid
     sources_ok=bool(source_assets) and not missing_categories and not page_blocked
     raster_ok=bool(raster_sources) and not raster_missing and not any(raster_family_missing.values())
     archives_ok=bool(archives and archives.get("complete")) and not source_unverified
@@ -54,6 +90,9 @@ def audit(expected:dict,catalog:Path|None=None,
     return {
         "schema_version":1,"complete":complete,
         "vector":{"expected":len(pinned),"indexed":len(pinned)-len(missing),
+                  "primary_indexed":len(pinned&found),
+                  "supplemental_verified":len(supplemental_names),
+                  "supplemental_invalid":supplement_invalid,
                   "missing":missing,"passed":vector_ok},
         "pages":{"missing_categories":missing_categories,"blocked":page_blocked,
                  "raster_families_indexed":raster_family_pages,
@@ -71,11 +110,14 @@ def main():
     p=argparse.ArgumentParser(description=__doc__)
     for name in ("vector-pin","catalog","sources","archives","raster-derivatives"):
         p.add_argument("--"+name,type=Path,required=name=="vector-pin")
+    p.add_argument("--supplemental-gpkg",type=Path)
+    p.add_argument("--supplement-pin",type=Path)
     p.add_argument("--output",required=True,type=Path)
     a=p.parse_args()
     def load(path):
         return json.loads(path.read_text(encoding="utf-8")) if path and path.is_file() else None
-    report=audit(load(a.vector_pin),a.catalog,load(a.sources),load(a.archives),load(a.raster_derivatives))
+    report=audit(load(a.vector_pin),a.catalog,load(a.sources),load(a.archives),
+                 load(a.raster_derivatives),a.supplemental_gpkg,load(a.supplement_pin))
     a.output.parent.mkdir(parents=True,exist_ok=True)
     a.output.write_text(json.dumps(report,indent=2)+"\n",encoding="utf-8")
     print("COMPLETE" if report["complete"] else "BLOCKED")
