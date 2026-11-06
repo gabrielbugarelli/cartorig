@@ -353,3 +353,49 @@ std::vector<NaturalEarthGeometry> NaturalEarthCatalog::layerGeometries(
   return geometries;
 }
 } // namespace cartorig
+
+
+namespace cartorig {
+std::vector<NaturalEarthGeometry> NaturalEarthCatalog::continentGeometries(
+    const std::filesystem::path &geoPackage,const std::string &continent,
+    const std::string &scale){
+  if(continent.empty()||continent.size()>120||
+     (scale!="10m"&&scale!="50m"&&scale!="110m"))
+    throw std::invalid_argument("invalid continent or geography scale");
+  SqliteApi api;
+  DB db(api,geoPackage);
+  const auto table="ne_"+scale+"_admin_0_countries";
+  Stmt meta(api,db.db,
+    "SELECT column_name,srs_id FROM gpkg_geometry_columns WHERE table_name=?");
+  meta.bind(1,table);
+  if(api.step(meta.statement)!=SQLITE_ROW_)
+    throw std::invalid_argument("Natural Earth admin-0 geometry layer missing");
+  const auto column=str(api,meta.statement,0);
+  if(!allowedIdentifier(column)||api.column_int64(meta.statement,1)!=4326)
+    throw std::invalid_argument("invalid Natural Earth admin-0 geometry schema");
+  const std::string sql="SELECT \""+column+"\" FROM \""+table+
+                        "\" WHERE continent=? ORDER BY rowid";
+  Stmt stmt(api,db.db,sql.c_str());
+  stmt.bind(1,continent);
+  std::vector<NaturalEarthGeometry> result;
+  std::size_t polygons=0;
+  int code=SQLITE_DONE_;
+  while((code=api.step(stmt.statement))==SQLITE_ROW_){
+    if(result.size()>=500)
+      throw std::invalid_argument("continent exceeds country geometry budget");
+    const auto *blob=api.column_blob(stmt.statement,0);
+    const int bytes=api.column_bytes(stmt.statement,0);
+    if(!blob||bytes<1)continue;
+    auto geom=decodeGeoPackageGeometry(blob,static_cast<std::size_t>(bytes));
+    polygons+=geom.polygons.size();
+    if(polygons>20000)
+      throw std::invalid_argument("continent exceeds polygon geometry budget");
+    if(!geom.polygons.empty())result.push_back(std::move(geom));
+  }
+  if(code!=SQLITE_DONE_)
+    throw std::runtime_error("Natural Earth continent geometry query failed");
+  if(result.empty())
+    throw std::invalid_argument("Natural Earth continent has no real country polygons");
+  return result;
+}
+} // namespace cartorig
