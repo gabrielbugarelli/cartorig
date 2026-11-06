@@ -75,6 +75,10 @@ Restart DaVinci Resolve Studio 20. If the Generator is supported, search for **C
 
 A PPM is produced for engineering tests only; this is **not** a pre-render requirement in the actual OFX runtime.
 
+## Resolve Studio 20: image corruption diagnostics
+
+The first in-host tests exposed severe green/white pixel noise and striping. The root cause has **not** been certified. Do not treat the native build as usable in production yet. The Inspector now exposes **Diagnostic output (test only)** (RGB bars, grayscale, alpha split, white) and an opt-in **Write OFX diagnostic log**. Run the controlled [Resolve 20 diagnostic procedure](docs/RESOLVE20_DIAGNOSTICS.md) before proposing another pixel-format fix.
+
 ## Tests and safety
 
 `cartorig_tests` exercises parsing, world-data lookup, holes, projection/inversion, dateline motion, keyframe interpolation, route progression, memory canaries around tile buffers, byte/float range checks, and deterministic rendering. `cartorig_ofx_exports_tests` dynamically loads the compiled binary and verifies both OFX descriptors and the no-host safety path. CI also compiles the actual OpenFX binary on Linux and Windows and generates reference PPMs. None of these substitute for Resolve Studio 20 E2E acceptance tests; see [docs/RESOLVE20_ACCEPTANCE.md](docs/RESOLVE20_ACCEPTANCE.md).
