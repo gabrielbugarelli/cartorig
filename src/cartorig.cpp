@@ -98,6 +98,16 @@ std::vector<std::vector<ScreenPoint>> projectPolygonContinuous(
 }
 GeoPoint unproject(ScreenPoint s,const Camera &cam,int w,int h){require(w>0&&h>0,"invalid viewport");const double world=256*std::pow(2,cam.zoom)*(w/1280.0),ang=cam.bearing*pi/180,dx=s.x-w/2.0,dy=s.y-h/2.0;double xx=std::cos(ang)*dx+std::sin(ang)*dy,yy=-std::sin(ang)*dx+std::cos(ang)*dy;return {normalizeLon(cam.lon+xx/world*360),inverseY(mercatorY(cam.lat)+yy/world)};}
 Camera evaluateCamera(const Scene &s,double frame){if(s.cameraKeys.empty())return s.camera;const auto &keys=s.cameraKeys;if(frame<=keys.front().frame)return keys.front().camera;if(frame>=keys.back().frame)return keys.back().camera;auto after=std::upper_bound(keys.begin(),keys.end(),frame,[](double f,const CameraKey &k){return f<k.frame;});const CameraKey &a=*(after-1),&b=*after;double t=(frame-a.frame)/(b.frame-a.frame);if(a.easing=="hold")t=0;else if(a.easing=="smoothstep")t=smooth(t);const double delta=normalizeLon(b.camera.lon-a.camera.lon);double bearing=std::fmod(b.camera.bearing-a.camera.bearing+540,360)-180;Camera c;c.lon=normalizeLon(a.camera.lon+delta*t);c.lat=inverseY(lerp(mercatorY(a.camera.lat),mercatorY(b.camera.lat),t));c.zoom=lerp(a.camera.zoom,b.camera.zoom,t);c.bearing=a.camera.bearing+bearing*t;return c;}
+double mapSceneFrame(double hostTime,double offset,double speed){
+  if(!std::isfinite(hostTime)||!std::isfinite(offset)||!std::isfinite(speed))
+    throw std::invalid_argument("non-finite scene time");
+  if(std::abs(speed)>8||std::abs(offset)>86400)
+    throw std::invalid_argument("invalid scene time mapping");
+  const double value=(hostTime-offset)*speed;
+  if(!std::isfinite(value)||std::abs(value)>1.e9)
+    throw std::invalid_argument("scene time outside safe range");
+  return value;
+}
 double routeFraction(const Route &r,double frame){if(frame<r.start)return 0;if(r.end<=r.start)return 1;return std::clamp((frame-r.start)/(r.end-r.start),0.0,1.0);}
 Camera fitBounds(const std::vector<GeoPoint>&points,int w,int h,double padding){require(!points.empty()&&w>0&&h>0&&padding>=0&&padding<.45,"invalid fitBounds arguments");double west=std::numeric_limits<double>::infinity(),east=-west,north=-west,south=west;for(auto p:points){finite(p.lon);finite(p.lat);west=std::min(west,p.lon);east=std::max(east,p.lon);north=std::max(north,mercatorY(p.lat));south=std::min(south,mercatorY(p.lat));}Camera c;c.lon=normalizeLon((east+west)/2);c.lat=inverseY((north+south)/2);c.bearing=0;double usableW=w*(1-2*padding),usableH=h*(1-2*padding);double factor=std::max((east-west)/360/usableW,(north-south)/usableH);c.zoom=factor>0?std::clamp(std::log2(1/(factor*256*(w/1280.0))),0.0,16.0):16;return c;}
 }

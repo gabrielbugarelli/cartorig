@@ -38,6 +38,7 @@ Dataset parseGeoJSON(const std::string &json);
 Scene parseScene(const std::string &json);
 Camera evaluateCamera(const Scene &s, double frame);
 double routeFraction(const Route &r, double frame);
+double mapSceneFrame(double hostTime,double offset,double speed);
 double normalizeLon(double lon);
 ScreenPoint project(GeoPoint p, const Camera &camera, int width, int height);
 // Geographic rings must be projected continuously: wrapping each vertex

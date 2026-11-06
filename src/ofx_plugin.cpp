@@ -33,7 +33,13 @@ const OfxPropertySuiteV1 *prop=nullptr;
 const OfxParameterSuiteV1 *param=nullptr;
 struct Instance {
   OfxImageClipHandle output=nullptr,source=nullptr;
-  OfxParamHandle sceneFile=nullptr,datasetFile=nullptr,useSceneKeys=nullptr,lon=nullptr,lat=nullptr,zoom=nullptr,bearing=nullptr,route=nullptr,opacity=nullptr,diagnosticMode=nullptr,diagnosticLog=nullptr;
+  OfxParamHandle sceneFile=nullptr,datasetFile=nullptr,sceneInline=nullptr,datasetInline=nullptr;
+  OfxParamHandle useSceneKeys=nullptr,lon=nullptr,lat=nullptr,zoom=nullptr,bearing=nullptr,route=nullptr,opacity=nullptr;
+  OfxParamHandle frameOffset=nullptr,timeScale=nullptr,diagnosticMode=nullptr,diagnosticLog=nullptr;
+  std::mutex embeddedMutex;
+  std::string lastSceneText,lastDatasetText;
+  std::shared_ptr<const cartorig::Scene> embeddedScene;
+  std::shared_ptr<const cartorig::Dataset> embeddedDataset;
   bool overlay=false;
 };
 struct CacheEntry {
@@ -116,11 +122,33 @@ std::shared_ptr<const cartorig::Scene> sceneAt(const std::string &path){
   auto result=std::make_shared<cartorig::Scene>(cartorig::parseScene(cartorig::readText(path,2*1024*1024)));
   if(cache.size()>16)cache.clear();cache["scene:"+path]={stamp,nullptr,result};return result;
 }
+std::shared_ptr<const cartorig::Scene> embeddedSceneAt(Instance &i,const std::string &text){
+  std::lock_guard<std::mutex> lock(i.embeddedMutex);
+  if(i.embeddedScene&&i.lastSceneText==text)return i.embeddedScene;
+  auto parsed=std::make_shared<cartorig::Scene>(cartorig::parseScene(text));
+  i.lastSceneText=text;i.embeddedScene=parsed;return parsed;
+}
+std::shared_ptr<const cartorig::Dataset> embeddedDatasetAt(Instance &i,const std::string &text){
+  std::lock_guard<std::mutex> lock(i.embeddedMutex);
+  if(i.embeddedDataset&&i.lastDatasetText==text)return i.embeddedDataset;
+  auto parsed=std::make_shared<cartorig::Dataset>(cartorig::parseGeoJSON(text));
+  i.lastDatasetText=text;i.embeddedDataset=parsed;return parsed;
+}
 OfxStatus readProp(OfxPropertySetHandle set,const char *name,int index,int &value){return prop->propGetInt(set,name,index,&value);}
 OfxStatus readProp(OfxPropertySetHandle set,const char *name,int index,double &value){return prop->propGetDouble(set,name,index,&value);}
 Instance *instance(OfxImageEffectHandle e){OfxPropertySetHandle set=nullptr;if(fx->getPropertySet(e,&set)!=kOfxStatOK)return nullptr;Instance *p=nullptr;if(prop->propGetPointer(set,kOfxPropInstanceData,0,reinterpret_cast<void **>(&p))!=kOfxStatOK)return nullptr;return p;}
 void defineDouble(OfxParamSetHandle set,const char*name,const char*label,double val,double lo,double hi){OfxPropertySetHandle p=nullptr;if(param->paramDefine(set,kOfxParamTypeDouble,name,&p)!=kOfxStatOK)throw std::runtime_error("param define");prop->propSetString(p,kOfxPropLabel,0,label);prop->propSetDouble(p,kOfxParamPropDefault,0,val);prop->propSetDouble(p,kOfxParamPropMin,0,lo);prop->propSetDouble(p,kOfxParamPropMax,0,hi);prop->propSetDouble(p,kOfxParamPropDisplayMin,0,lo);prop->propSetDouble(p,kOfxParamPropDisplayMax,0,hi);prop->propSetInt(p,kOfxParamPropAnimates,0,1);}
 void defineString(OfxParamSetHandle set,const char *name,const char *label){OfxPropertySetHandle p=nullptr;if(param->paramDefine(set,kOfxParamTypeString,name,&p)!=kOfxStatOK)throw std::runtime_error("param define string");prop->propSetString(p,kOfxPropLabel,0,label);prop->propSetString(p,kOfxParamPropDefault,0,"");prop->propSetInt(p,kOfxParamPropAnimates,0,0);prop->propSetString(p,kOfxParamPropStringMode,0,kOfxParamStringIsFilePath);}
+void defineMultiline(OfxParamSetHandle set,const char *name,const char *label){
+  OfxPropertySetHandle props=nullptr;
+  if(param->paramDefine(set,kOfxParamTypeString,name,&props)!=kOfxStatOK)
+    throw std::runtime_error("embedded JSON parameter definition failed");
+  prop->propSetString(props,kOfxPropLabel,0,label);
+  prop->propSetString(props,kOfxParamPropDefault,0,"");
+  prop->propSetString(props,kOfxParamPropStringMode,0,kOfxParamStringIsMultiLine);
+  prop->propSetInt(props,kOfxParamPropPersistant,0,1);
+  prop->propSetInt(props,kOfxParamPropAnimates,0,0);
+}
 void defineBoolean(OfxParamSetHandle set,const char *name,const char *label,bool value){OfxPropertySetHandle p=nullptr;if(param->paramDefine(set,kOfxParamTypeBoolean,name,&p)!=kOfxStatOK)throw std::runtime_error("param define bool");prop->propSetString(p,kOfxPropLabel,0,label);prop->propSetInt(p,kOfxParamPropDefault,0,value?1:0);prop->propSetInt(p,kOfxParamPropAnimates,0,0);}
 void defineDiagnosticChoice(OfxParamSetHandle ps){
   OfxPropertySetHandle p=nullptr;
@@ -152,7 +180,13 @@ OfxStatus describeInContext(OfxImageEffectHandle e,bool filter){OfxPropertySetHa
  if(fx->clipDefine(e,kOfxImageEffectOutputClipName,&p)!=kOfxStatOK)return kOfxStatFailed;
  prop->propSetString(p,kOfxImageEffectPropSupportedComponents,0,kOfxImageComponentRGBA);
  OfxParamSetHandle ps=nullptr;if(fx->getParamSet(e,&ps)!=kOfxStatOK)return kOfxStatFailed;
- defineString(ps,"SceneFile","Scene .json (blank: bundled sample)");defineString(ps,"CatalogFile","GeoJSON (blank: offline countries)");defineBoolean(ps,"UseSceneCamera","Use camera keyframes from scene",true);
+ defineString(ps,"SceneFile","Scene .json (blank: bundled sample)");
+ defineString(ps,"CatalogFile","GeoJSON (blank: offline countries)");
+ defineMultiline(ps,"EmbeddedSceneJSON","Embedded scene JSON (portable)");
+ defineMultiline(ps,"EmbeddedCatalogJSON","Embedded GeoJSON (portable)");
+ defineBoolean(ps,"UseSceneCamera","Use camera keyframes from scene",true);
+ defineDouble(ps,"SceneTimeOffset","Scene offset (host frames)",0,-86400,86400);
+ defineDouble(ps,"SceneTimeScale","Scene time scale / reverse",1,-8,8);
  defineDouble(ps,"Longitude","Camera longitude",-61,-180,180);defineDouble(ps,"Latitude","Camera latitude",-12,-85,85);defineDouble(ps,"Zoom","Camera zoom",3.2,0,18);defineDouble(ps,"Bearing","Camera bearing (degrees)",0,-360,360);
  defineDouble(ps,"RouteProgress","Route reveal (-1: scene)",-1,-1,1);defineDouble(ps,"Opacity","Cartography opacity (entire map)",filter?0.7:1,0,1);
  defineDiagnosticChoice(ps);defineBoolean(ps,"DiagnosticLog","Write OFX diagnostic log",false);
@@ -161,7 +195,10 @@ OfxStatus describeInContext(OfxImageEffectHandle e,bool filter){OfxPropertySetHa
 OfxStatus createInstance(OfxImageEffectHandle e,bool filter){auto i=std::make_unique<Instance>();i->overlay=filter;OfxParamSetHandle ps=nullptr;if(fx->getParamSet(e,&ps)!=kOfxStatOK)return kOfxStatFailed;
  if(fx->clipGetHandle(e,kOfxImageEffectOutputClipName,&i->output,nullptr)!=kOfxStatOK)return kOfxStatFailed;
  if(filter&&fx->clipGetHandle(e,kOfxImageEffectSimpleSourceClipName,&i->source,nullptr)!=kOfxStatOK)return kOfxStatFailed;
- for(auto t:std::vector<std::pair<const char*,OfxParamHandle*>>{{"SceneFile",&i->sceneFile},{"CatalogFile",&i->datasetFile},{"UseSceneCamera",&i->useSceneKeys},{"Longitude",&i->lon},{"Latitude",&i->lat},{"Zoom",&i->zoom},{"Bearing",&i->bearing},{"RouteProgress",&i->route},{"Opacity",&i->opacity},{"DiagnosticMode",&i->diagnosticMode},{"DiagnosticLog",&i->diagnosticLog}})if(param->paramGetHandle(ps,t.first,t.second,nullptr)!=kOfxStatOK)return kOfxStatFailed;
+ for(auto t:std::vector<std::pair<const char*,OfxParamHandle*>>{{"SceneFile",&i->sceneFile},{"CatalogFile",&i->datasetFile},
+ {"EmbeddedSceneJSON",&i->sceneInline},{"EmbeddedCatalogJSON",&i->datasetInline},
+ {"SceneTimeOffset",&i->frameOffset},{"SceneTimeScale",&i->timeScale},
+ {"UseSceneCamera",&i->useSceneKeys},{"Longitude",&i->lon},{"Latitude",&i->lat},{"Zoom",&i->zoom},{"Bearing",&i->bearing},{"RouteProgress",&i->route},{"Opacity",&i->opacity},{"DiagnosticMode",&i->diagnosticMode},{"DiagnosticLog",&i->diagnosticLog}})if(param->paramGetHandle(ps,t.first,t.second,nullptr)!=kOfxStatOK)return kOfxStatFailed;
  OfxPropertySetHandle p=nullptr;fx->getPropertySet(e,&p);if(prop->propSetPointer(p,kOfxPropInstanceData,0,i.get())!=kOfxStatOK)return kOfxStatFailed;i.release();return kOfxStatOK;
 }
 OfxStatus destroyInstance(OfxImageEffectHandle e){Instance *i=instance(e);if(!i)return kOfxStatOK;OfxPropertySetHandle p=nullptr;fx->getPropertySet(e,&p);prop->propSetPointer(p,kOfxPropInstanceData,0,nullptr);delete i;return kOfxStatOK;}
@@ -273,12 +310,18 @@ OfxStatus render(OfxImageEffectHandle e,OfxPropertySetHandle args){Instance *i=i
    cartorig::renderDiagnosticPattern(target,width,height,diagnosticMode);
    return kOfxStatOK;
  }
- std::string sceneFile,datasetFile;
+ std::string sceneFile,datasetFile,inlineScene,inlineCatalog;
  stringAt(i->sceneFile,time,sceneFile);stringAt(i->datasetFile,time,datasetFile);
+ stringAt(i->sceneInline,time,inlineScene);stringAt(i->datasetInline,time,inlineCatalog);
  if(sceneFile.empty())sceneFile=defaultAsset("brasil-venezuela.cartorig-native.json");
  if(datasetFile.empty())datasetFile=defaultAsset("countries.geojson");
- auto scene=sceneAt(sceneFile);auto dataset=datasetAt(datasetFile);
- cartorig::View view;view.width=width;view.height=height;view.frame=time;view.camera=evaluateCamera(*scene,time);view.opacity=std::clamp(doubleAt(i->opacity,time,1),0.0,1.0);
+ auto scene=inlineScene.empty()?sceneAt(sceneFile):embeddedSceneAt(*i,inlineScene);
+ auto dataset=inlineCatalog.empty()?datasetAt(datasetFile):embeddedDatasetAt(*i,inlineCatalog);
+ const double sceneFrame=cartorig::mapSceneFrame(time,
+   doubleAt(i->frameOffset,time,0),doubleAt(i->timeScale,time,1));
+ cartorig::View view;view.width=width;view.height=height;view.frame=sceneFrame;
+ view.camera=evaluateCamera(*scene,sceneFrame);
+ view.opacity=std::clamp(doubleAt(i->opacity,time,1),0.0,1.0);
  if(!intAt(i->useSceneKeys,time,1)){view.camera.lon=doubleAt(i->lon,time,view.camera.lon);view.camera.lat=doubleAt(i->lat,time,view.camera.lat);view.camera.zoom=doubleAt(i->zoom,time,view.camera.zoom);view.camera.bearing=doubleAt(i->bearing,time,view.camera.bearing);}
  view.routeProgress=doubleAt(i->route,time,-1);
  auto copy=*scene;
