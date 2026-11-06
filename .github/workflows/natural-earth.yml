@@ -85,3 +85,46 @@ jobs:
           name: NaturalEarth-Real-GeoPackage-Probe
           path: build/natural-earth/gpkg-probe/gpkg-probe.json
           if-no-files-found: warn
+
+  # One-off build-machine test of all 33 missing publisher GeoJSON files.
+  # This runs only when explicitly requested in a tagged commit message.
+  full-supplements-probe:
+    if: github.event_name == 'push' && contains(github.event.head_commit.message, '[supplement-probe]')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Retrieve pinned 33 upstream GeoJSON files and convert to GeoPackage
+        run: |
+          python -m tools.natural_earth.supplements \
+            --manifest data/natural-earth/aggregate_geojson_supplements_v5.1.2.json \
+            --sources-dir build/natural-earth/pinned-geojson \
+            --out build/natural-earth/supplements.gpkg \
+            --report build/natural-earth/supplements-report.json \
+            --fetch-official
+      - name: Verify real supplemental GeoPackage layer counts and EPSG geometry
+        run: |
+          python - <<'PY'
+          import json,sqlite3
+          from pathlib import Path
+          d=json.loads(Path("build/natural-earth/supplements-report.json").read_text())
+          assert d["complete"] and d["imported"]==33 and d["features"]>0,d
+          db=sqlite3.connect("build/natural-earth/supplements.gpkg")
+          assert db.execute("PRAGMA integrity_check").fetchone()[0]=="ok"
+          assert db.execute("SELECT COUNT(*) FROM gpkg_contents").fetchone()[0]==33
+          assert db.execute("SELECT COUNT(*) FROM provenance").fetchone()[0]==33
+          assert db.execute("SELECT COUNT(*) FROM gpkg_geometry_columns WHERE srs_id=4326").fetchone()[0]==33
+          print("PASS:",d["imported"],"official missing layers,",
+                d["features"],"real features, checksums pinned")
+          db.close()
+          PY
+      - name: Publish publisher SHA256 and real data coverage proof
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: NaturalEarth-33-Supplement-Probe
+          path: build/natural-earth/supplements-report.json
+          if-no-files-found: warn
