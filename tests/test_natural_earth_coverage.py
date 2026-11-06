@@ -70,6 +70,47 @@ class CompletenessTests(unittest.TestCase):
             self.pin,catalog,sources,
             dict(archive,summary={"complete":False}),derivatives)["complete"])
 
+    def test_official_publisher_s3_fallback_is_raster_only_and_safe(self):
+        url="https://www.naturalearthdata.com/download/50m/raster/MSR_50M.zip"
+        record={"theme":"raster","scale":"50m","url":url}
+        self.assertEqual(
+            materialize.official_raster_mirror(record),
+            "https://naturalearth.s3.amazonaws.com/50m_raster/MSR_50M.zip")
+        for change in (
+            {"theme":"physical"},
+            {"url":"https://evil.example/download/50m/raster/MSR_50M.zip"},
+            {"url":"https://www.naturalearthdata.com/download/50m/raster/../evil.zip"},
+            {"scale":"10m"},
+            {"url":url+"?debug=true"},
+        ):
+            self.assertIsNone(
+                materialize.official_raster_mirror(dict(record,**change)))
+
+    def test_materializer_uses_official_mirror_only_after_verified_failure(self):
+        from unittest.mock import patch
+        url="https://www.naturalearthdata.com/download/50m/raster/MSR_50M.zip"
+        source={"resource_id":"ne-50m-raster-test","theme":"raster",
+                "scale":"50m","url":url,"status":"DISCOVERED_UNVERIFIED"}
+        sample=self.root/"archive.zip"
+        with zipfile.ZipFile(sample,"w") as z:z.writestr("MSR_50M.tfw",b"safe")
+        payload=sample.read_bytes()
+        urls=[]
+        def fake_fetch(request,path):
+            urls.append(request)
+            if request==url:
+                raise ValueError("publisher WordPress URL no longer available")
+            path.parent.mkdir(parents=True,exist_ok=True)
+            path.write_bytes(payload)
+            return len(payload),hashlib.sha256(payload).hexdigest()
+        with patch.object(materialize,"download_and_hash",side_effect=fake_fetch):
+            report=materialize.materialize(
+                {"schema_version":1,"resources":[source]},
+                self.root/"acquired",allow_network=True)
+        self.assertTrue(report["summary"]["complete"],report)
+        self.assertEqual(urls,[url,"https://naturalearth.s3.amazonaws.com/50m_raster/MSR_50M.zip"])
+        self.assertEqual(report["resources"][0]["url"],url)
+        self.assertEqual(report["resources"][0]["acquisition_url"],urls[-1])
+
     def test_materializer_is_offline_without_flag(self):
         manifest={"schema_version":1,"resources":[
             {"resource_id":"ne-10m-countries","url":"https://naciscdn.org/naturalearth/10m/cultural/a.zip",
