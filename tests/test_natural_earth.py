@@ -26,6 +26,9 @@ class NaturalEarthTests(unittest.TestCase):
         self.assertEqual(resources[0]["theme_version"],"5.1.1")
         self.assertEqual(resources[0]["status"],"DISCOVERED_UNVERIFIED")
         self.assertTrue(resources[0]["url"].startswith("https://www.naturalearthdata.com/download/"))
+        self.assertEqual(
+            inventory.canonical_url("/http//www.naturalearthdata.com/download/10m/raster/GRAY.zip",page),
+            "https://www.naturalearthdata.com/download/10m/raster/GRAY.zip")
         self.assertFalse(children)
 
     def test_raster_category_child_pages(self):

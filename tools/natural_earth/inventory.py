@@ -63,11 +63,14 @@ class Links(HTMLParser):
 
 def canonical_url(href: str, page: str) -> str | None:
     href = href.strip().replace("&amp;", "&")
-    # Some official WordPress posts contain schemeless 'http//' download links.
-    if href.startswith("http//"):
-        href = "https://" + href[6:]
-    elif href.startswith("https//"):
-        href = "https://" + href[7:]
+    # WordPress currently publishes downloads as '/http//www.naturalearthdata.com/...'.
+    # Repair ONLY this malformed, known publisher form; never join it as a
+    # local /http// path or silently substitute another source provider.
+    slashed = href.lstrip("/")
+    if slashed.startswith("http//"):
+        href = "https://" + slashed[6:]
+    elif slashed.startswith("https//"):
+        href = "https://" + slashed[7:]
     url = urllib.parse.urljoin(page, href)
     parts = urllib.parse.urlsplit(url)
     if parts.hostname not in ALLOWED_HOSTS or parts.scheme not in ("http", "https"):
