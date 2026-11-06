@@ -37,7 +37,7 @@ const OfxParameterSuiteV1 *param=nullptr;
 struct Instance {
   OfxImageClipHandle output=nullptr,source=nullptr;
   OfxParamHandle sceneFile=nullptr,datasetFile=nullptr,sceneInline=nullptr,datasetInline=nullptr;
-  OfxParamHandle naturalEarthGpkg=nullptr,naturalEarthDetail=nullptr,naturalEarthLayer=nullptr;
+  OfxParamHandle naturalEarthGpkg=nullptr,naturalEarthDetail=nullptr,naturalEarthLayer=nullptr,naturalEarthLayerFile=nullptr;
   OfxParamHandle useSceneKeys=nullptr,lon=nullptr,lat=nullptr,zoom=nullptr,bearing=nullptr,route=nullptr,opacity=nullptr;
   OfxParamHandle frameOffset=nullptr,timeScale=nullptr,diagnosticMode=nullptr,diagnosticLog=nullptr;
   OfxParamHandle countryA=nullptr,countryB=nullptr,countryList=nullptr,highlightStrength=nullptr;
@@ -346,6 +346,7 @@ OfxStatus describeInContext(OfxImageEffectHandle e,bool filter){
  defineNaturalEarthDetailChoice(ps);
  // Optional raw publisher table name. Never changes existing map clips unless set.
  defineString(ps,"NaturalEarthLayer","Additional vector layer (ne_...)","AdvancedScene");
+ defineString(ps,"NaturalEarthLayerGpkg","Additional layer GeoPackage (optional)","AdvancedScene");
  defineString(ps,"SceneFile","Scene .json (blank: empty map)","AdvancedScene");
  defineString(ps,"CatalogFile","GeoJSON (blank: offline countries)","AdvancedScene");
  defineMultiline(ps,"EmbeddedSceneJSON","Embedded scene JSON (portable)","AdvancedScene");
@@ -360,6 +361,7 @@ OfxStatus createInstance(OfxImageEffectHandle e,bool filter){auto i=std::make_un
  for(auto t:std::vector<std::pair<const char*,OfxParamHandle*>>{{"SceneFile",&i->sceneFile},{"CatalogFile",&i->datasetFile},
  {"NaturalEarthVectorGpkg",&i->naturalEarthGpkg},{"NaturalEarthDetail",&i->naturalEarthDetail},
  {"NaturalEarthLayer",&i->naturalEarthLayer},
+ {"NaturalEarthLayerGpkg",&i->naturalEarthLayerFile},
  {"EmbeddedSceneJSON",&i->sceneInline},{"EmbeddedCatalogJSON",&i->datasetInline},
  {"SceneTimeOffset",&i->frameOffset},{"SceneTimeScale",&i->timeScale},
  {"UseSceneCamera",&i->useSceneKeys},{"Longitude",&i->lon},{"Latitude",&i->lat},{"Zoom",&i->zoom},
@@ -548,12 +550,14 @@ OfxStatus render(OfxImageEffectHandle e,OfxPropertySetHandle args){Instance *i=i
    view.preserveBackground=true;
  }
  cartorig::render(copy,*dataset,view,target);
- std::string extraLayer;
+ std::string extraLayer,extraLayerPath;
  stringAt(i->naturalEarthLayer,time,extraLayer);
+ stringAt(i->naturalEarthLayerFile,time,extraLayerPath);
  if(!extraLayer.empty()){
-   if(naturalEarthPath.empty())
-     throw std::invalid_argument("Additional vector layer requires a local Vector GeoPackage");
-   const auto geometry=naturalEarthLayerAt(naturalEarthPath,extraLayer);
+   const auto &source=extraLayerPath.empty()?naturalEarthPath:extraLayerPath;
+   if(source.empty())
+     throw std::invalid_argument("Additional vector layer requires a local GeoPackage");
+   const auto geometry=naturalEarthLayerAt(source,extraLayer);
    // Selected non-country geometries are drawn over the existing map; no
    // implicit geographic claims or fabricated city/municipal polygons.
    cartorig::renderNaturalEarthLayer(
