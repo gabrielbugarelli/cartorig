@@ -86,6 +86,10 @@ configure_file(data/default-map.cartorig-native.json "${CARTORIG_BUNDLE}/Content
 
 if(CARTORIG_BUILD_TESTS)
   enable_testing()
+  add_executable(cartorig_native_controls_tests tests/test_native_controls.cpp)
+  target_link_libraries(cartorig_native_controls_tests PRIVATE cartorig_core)
+  target_compile_definitions(cartorig_native_controls_tests PRIVATE CARTORIG_ROOT="${CMAKE_CURRENT_SOURCE_DIR}")
+  add_test(NAME cartorig_edit_first_neutral_and_manual_controls COMMAND cartorig_native_controls_tests)
   add_executable(cartorig_tests tests/test_core.cpp)
   target_link_libraries(cartorig_tests PRIVATE cartorig_core)
   target_compile_definitions(cartorig_tests PRIVATE CARTORIG_ROOT="${CMAKE_CURRENT_SOURCE_DIR}")
