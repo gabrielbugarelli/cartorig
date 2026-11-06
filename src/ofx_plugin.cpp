@@ -1,5 +1,6 @@
 // CartoRig Native: minimal OpenFX 1.x C ABI, no Resolve private SDK.
 #include "cartorig.hpp"
+#include "native_controls.hpp"
 #include "ofx_pixel_layout.hpp"
 #include "ofxCore.h"
 #include "ofxImageEffect.h"
@@ -37,6 +38,13 @@ struct Instance {
   OfxParamHandle sceneFile=nullptr,datasetFile=nullptr,sceneInline=nullptr,datasetInline=nullptr;
   OfxParamHandle useSceneKeys=nullptr,lon=nullptr,lat=nullptr,zoom=nullptr,bearing=nullptr,route=nullptr,opacity=nullptr;
   OfxParamHandle frameOffset=nullptr,timeScale=nullptr,diagnosticMode=nullptr,diagnosticLog=nullptr;
+  OfxParamHandle countryA=nullptr,countryB=nullptr,highlightStrength=nullptr;
+  OfxParamHandle routeEnabled=nullptr,routeStartLon=nullptr,routeStartLat=nullptr;
+  OfxParamHandle routeEndLon=nullptr,routeEndLat=nullptr,routeCurve=nullptr,routeWidth=nullptr;
+  OfxParamHandle showRouteMarkers=nullptr,routeStartLabel=nullptr,routeEndLabel=nullptr;
+  OfxParamHandle manualColors=nullptr,oceanR=nullptr,oceanG=nullptr,oceanB=nullptr;
+  OfxParamHandle landR=nullptr,landG=nullptr,landB=nullptr;
+  OfxParamHandle highlightR=nullptr,highlightG=nullptr,highlightB=nullptr;
   std::mutex embeddedMutex;
   std::string lastSceneText,lastDatasetText;
   std::shared_ptr<const cartorig::Scene> embeddedScene;
@@ -151,6 +159,47 @@ void defineMultiline(OfxParamSetHandle set,const char *name,const char *label){
   prop->propSetInt(props,kOfxParamPropAnimates,0,0);
 }
 void defineBoolean(OfxParamSetHandle set,const char *name,const char *label,bool value){OfxPropertySetHandle p=nullptr;if(param->paramDefine(set,kOfxParamTypeBoolean,name,&p)!=kOfxStatOK)throw std::runtime_error("param define bool");prop->propSetString(p,kOfxPropLabel,0,label);prop->propSetInt(p,kOfxParamPropDefault,0,value?1:0);prop->propSetInt(p,kOfxParamPropAnimates,0,0);}
+void defineNativeGroup(OfxParamSetHandle ps,const char*name,const char*label,bool open){
+  OfxPropertySetHandle props=nullptr;
+  if(param->paramDefine(ps,kOfxParamTypeGroup,name,&props)!=kOfxStatOK)
+    throw std::runtime_error("cannot define native map Inspector group");
+  prop->propSetString(props,kOfxPropLabel,0,label);
+  prop->propSetInt(props,kOfxParamPropGroupOpen,0,open?1:0);
+}
+void defineNativeText(OfxParamSetHandle ps,const char*name,const char*label,const char*group){
+  OfxPropertySetHandle props=nullptr;
+  if(param->paramDefine(ps,kOfxParamTypeString,name,&props)!=kOfxStatOK)
+    throw std::runtime_error("cannot define native text field");
+  prop->propSetString(props,kOfxPropLabel,0,label);
+  prop->propSetString(props,kOfxParamPropDefault,0,"");
+  prop->propSetString(props,kOfxParamPropStringMode,0,kOfxParamStringIsSingleLine);
+  prop->propSetInt(props,kOfxParamPropAnimates,0,0);
+  prop->propSetInt(props,kOfxParamPropPersistant,0,1);
+  if(group)prop->propSetString(props,kOfxParamPropParent,0,group);
+}
+void defineNativeDouble(OfxParamSetHandle ps,const char*name,const char*label,
+                        double initial,double lo,double hi,const char*group){
+  OfxPropertySetHandle props=nullptr;
+  if(param->paramDefine(ps,kOfxParamTypeDouble,name,&props)!=kOfxStatOK)
+    throw std::runtime_error("cannot define native numeric field");
+  prop->propSetString(props,kOfxPropLabel,0,label);
+  prop->propSetDouble(props,kOfxParamPropDefault,0,initial);
+  prop->propSetDouble(props,kOfxParamPropMin,0,lo);
+  prop->propSetDouble(props,kOfxParamPropMax,0,hi);
+  prop->propSetDouble(props,kOfxParamPropDisplayMin,0,lo);
+  prop->propSetDouble(props,kOfxParamPropDisplayMax,0,hi);
+  prop->propSetInt(props,kOfxParamPropAnimates,0,1);
+  if(group)prop->propSetString(props,kOfxParamPropParent,0,group);
+}
+void defineNativeToggle(OfxParamSetHandle ps,const char*name,const char*label,bool initial,const char*group){
+  OfxPropertySetHandle props=nullptr;
+  if(param->paramDefine(ps,kOfxParamTypeBoolean,name,&props)!=kOfxStatOK)
+    throw std::runtime_error("cannot define native toggle");
+  prop->propSetString(props,kOfxPropLabel,0,label);
+  prop->propSetInt(props,kOfxParamPropDefault,0,initial?1:0);
+  prop->propSetInt(props,kOfxParamPropAnimates,0,0);
+  if(group)prop->propSetString(props,kOfxParamPropParent,0,group);
+}
 void defineVersionLabel(OfxParamSetHandle ps){
   OfxPropertySetHandle props=nullptr;
   if(param->paramDefine(ps,kOfxParamTypeString,"CartoRigBuildInfo",&props)!=kOfxStatOK)
@@ -187,22 +236,66 @@ OfxStatus describe(OfxImageEffectHandle e,bool filter){OfxPropertySetHandle p=nu
   prop->propSetInt(p,kOfxImageEffectPropTemporalClipAccess,0,0);
   return kOfxStatOK;
 }
-OfxStatus describeInContext(OfxImageEffectHandle e,bool filter){OfxPropertySetHandle p=nullptr;
- if(filter){if(fx->clipDefine(e,kOfxImageEffectSimpleSourceClipName,&p)!=kOfxStatOK)return kOfxStatFailed;prop->propSetString(p,kOfxImageEffectPropSupportedComponents,0,kOfxImageComponentRGBA);}
+OfxStatus describeInContext(OfxImageEffectHandle e,bool filter){
+ OfxPropertySetHandle p=nullptr;
+ if(filter){
+   if(fx->clipDefine(e,kOfxImageEffectSimpleSourceClipName,&p)!=kOfxStatOK)
+     return kOfxStatFailed;
+   prop->propSetString(p,kOfxImageEffectPropSupportedComponents,0,kOfxImageComponentRGBA);
+ }
  if(fx->clipDefine(e,kOfxImageEffectOutputClipName,&p)!=kOfxStatOK)return kOfxStatFailed;
  prop->propSetString(p,kOfxImageEffectPropSupportedComponents,0,kOfxImageComponentRGBA);
- OfxParamSetHandle ps=nullptr;if(fx->getParamSet(e,&ps)!=kOfxStatOK)return kOfxStatFailed;
- defineString(ps,"SceneFile","Scene .json (blank: bundled sample)");
+ OfxParamSetHandle ps=nullptr;
+ if(fx->getParamSet(e,&ps)!=kOfxStatOK)return kOfxStatFailed;
+ defineVersionLabel(ps);
+ // Every new instance begins with user-controlled static camera parameters.
+ // The Brazil/Venezuela example is an optional imported scene, never auto-loaded.
+ defineBoolean(ps,"UseSceneCamera","Use camera animation from imported scene",false);
+ defineDouble(ps,"Longitude","Camera longitude",0,-180,180);
+ defineDouble(ps,"Latitude","Camera latitude",0,-85,85);
+ defineDouble(ps,"Zoom","Camera zoom",1.3,0,18);
+ defineDouble(ps,"Bearing","Camera bearing (degrees)",0,-360,360);
+ defineDouble(ps,"Opacity","Cartography opacity (entire map)",filter?0.7:1,0,1);
+ defineDouble(ps,"SceneTimeOffset","Scene offset (host frames)",0,-86400,86400);
+ defineDouble(ps,"SceneTimeScale","Scene time scale / reverse",1,-8,8);
+
+ defineNativeGroup(ps,"CountryControls","Territories / highlight",true);
+ defineNativeText(ps,"CountryA","Country 1 (ISO3, e.g. BRA)","CountryControls");
+ defineNativeText(ps,"CountryB","Country 2 (ISO3, e.g. VEN)","CountryControls");
+ defineNativeDouble(ps,"HighlightStrength","Highlight opacity",1,0,1,"CountryControls");
+
+ defineNativeGroup(ps,"RouteControls","Manual geographic route",true);
+ defineNativeToggle(ps,"NativeRouteEnabled","Enable manual route",false,"RouteControls");
+ defineNativeDouble(ps,"RouteStartLongitude","Start longitude",-20,-180,180,"RouteControls");
+ defineNativeDouble(ps,"RouteStartLatitude","Start latitude",0,-85,85,"RouteControls");
+ defineNativeDouble(ps,"RouteEndLongitude","End longitude",20,-180,180,"RouteControls");
+ defineNativeDouble(ps,"RouteEndLatitude","End latitude",0,-85,85,"RouteControls");
+ defineDouble(ps,"RouteProgress","Route reveal (animate 0 to 1)",1,-1,1);
+ defineNativeDouble(ps,"NativeRouteCurve","Route curvature",-20,-100,100,"RouteControls");
+ defineNativeDouble(ps,"NativeRouteWidth","Route width",3,.5,30,"RouteControls");
+ defineNativeToggle(ps,"RouteMarkers","Show route endpoints",true,"RouteControls");
+ defineNativeText(ps,"RouteFromLabel","Origin label","RouteControls");
+ defineNativeText(ps,"RouteToLabel","Destination label","RouteControls");
+
+ defineNativeGroup(ps,"MapColors","Map colors (optional override)",false);
+ defineNativeToggle(ps,"CustomMapColors","Override imported map colors",false,"MapColors");
+ defineNativeDouble(ps,"OceanR","Ocean red",13,0,255,"MapColors");
+ defineNativeDouble(ps,"OceanG","Ocean green",30,0,255,"MapColors");
+ defineNativeDouble(ps,"OceanB","Ocean blue",50,0,255,"MapColors");
+ defineNativeDouble(ps,"LandR","Land red",35,0,255,"MapColors");
+ defineNativeDouble(ps,"LandG","Land green",59,0,255,"MapColors");
+ defineNativeDouble(ps,"LandB","Land blue",82,0,255,"MapColors");
+ defineNativeDouble(ps,"HighlightR","Highlight red",40,0,255,"MapColors");
+ defineNativeDouble(ps,"HighlightG","Highlight green",157,0,255,"MapColors");
+ defineNativeDouble(ps,"HighlightB","Highlight blue",192,0,255,"MapColors");
+
+ defineNativeGroup(ps,"AdvancedScene","Advanced: import custom scenes",false);
+ defineString(ps,"SceneFile","Scene .json (blank: empty map)");
  defineString(ps,"CatalogFile","GeoJSON (blank: offline countries)");
  defineMultiline(ps,"EmbeddedSceneJSON","Embedded scene JSON (portable)");
  defineMultiline(ps,"EmbeddedCatalogJSON","Embedded GeoJSON (portable)");
- defineBoolean(ps,"UseSceneCamera","Use camera keyframes from scene",true);
- defineDouble(ps,"SceneTimeOffset","Scene offset (host frames)",0,-86400,86400);
- defineDouble(ps,"SceneTimeScale","Scene time scale / reverse",1,-8,8);
- defineDouble(ps,"Longitude","Camera longitude",-61,-180,180);defineDouble(ps,"Latitude","Camera latitude",-12,-85,85);defineDouble(ps,"Zoom","Camera zoom",3.2,0,18);defineDouble(ps,"Bearing","Camera bearing (degrees)",0,-360,360);
- defineDouble(ps,"RouteProgress","Route reveal (-1: scene)",-1,-1,1);defineDouble(ps,"Opacity","Cartography opacity (entire map)",filter?0.7:1,0,1);
- defineVersionLabel(ps);
- defineDiagnosticChoice(ps);defineBoolean(ps,"DiagnosticLog","Write OFX diagnostic log",false);
+ defineDiagnosticChoice(ps);
+ defineBoolean(ps,"DiagnosticLog","Write OFX diagnostic log",false);
  return kOfxStatOK;
 }
 OfxStatus createInstance(OfxImageEffectHandle e,bool filter){auto i=std::make_unique<Instance>();i->overlay=filter;OfxParamSetHandle ps=nullptr;if(fx->getParamSet(e,&ps)!=kOfxStatOK)return kOfxStatFailed;
@@ -211,7 +304,18 @@ OfxStatus createInstance(OfxImageEffectHandle e,bool filter){auto i=std::make_un
  for(auto t:std::vector<std::pair<const char*,OfxParamHandle*>>{{"SceneFile",&i->sceneFile},{"CatalogFile",&i->datasetFile},
  {"EmbeddedSceneJSON",&i->sceneInline},{"EmbeddedCatalogJSON",&i->datasetInline},
  {"SceneTimeOffset",&i->frameOffset},{"SceneTimeScale",&i->timeScale},
- {"UseSceneCamera",&i->useSceneKeys},{"Longitude",&i->lon},{"Latitude",&i->lat},{"Zoom",&i->zoom},{"Bearing",&i->bearing},{"RouteProgress",&i->route},{"Opacity",&i->opacity},{"DiagnosticMode",&i->diagnosticMode},{"DiagnosticLog",&i->diagnosticLog}})if(param->paramGetHandle(ps,t.first,t.second,nullptr)!=kOfxStatOK)return kOfxStatFailed;
+ {"UseSceneCamera",&i->useSceneKeys},{"Longitude",&i->lon},{"Latitude",&i->lat},{"Zoom",&i->zoom},
+ {"Bearing",&i->bearing},{"RouteProgress",&i->route},{"Opacity",&i->opacity},
+ {"CountryA",&i->countryA},{"CountryB",&i->countryB},{"HighlightStrength",&i->highlightStrength},
+ {"NativeRouteEnabled",&i->routeEnabled},{"RouteStartLongitude",&i->routeStartLon},
+ {"RouteStartLatitude",&i->routeStartLat},{"RouteEndLongitude",&i->routeEndLon},
+ {"RouteEndLatitude",&i->routeEndLat},{"NativeRouteCurve",&i->routeCurve},
+ {"NativeRouteWidth",&i->routeWidth},{"RouteMarkers",&i->showRouteMarkers},
+ {"RouteFromLabel",&i->routeStartLabel},{"RouteToLabel",&i->routeEndLabel},
+ {"CustomMapColors",&i->manualColors},{"OceanR",&i->oceanR},{"OceanG",&i->oceanG},
+ {"OceanB",&i->oceanB},{"LandR",&i->landR},{"LandG",&i->landG},{"LandB",&i->landB},
+ {"HighlightR",&i->highlightR},{"HighlightG",&i->highlightG},{"HighlightB",&i->highlightB},
+ {"DiagnosticMode",&i->diagnosticMode},{"DiagnosticLog",&i->diagnosticLog}})if(param->paramGetHandle(ps,t.first,t.second,nullptr)!=kOfxStatOK)return kOfxStatFailed;
  OfxPropertySetHandle p=nullptr;fx->getPropertySet(e,&p);if(prop->propSetPointer(p,kOfxPropInstanceData,0,i.get())!=kOfxStatOK)return kOfxStatFailed;i.release();return kOfxStatOK;
 }
 OfxStatus destroyInstance(OfxImageEffectHandle e){Instance *i=instance(e);if(!i)return kOfxStatOK;OfxPropertySetHandle p=nullptr;fx->getPropertySet(e,&p);prop->propSetPointer(p,kOfxPropInstanceData,0,nullptr);delete i;return kOfxStatOK;}
@@ -326,7 +430,7 @@ OfxStatus render(OfxImageEffectHandle e,OfxPropertySetHandle args){Instance *i=i
  std::string sceneFile,datasetFile,inlineScene,inlineCatalog;
  stringAt(i->sceneFile,time,sceneFile);stringAt(i->datasetFile,time,datasetFile);
  stringAt(i->sceneInline,time,inlineScene);stringAt(i->datasetInline,time,inlineCatalog);
- if(sceneFile.empty())sceneFile=defaultAsset("brasil-venezuela.cartorig-native.json");
+ if(sceneFile.empty())sceneFile=defaultAsset("default-map.cartorig-native.json");
  if(datasetFile.empty())datasetFile=defaultAsset("countries.geojson");
  auto scene=inlineScene.empty()?sceneAt(sceneFile):embeddedSceneAt(*i,inlineScene);
  auto dataset=inlineCatalog.empty()?datasetAt(datasetFile):embeddedDatasetAt(*i,inlineCatalog);
@@ -335,9 +439,33 @@ OfxStatus render(OfxImageEffectHandle e,OfxPropertySetHandle args){Instance *i=i
  cartorig::View view;view.width=width;view.height=height;view.frame=sceneFrame;
  view.camera=evaluateCamera(*scene,sceneFrame);
  view.opacity=std::clamp(doubleAt(i->opacity,time,1),0.0,1.0);
- if(!intAt(i->useSceneKeys,time,1)){view.camera.lon=doubleAt(i->lon,time,view.camera.lon);view.camera.lat=doubleAt(i->lat,time,view.camera.lat);view.camera.zoom=doubleAt(i->zoom,time,view.camera.zoom);view.camera.bearing=doubleAt(i->bearing,time,view.camera.bearing);}
- view.routeProgress=doubleAt(i->route,time,-1);
- auto copy=*scene;
+ if(!intAt(i->useSceneKeys,time,0)){view.camera.lon=doubleAt(i->lon,time,view.camera.lon);view.camera.lat=doubleAt(i->lat,time,view.camera.lat);view.camera.zoom=doubleAt(i->zoom,time,view.camera.zoom);view.camera.bearing=doubleAt(i->bearing,time,view.camera.bearing);}
+ view.routeProgress=doubleAt(i->route,time,1);
+ cartorig::NativeMapControls controls;
+ stringAt(i->countryA,time,controls.countryA);
+ stringAt(i->countryB,time,controls.countryB);
+ controls.highlightStrength=doubleAt(i->highlightStrength,time,1);
+ controls.routeEnabled=intAt(i->routeEnabled,time,0)!=0;
+ controls.routeStart.lon=doubleAt(i->routeStartLon,time,-20);
+ controls.routeStart.lat=doubleAt(i->routeStartLat,time,0);
+ controls.routeEnd.lon=doubleAt(i->routeEndLon,time,20);
+ controls.routeEnd.lat=doubleAt(i->routeEndLat,time,0);
+ controls.routeCurve=doubleAt(i->routeCurve,time,-20);
+ controls.routeWidth=doubleAt(i->routeWidth,time,3);
+ controls.routeMarkers=intAt(i->showRouteMarkers,time,1)!=0;
+ stringAt(i->routeStartLabel,time,controls.startLabel);
+ stringAt(i->routeEndLabel,time,controls.endLabel);
+ controls.customColors=intAt(i->manualColors,time,0)!=0;
+ const auto byteAt=[&](OfxParamHandle h,double fallback){
+   return static_cast<uint8_t>(std::lround(
+     std::clamp(doubleAt(h,time,fallback),0.0,255.0)));
+ };
+ if(controls.customColors){
+   controls.ocean={byteAt(i->oceanR,13),byteAt(i->oceanG,30),byteAt(i->oceanB,50),255};
+   controls.land={byteAt(i->landR,35),byteAt(i->landG,59),byteAt(i->landB,82),255};
+   controls.highlight={byteAt(i->highlightR,40),byteAt(i->highlightG,157),byteAt(i->highlightB,192),220};
+ }
+ auto copy=cartorig::sceneWithNativeControls(*scene,controls);
  ImageLease source;
  if(i->overlay){
    const OfxStatus sourceStatus=fx->clipGetImage(i->source,time,nullptr,&source.image);
