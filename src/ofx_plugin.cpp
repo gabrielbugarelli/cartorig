@@ -734,11 +734,9 @@ OfxStatus render(OfxImageEffectHandle e,OfxPropertySetHandle args){Instance *i=i
          naturalEarthPath,extraLayerPath,selection);
      // Independent RGBA per region, following a stable publisher feature ID.
      // City points stay points; no fabricated administrative polygons.
+     const auto regionColor=cartorig::evaluateGeographicRegionColor(selection,sceneFrame);
      cartorig::renderNaturalEarthLayer(
-         *geometries,view,target,
-         cartorig::evaluateGeographicRegionColor(selection,sceneFrame),
-         cartorig::evaluateGeographicRegionColor(selection,sceneFrame),
-         cartorig::evaluateGeographicRegionColor(selection,sceneFrame));
+         *geometries,view,target,regionColor,regionColor,regionColor);
    }
  }
  return kOfxStatOK;
@@ -759,6 +757,8 @@ OfxStatus onGeographicRegionChanged(OfxImageEffectHandle effect,
   stringAt(i->regionSaved,time,saved);
   const bool actionAdd=changed=="GeographicRegionAdd";
   const bool actionRemove=changed=="GeographicRegionRemove";
+  const bool actionCapture=changed=="GeographicRegionCaptureKey";
+  const bool actionRemoveSaved=changed=="GeographicRegionRemoveSaved";
   std::vector<cartorig::NaturalEarthRegion> results;
   if(!indexFile.empty()&&!query.empty())
     results=cartorig::NaturalEarthCatalog::search(indexFile,query,types[choice],10);
@@ -781,12 +781,81 @@ OfxStatus onGeographicRegionChanged(OfxImageEffectHandle effect,
     }
   }
   const int selected=intAt(i->regionMatch,time,0);
+  const auto refreshSavedChoices=[&](const std::string &updated){
+    const auto entries=cartorig::parseGeographicSelections(updated);
+    OfxPropertySetHandle labels=nullptr;
+    if(param->paramGetPropertySet(i->regionEdit,&labels)==kOfxStatOK && labels){
+      for(int n=0;n<64;++n){
+        std::string label="No selected region "+std::to_string(n+1);
+        if(n<static_cast<int>(entries.size())){
+          const auto &entry=entries[static_cast<std::size_t>(n)];
+          label=entry.name;
+          if(!entry.parent.empty())label+=" ("+entry.parent+")";
+          if(label.size()>120)label.resize(120);
+        }
+        (void)prop->propSetString(labels,kOfxParamPropChoiceOption,n,label.c_str());
+      }
+    }
+    return entries;
+  };
   const auto updateInfo=[&](std::string message){
     if(message.size()>700)message.resize(700);
     // Label refresh is not guaranteed by all OFX hosts; persistent selections
     // do not depend on it.
     (void)param->paramSetValue(i->regionStatus,message.c_str());
   };
+  if(actionCapture||actionRemoveSaved||changed=="GeographicRegionEdit"){
+    const auto current=refreshSavedChoices(saved);
+    const int editIndex=intAt(i->regionEdit,time,0);
+    if(editIndex<0||editIndex>=static_cast<int>(current.size())){
+      if(actionCapture||actionRemoveSaved)
+        throw std::invalid_argument("Select a saved geographic region first");
+      updateInfo("No saved geographic region selected");
+      return kOfxStatReplyDefault;
+    }
+    const auto &entry=current[static_cast<std::size_t>(editIndex)];
+    const double sceneTime=cartorig::mapSceneFrame(
+        time,doubleAt(i->frameOffset,time,0),doubleAt(i->timeScale,time,1));
+    if(changed=="GeographicRegionEdit"){
+      const auto rgba=cartorig::evaluateGeographicRegionColor(entry,sceneTime);
+      // Editing the selected region starts from its current local RGBA,
+      // rather than unintentionally cloning the previous region's style.
+      (void)param->paramSetValue(i->regionRed,static_cast<double>(rgba.r));
+      (void)param->paramSetValue(i->regionGreen,static_cast<double>(rgba.g));
+      (void)param->paramSetValue(i->regionBlue,static_cast<double>(rgba.b));
+      (void)param->paramSetValue(i->regionAlpha,static_cast<double>(rgba.a));
+      updateInfo("Editing: "+entry.name+" | "+std::to_string(entry.colorKeys.size())+
+                 " color keys");
+      return kOfxStatReplyDefault;
+    }
+    std::string next;
+    if(actionRemoveSaved){
+      next=cartorig::removeGeographicSelection(saved,entry.featureKey);
+    }else{
+      const auto channel=[&](OfxParamHandle h,double fallback){
+        return static_cast<std::uint8_t>(std::lround(
+          std::clamp(doubleAt(h,time,fallback),0.0,255.0)));
+      };
+      const cartorig::Color keyColor{
+        channel(i->regionRed,40),channel(i->regionGreen,157),
+        channel(i->regionBlue,192),channel(i->regionAlpha,220)};
+      const int easingIndex=intAt(i->regionEase,time,0);
+      const char* easings[]={"smoothstep","linear","hold"};
+      if(easingIndex<0||easingIndex>2)
+        throw std::invalid_argument("Invalid region keyframe easing");
+      next=cartorig::upsertGeographicColorKey(
+        saved,entry.featureKey,sceneTime,keyColor,easings[easingIndex]);
+    }
+    if(param->paramSetValue(i->regionSaved,next.c_str())!=kOfxStatOK)
+      throw std::runtime_error("Resolve did not accept geographic region keyframe state");
+    const auto entries=refreshSavedChoices(next);
+    if(actionRemoveSaved && !entries.empty() && editIndex>=static_cast<int>(entries.size()))
+      (void)param->paramSetValue(i->regionEdit,static_cast<int>(entries.size())-1);
+    updateInfo((actionRemoveSaved?"Removed selected region: ":"Captured color key: ")+
+               entry.name+
+               (actionCapture?" at scene frame "+std::to_string(sceneTime):""));
+    return kOfxStatOK;
+  }
   if(actionAdd||actionRemove){
     if(indexFile.empty())
       throw std::invalid_argument("Set the offline geographic search index first");
@@ -812,11 +881,20 @@ OfxStatus onGeographicRegionChanged(OfxImageEffectHandle effect,
     }
     if(param->paramSetValue(i->regionSaved,next.c_str())!=kOfxStatOK)
       throw std::runtime_error("Resolve did not accept persistent region state update");
-    updateInfo(std::to_string(cartorig::parseGeographicSelections(next).size())+
+    const auto entries=refreshSavedChoices(next);
+    if(actionAdd){
+      for(std::size_t n=0;n<entries.size();++n)
+        if(entries[n].featureKey==hit.featureKey){
+          (void)param->paramSetValue(i->regionEdit,static_cast<int>(n));
+          break;
+        }
+    }
+    updateInfo(std::to_string(entries.size())+
         " regions selected | "+(actionAdd?"Added / updated: ":"Removed: ")+
         hit.name);
     return kOfxStatOK;
   }
+  (void)refreshSavedChoices(saved);
   if(indexFile.empty()){
     updateInfo("Set offline search index (catalog.sqlite) before searching");
   }else if(query.empty()){
