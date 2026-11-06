@@ -302,3 +302,54 @@ Dataset NaturalEarthCatalog::countryPolygons(
   return dataset;
 }
 } // namespace cartorig
+
+
+namespace cartorig {
+std::vector<NaturalEarthGeometry> NaturalEarthCatalog::layerGeometries(
+    const std::filesystem::path &geoPackage,const std::string &table,
+    std::size_t maxFeatures){
+  // These are publisher-defined SQLite tables, never free-form SQL.
+  if(!allowedIdentifier(table)||table.rfind("ne_",0)!=0||
+     maxFeatures==0||maxFeatures>50000)
+    throw std::invalid_argument("invalid Natural Earth layer or feature budget");
+  SqliteApi api;
+  DB db(api,geoPackage);
+  Stmt meta(api,db.db,
+    "SELECT column_name,srs_id FROM gpkg_geometry_columns WHERE table_name=?");
+  meta.bind(1,table);
+  if(api.step(meta.statement)!=SQLITE_ROW_)
+    throw std::invalid_argument("requested vector layer absent from GeoPackage");
+  const auto column=str(api,meta.statement,0);
+  if(!allowedIdentifier(column)||api.column_int64(meta.statement,1)!=4326)
+    throw std::invalid_argument("requested vector layer must use EPSG:4326");
+  const std::string sql="SELECT \""+column+"\" FROM \""+table+
+                        "\" WHERE \""+column+"\" IS NOT NULL ORDER BY rowid LIMIT ?";
+  Stmt rows(api,db.db,sql.c_str());
+  rows.bindId(1,static_cast<std::int64_t>(maxFeatures)+1);
+  std::vector<NaturalEarthGeometry> geometries;
+  std::size_t vertices=0;
+  int code=SQLITE_DONE_;
+  while((code=api.step(rows.statement))==SQLITE_ROW_){
+    if(geometries.size()>=maxFeatures)
+      throw std::invalid_argument("vector layer exceeds configured feature budget");
+    const void *data=api.column_blob(rows.statement,0);
+    const int bytes=api.column_bytes(rows.statement,0);
+    if(!data||bytes<=0)
+      throw std::invalid_argument("invalid non-null geometry in vector layer");
+    auto g=decodeGeoPackageGeometry(data,static_cast<std::size_t>(bytes));
+    std::size_t count=g.points.size();
+    for(const auto &line:g.lines)count+=line.size();
+    for(const auto &poly:g.polygons)
+      for(const auto &ring:poly.rings)count+=ring.size();
+    if(count>2000000||vertices>2000000-count)
+      throw std::invalid_argument("vector layer exceeds total coordinate budget");
+    vertices+=count;
+    geometries.push_back(std::move(g));
+  }
+  if(code!=SQLITE_DONE_)
+    throw std::runtime_error(std::string("Natural Earth layer read failed: ")+api.errmsg(db.db));
+  if(geometries.empty())
+    throw std::invalid_argument("selected Natural Earth layer contains no geometries");
+  return geometries;
+}
+} // namespace cartorig
