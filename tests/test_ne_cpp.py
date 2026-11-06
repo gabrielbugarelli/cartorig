@@ -8,6 +8,7 @@ import tempfile
 
 exe=Path(sys.argv[1])
 root=Path(sys.argv[2])
+preview=Path(sys.argv[3])
 sys.path.insert(0,str(root))
 from tools.natural_earth.build_catalog import index_source
 
@@ -67,6 +68,11 @@ with tempfile.TemporaryDirectory() as directory:
              capture_output=True,text=True,encoding="utf-8",timeout=20)
         assert (p.returncode==0)==success,(kind,text,p.returncode,p.stdout,p.stderr)
         return p.stdout
+    # Verify the C++ data path actually paints pixels from geographic WKB.
+    painted=subprocess.run([str(preview),str(gpkg),"10m"],
+                           capture_output=True,text=True,encoding="utf-8",timeout=20)
+    assert painted.returncode==0,(painted.stdout,painted.stderr)
+    assert "countries=1" in painted.stdout and "polygons=1" in painted.stdout,painted.stdout
     assert "Brazil" in query("country","Brasil")
     r=subprocess.run([str(exe),str(catalog),"country","Brasil",str(gpkg)],
                      capture_output=True,text=True,encoding="utf-8",timeout=20)
