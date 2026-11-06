@@ -86,7 +86,7 @@ void writeDiagnostics(const std::string &message) noexcept {
       if(file) {
         file<<std::chrono::duration_cast<std::chrono::seconds>(
           std::chrono::system_clock::now().time_since_epoch()).count()
-          <<" CartoRigNative 0.2.0-dev/"<<CARTORIG_BUILD_SHA<<" "<<message<<"\n";
+          <<" CartoRigNative 0.3.0-dev/"<<CARTORIG_BUILD_SHA<<" "<<message<<"\n";
         file.flush();
         if(file.good())return;
       }
@@ -206,7 +206,7 @@ void defineVersionLabel(OfxParamSetHandle ps){
     throw std::runtime_error("version label parameter failed");
   prop->propSetString(props,kOfxPropLabel,0,"Installed plugin build");
   prop->propSetString(props,kOfxParamPropStringMode,0,kOfxParamStringIsLabel);
-  const std::string info=std::string("0.2.0-dev / ")+CARTORIG_BUILD_SHA;
+  const std::string info=std::string("0.3.0-dev / ")+CARTORIG_BUILD_SHA;
   prop->propSetString(props,kOfxParamPropDefault,0,info.c_str());
   prop->propSetInt(props,kOfxParamPropPersistant,0,0);
   prop->propSetInt(props,kOfxParamPropAnimates,0,0);

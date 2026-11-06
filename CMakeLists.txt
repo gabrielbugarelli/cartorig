@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(CartoRigNative VERSION 0.2.0 LANGUAGES CXX)
+project(CartoRigNative VERSION 0.3.0 LANGUAGES CXX)
 option(CARTORIG_BUILD_TESTS "Build the standalone C++ core tests" ON)
 option(CARTORIG_SANITIZERS "Build with address/undefined-behavior sanitizers (Clang/GCC)" OFF)
 if(CARTORIG_SANITIZERS AND NOT MSVC)
@@ -28,8 +28,11 @@ endif()
 
 # Include the exact git revision in the Inspector and optional diagnostic logs.
 find_package(Git QUIET)
-set(CARTORIG_BUILD_SHA "local")
-if(GIT_FOUND)
+set(CARTORIG_BUILD_SHA "${CARTORIG_SOURCE_SHA}")
+if(NOT CARTORIG_BUILD_SHA)
+  set(CARTORIG_BUILD_SHA "local")
+endif()
+if(GIT_FOUND AND CARTORIG_BUILD_SHA STREQUAL "local")
   execute_process(COMMAND ${GIT_EXECUTABLE} rev-parse --short=12 HEAD
                   WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
                   OUTPUT_VARIABLE CARTORIG_COMMIT_OUTPUT
@@ -37,6 +40,13 @@ if(GIT_FOUND)
                   ERROR_QUIET)
   if(CARTORIG_COMMIT_OUTPUT MATCHES "^[0-9a-f]+$")
     set(CARTORIG_BUILD_SHA "${CARTORIG_COMMIT_OUTPUT}")
+  endif()
+endif()
+if(CARTORIG_BUILD_SHA MATCHES "^[0-9a-f]+$" AND
+   NOT CARTORIG_BUILD_SHA STREQUAL "local")
+  string(LENGTH "${CARTORIG_BUILD_SHA}" CARTORIG_BUILD_SHA_LENGTH)
+  if(CARTORIG_BUILD_SHA_LENGTH GREATER 12)
+    string(SUBSTRING "${CARTORIG_BUILD_SHA}" 0 12 CARTORIG_BUILD_SHA)
   endif()
 endif()
 add_library(CartoRigNative MODULE src/ofx_plugin.cpp)

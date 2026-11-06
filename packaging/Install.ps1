@@ -14,7 +14,7 @@ if (-not (Test-Path -LiteralPath $binary -PathType Leaf)) {
   throw "Missing Win64 plugin binary: $binary"
 }
 $resources = Join-Path $bundle 'Contents\Resources'
-foreach ($name in @('countries.geojson','brasil-venezuela.cartorig-native.json','LICENSE-COUNTRYINFO.txt')) {
+foreach ($name in @('countries.geojson','default-map.cartorig-native.json','LICENSE-COUNTRYINFO.txt')) {
   if (-not (Test-Path -LiteralPath (Join-Path $resources $name) -PathType Leaf)) {
     throw "Missing resource: $name"
   }
