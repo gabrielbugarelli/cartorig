@@ -2,6 +2,7 @@
 from pathlib import Path
 import json
 import sys
+sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
 from tools.natural_earth.build_pack import build_pack
 
 root=Path(sys.argv[1])
