@@ -72,6 +72,14 @@ def canonical_url(href: str, page: str) -> str | None:
     elif slashed.startswith("https//"):
         href = "https://" + slashed[7:]
     url = urllib.parse.urljoin(page, href)
+    # The currently published WordPress pages contain absolute links like:
+    # https://www.naturalearthdata.com/http//www.naturalearthdata.com/download/...
+    # Resolve a publisher host embedded inside its own malformed path.
+    malformed = re.match(
+        r"^https?://(?:www\.)?naturalearthdata\.com/(?:http|https)//"
+        r"((?:www\.)?naturalearthdata\.com)/download/(.+)$", url, re.I)
+    if malformed:
+        url = "https://" + malformed.group(1).lower() + "/download/" + malformed.group(2)
     parts = urllib.parse.urlsplit(url)
     if parts.hostname not in ALLOWED_HOSTS or parts.scheme not in ("http", "https"):
         return None
