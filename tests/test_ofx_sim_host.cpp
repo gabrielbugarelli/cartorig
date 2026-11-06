@@ -257,6 +257,21 @@ int main(int argc,char**argv){
  check(call(generator,kOfxActionDestroyInstance,blank)==kOfxStatOK,
        "destroy manual native generator");
 
+ // Local Natural Earth source is opt-in, never network-loaded. Missing data
+ // fails safely; embedded user GeoJSON still takes precedence over that path.
+ Effect ne;init(generator,ne,kOfxImageEffectContextGenerator);
+ overrideParam(ne,"NaturalEarthVectorGpkg",std::string("__missing_natural_earth_source__.gpkg"));
+ check(render(generator,ne,W,H,0)!=kOfxStatOK,
+       "missing opt-in Natural Earth file fails without changing the default");
+ overrideParam(ne,"EmbeddedCatalogJSON",empty);
+ check(render(generator,ne,W,H,0)==kOfxStatOK,
+       "embedded GeoJSON overrides external Natural Earth source");
+ overrideParam(ne,"EmbeddedCatalogJSON",std::string(""));
+ overrideParam(ne,"NaturalEarthVectorGpkg",std::string(""));
+ check(render(generator,ne,W,H,0)==kOfxStatOK,
+       "clearing Natural Earth returns to bundled offline map");
+ check(call(generator,kOfxActionDestroyInstance,ne)==kOfxStatOK,
+       "destroy natural earth opt-in host effect");
  Effect g;init(generator,g,kOfxImageEffectContextGenerator);
  Bag preferences;check(call(generator,kOfxImageEffectActionGetClipPreferences,g,nullptr,&preferences)==kOfxStatOK,"clip preference");
  char*assoc=nullptr;check(getS(bh(preferences),kOfxImageEffectPropPreMultiplication,0,&assoc)==kOfxStatOK&&
