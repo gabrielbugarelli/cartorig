@@ -207,6 +207,52 @@ int main(int argc,char**argv){
    check(call(p,kOfxImageEffectActionDescribeInContext,e,&args)==kOfxStatOK,"context");
    configure(e,W,H);check(call(p,kOfxActionCreateInstance,e)==kOfxStatOK,"instance");
  };
+ // The product must never auto-play the bundled geopolitical demonstration.
+ // Instantiate a generator with NO scene overrides, as a first-time Edit user.
+ Effect blank;init(generator,blank,kOfxImageEffectContextGenerator);
+ auto &blankOutput=blank.clips.at("Output")->pixels;
+ check(render(generator,blank,W,H,0)==kOfxStatOK,"neutral default frame 0 loads");
+ const auto neutralF0=blankOutput;
+ check(render(generator,blank,W,H,96)==kOfxStatOK&&blankOutput==neutralF0,
+       "neutral generator never auto-animates at frame 96");
+ check(render(generator,blank,W,H,239)==kOfxStatOK&&blankOutput==neutralF0,
+       "neutral generator never auto-animates at frame 239");
+ // Country selection is authored in the native Inspector and remains static
+ // until an explicit highlight opacity keyframe is added.
+ overrideParam(blank,"CountryA",std::string("BRA"));
+ check(render(generator,blank,W,H,0)==kOfxStatOK&&blankOutput!=neutralF0,
+       "manual ISO3 country highlight changes map");
+ const auto withBrazil=blankOutput;
+ overrideParam(blank,"HighlightStrength",0.);
+ check(render(generator,blank,W,H,0)==kOfxStatOK&&blankOutput==neutralF0,
+       "highlight strength zero removes only native highlighted region");
+ overrideParam(blank,"HighlightStrength",1.);
+ // Native route is disabled by default. Enabling it creates two user-editable
+ // endpoints without inserting auto keyframes for the camera or route.
+ overrideParam(blank,"NativeRouteEnabled",1);
+ overrideParam(blank,"RouteProgress",0.);
+ check(render(generator,blank,W,H,0)==kOfxStatOK,"manual route at zero");
+ const auto route0=blankOutput;
+ overrideParam(blank,"RouteProgress",1.);
+ check(render(generator,blank,W,H,0)==kOfxStatOK&&blankOutput!=route0,
+       "RouteProgress changes output after user enables route");
+ check(render(generator,blank,W,H,120)==kOfxStatOK,"manual route renders at later frame");
+ const auto routeStatic=blankOutput;
+ check(render(generator,blank,W,H,0)==kOfxStatOK&&blankOutput==routeStatic,
+       "unkeyed native route is static across playback");
+ overrideParam(blank,"RouteEndLongitude",70.);
+ check(render(generator,blank,W,H,0)==kOfxStatOK&&blankOutput!=routeStatic,
+       "manual route end coordinates directly control geometry");
+ // Edit-native camera remains keyframe-capable and is not overridden by JSON
+ // camera animation unless the user explicitly checks UseSceneCamera.
+ blank.params.params.at("Longitude")->keys={{0,-30},{80,30}};
+ check(render(generator,blank,W,H,0)==kOfxStatOK,"camera authored first key");
+ const auto nativeCamStart=blankOutput;
+ check(render(generator,blank,W,H,80)==kOfxStatOK&&blankOutput!=nativeCamStart,
+       "native camera keyframes control map over time");
+ check(call(generator,kOfxActionDestroyInstance,blank)==kOfxStatOK,
+       "destroy manual native generator");
+
  Effect g;init(generator,g,kOfxImageEffectContextGenerator);
  Bag preferences;check(call(generator,kOfxImageEffectActionGetClipPreferences,g,nullptr,&preferences)==kOfxStatOK,"clip preference");
  char*assoc=nullptr;check(getS(bh(preferences),kOfxImageEffectPropPreMultiplication,0,&assoc)==kOfxStatOK&&
