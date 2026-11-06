@@ -66,6 +66,26 @@ int main(){
     }
   }
   check(worldContinuous,"real-world Asian topology continuous across opposite seam");
+
+  // Golden spatial guard using the real default GeoJSON and the exact camera
+  // from the first Resolve 20 screenshot. The former renderer painted Asia's
+  // seam polygons as full-width horizontal stripes across this ocean column.
+  // Check multiple scanlines, not only a single synthetic polygon.
+  View worldView;worldView.width=640;worldView.height=360;
+  worldView.camera=evaluateCamera(sample,0);worldView.frame=0;
+  std::vector<uint8_t> worldPixels(640*360*4,0);
+  Surface worldOutput{worldPixels.data(),0,0,640,360,640*4,PixelFormat::ByteRGBA};
+  render(sample,world,worldView,worldOutput);
+  bool clearOcean=true;
+  for(int y:{10,25,40,70,150,210,240})
+    for(int x:{10,80,120}){
+      const size_t offset=(static_cast<size_t>(359-y)*640+x)*4;
+      clearOcean &= worldPixels[offset]==sample.style.ocean.r &&
+                    worldPixels[offset+1]==sample.style.ocean.g &&
+                    worldPixels[offset+2]==sample.style.ocean.b &&
+                    worldPixels[offset+3]==255;
+    }
+  check(clearOcean,"default whole-world render contains no false horizontal ocean bands");
   // Hole coordinates follow the same world repeat as their outer ring.
   auto holes=projectPolygonContinuous(data.features[0].polygons[0],seamCamera,640,360);
   check(holes.size()==2&&holes[0].size()>3&&holes[1].size()>3,
