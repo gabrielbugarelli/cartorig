@@ -2,6 +2,12 @@
 
 This protocol is **not executed in CI**; requires an actual Windows 11 x64 Resolve Studio 20.x installation. Always use a disposable project and timeline. Record exact Resolve build, GPU/driver, pixel aspect ratio, media FPS, UI scaling and Windows display resolution.
 
+## Default scene requirement (0.3-dev)
+
+- [ ] R20-00A. Insert a **new** CartoRig Map. Frames 0/96/239 identical with no manually authored keys; no Brazil–Venezuela auto-animation.
+- [ ] R20-00B. Set Country 1 ISO3 and animate Highlight opacity, then enable/animate a manual route. All behavior must originate from the Inspector, not JSON editing.
+- [ ] R20-00C. Inspector source SHA agrees with GitHub PR branch head, regardless of temporary PR merge commit.
+
 ## Install and discovery
 
 - [ ] R20-01. Build Release x64; run installer with Resolve closed; verify directory and all resources.

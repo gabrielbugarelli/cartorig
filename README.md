@@ -1,8 +1,16 @@
 # CartoRig Native — Edit-first OpenFX developer preview
 
-**Status: developer preview v0.2.0.** The Map Generator and its antimeridian rendering fix have been validated by a user in DaVinci Resolve Studio 20. The new Overlay/alpha, persistence, keyframe/retime controls and 4K pipeline still require formal in-Resolve acceptance.
+**Status: developer preview v0.3.0.** The Map Generator and its antimeridian rendering fix have been validated by a user in DaVinci Resolve Studio 20. The new Overlay/alpha, persistence, keyframe/retime controls and 4K pipeline still require formal in-Resolve acceptance.
 
 This repository is a new, independently compiled C++ project. It does not require Electron, SVG screenshots, `fuscript.exe`, the Workflow Integration bridge or the Fusion page for normal image generation.
+
+## Edit-first: blank map and user-authored animation (0.3-dev)
+
+**New maps no longer load the Brazil–Venezuela demonstration.** The bundled default is `data/default-map.cartorig-native.json`, with a static world camera, no camera keys, highlights, markers or routes. The old demonstration exists only as an optional repository sample, not inside the OFX bundle. Existing custom scenes are not overwritten.
+
+The Edit Inspector now exposes editable ISO3 country highlights, animated highlight strength, a user-enabled route with editable endpoints/curvature/width, marker labels and visibility, optional RGB palette overrides, plus the camera/opacity/retiming controls. **No keyframes are authored automatically.** Details and an exact Resolve 20 test flow: [Manual Edit-first workflow](docs/EDIT_FIRST_MANUAL_WORKFLOW.md).
+
+The Inspector build tag now identifies the *source commit* rather than the temporary GitHub Actions pull-request merge commit.
 
 ## Integration and stability phase (0.2-dev)
 
@@ -22,7 +30,7 @@ The verified current features and required **manual Resolve 20** checks are docu
 - Web Mercator camera, geographic pan/zoom/bearing, geographic point projections and inverse projections, fit-to-bounds, shortest-path dateline keyframe interpolation.
 - Country fill, borders, polygon holes, markers and ASCII bitmap labels, quadratic Bézier routes with reveal by approximate arc-length and arrowheads.
 - Scene JSON v1 with input limits, version validation, camera keys, route time windows and style palette. Camera coordinates/zoom/bearing and route reveal/opacity are also exposed as OFX keyframe-capable parameters.
-- Bundled example Brazil/Venezuela, CMake build, Windows bundle installer, cross-platform core/ABI builds in CI, standalone tests and PPM preview frames.
+- Neutral built-in world map (no auto-animation). Optional Brazil/Venezuela example remains in the repository for explicitly requested tests, never in the installer bundle. CMake, cross-platform CI, native simulated-host tests and static preview regression checks.
 
 ## Important limitations
 
@@ -48,7 +56,7 @@ cmake --build build -j2
 ctest --test-dir build --output-on-failure
 ```
 
-Bundle output: `build/CartoRigNative.ofx.bundle/Contents/Win64/CartoRigNative.ofx` on Windows or `Contents/Linux-x86-64/CartoRigNative.ofx` on Linux, with `Contents/Resources` containing licensed country data and example scene. Both OpenFX entries are contained in **one binary**. The standard OFX API headers are vendored, not Blackmagic proprietary headers or binaries.
+Bundle output: `build/CartoRigNative.ofx.bundle/Contents/Win64/CartoRigNative.ofx` on Windows or `Contents/Linux-x86-64/CartoRigNative.ofx` on Linux, with `Contents/Resources` containing the licensed country dataset and neutral default scene. Both OpenFX entries are contained in **one binary**. The standard OFX API headers are vendored, not Blackmagic proprietary headers or binaries.
 
 ## Install and remove (Windows)
 
@@ -62,29 +70,36 @@ Close Resolve. Use PowerShell **as administrator** and inspect the script before
 
 `Install.ps1 -WhatIf` previews the destination without modifying it. Installation refuses to overwrite an existing bundle; uninstall deletes only the CartoRig Native bundle, never external projects/scenes. Default install path: `%ProgramFiles%\Common Files\OFX\Plugins\CartoRigNative.ofx.bundle`.
 
-Restart DaVinci Resolve Studio 20. If the Generator is supported, search for **CartoRig Map (Edit)**. For a video layer, apply **CartoRig Overlay (Edit)** as OpenFX. Editing the bundled sample file modifies every instance that references it; to preserve a project, copy the sample scene to a project-owned path first and specify **Scene .json** in the Inspector.
+Restart DaVinci Resolve Studio 20. If the Generator is supported, search for **CartoRig Map (Edit)**. For a video layer, apply **CartoRig Overlay (Edit)** as OpenFX. New maps are neutral by default. Optional custom scene files should be project-owned; use **Scene .json** or **Embedded scene JSON** in the Inspector when needed.
 
 ## Inspector parameters
 
 | Parameter | Meaning |
 | --- | --- |
-| Scene .json | Blank uses bundled Brazil/Venezuela scene; otherwise a file path |
+| Scene .json | Blank uses bundled static world map (no animation); otherwise a file path |
 | GeoJSON | Blank uses bundled offline countries; otherwise GeoJSON FeatureCollection |
-| Use camera keyframes from scene | Enabled: evaluate the JSON camera track; disabled: use the native OFX camera parameters |
+| Use camera animation from imported scene | **Disabled by default.** Activate only for explicitly imported JSON camera tracks |
 | Camera longitude / latitude / zoom / bearing | Keyframe-capable native OFX parameters when JSON camera keys are disabled |
-| Route reveal | -1 uses the JSON timing; 0..1 controls progress via OFX keyframes |
+| Route reveal | Defaults to 1 (entire route when manually enabled); animate 0→1 to draw; -1 opts into JSON timing |
 | Cartography opacity | Global opacity for all map paints, including Filter overlay (default 0.7) |
 | Embedded scene JSON | Portable in-project scene; overrides external scene file |
 | Embedded GeoJSON | Portable in-project data; overrides external GeoJSON |
 | Scene offset / time scale | Shift, freeze and reverse JSON camera/route animation |
-| Installed plugin build | Shows the compiled build revision to distinguish stale binaries |
+| Country 1 / Country 2 (ISO3) | Blank initially; user chooses territories to highlight |
+| Highlight opacity | Animatable strength for user-selected countries |
+| Enable manual route | Disabled initially; creates editable route only on request |
+| Start / end longitude and latitude | Keyframe-capable geographic waypoints for the manual route |
+| Route curvature / width | Keyframe-capable route styling |
+| Show route endpoints / origin and destination labels | Optional user-controlled markers |
+| Override map colors and RGB controls | Optional native camera-independent color styling |
+| Installed plugin build | Shows the **source commit SHA** (not temporary PR merge) to distinguish binaries |
 
 **No automatic host-scene synchronization:** an external JSON file change may not invalidate a cached host frame until an Inspector parameter changes. Embed assets for project portability, or explicitly refresh the host when editing external files.
 
 ## Preview without Resolve
 
 ```bash
-./build/cartorig_preview data/countries.geojson samples/brasil-venezuela.cartorig-native.json 96 ./frame.ppm 3840 2160
+./build/cartorig_preview data/countries.geojson data/default-map.cartorig-native.json 96 ./frame.ppm 3840 2160
 ```
 
 A PPM is produced for engineering tests only; this is **not** a pre-render requirement in the actual OFX runtime.

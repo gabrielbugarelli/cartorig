@@ -1,5 +1,16 @@
 # CartoRig Native Edit-first — integration and stability acceptance (Resolve Studio 20)
 
+## v0.3 blank-map and user-directed animation changes
+
+The new default generator loads `data/default-map.cartorig-native.json`: world camera (0/0, zoom 1.3), no keys, routes, markers or highlighted countries. The Brazil/Venezuela sample is **not bundled**; it remains a repository-only optional fixture. The Inspector uses native camera controls by default, with imported JSON camera keys explicitly opt-in.
+
+The user can select two ISO3 territories, keyframe highlight opacity, enable a manual route with native keyframe-able geographic endpoints and reveal, and override RGB map colors. Regression tests include the neutral map at frames 0/96/239 and simulated-host interaction. See [practical guide](EDIT_FIRST_MANUAL_WORKFLOW.md).
+
+The SHA in the Inspector must correspond to the **source PR head** after this version, even when CI builds a temporary PR merge commit. Existing explicitly imported/embedded scenes are not erased on upgrade. Testing a fresh generator is necessary to verify changed defaults.
+
+**All these new UI controls need Resolve Studio 20 acceptance; the compiled C++ model and simulated OpenFX host are not substitutes for user testing.**
+
+
 ## Scope and evidence
 
 This development phase targets the five items requested after the first in-host map stabilisation:
@@ -19,9 +30,9 @@ This development phase targets the five items requested after the first in-host 
 - Generator output and Filter output request **premultiplied** output. The Filter also requests RGBA source/output components. The host-reported association on actual images overrides the request if the host provides it.
 - The Filter copies source footage, makes ocean transparent, then paints land, highlights, borders, markers and routes with global opacity. Filter default opacity is 0.7; Generator default is 1.0. At opacity 0, the Filter must be a pixel-identical pass-through.
 - The plain C++ map renderer does **not** require PNG export or access to Fusion nodes for evaluation.
-- `EmbeddedSceneJSON` and `EmbeddedCatalogJSON` are persistent OpenFX multiline text parameters; if non-empty, each takes precedence over `SceneFile`/`CatalogFile`. Scene JSON is capped at 2 MiB and GeoJSON at 16 MiB. If both inline and external are blank, the bundled sample and country dataset are used. Host project serialization of multiline data is specified by OFX, but **Resolve 20 support must be tested in a saved/reopened project**.
-- `UseSceneCamera=true` evaluates scene JSON camera keys; set it to false to animate the OFX Longitude, Latitude, Zoom and Bearing controls in the Edit Curve Editor. `RouteProgress=-1` uses JSON route timing; values 0–1 use native OFX keyframes. `SceneTimeOffset` and `SceneTimeScale` transform the evaluated scene frame: `(hostFrame-offset)*scale`, so 0 freezes and negative values reverse. Inspector camera parameters remain sampled at host time.
-- Existing project compatibility: new parameters default to the prior behavior (`SceneTimeOffset=0`, `SceneTimeScale=1`, blank embedded assets). The OpenFX plugin ID is unchanged; the version is advanced to 0.2-dev. Built-in country dataset is still distributed alongside the plugin.
+- `EmbeddedSceneJSON` and `EmbeddedCatalogJSON` are persistent OpenFX multiline text parameters; if non-empty, each takes precedence over `SceneFile`/`CatalogFile`. Scene JSON is capped at 2 MiB and GeoJSON at 16 MiB. If both inline and external are blank, the bundled neutral scene and country dataset are used. Host project serialization of multiline data is specified by OFX, but **Resolve 20 support must be tested in a saved/reopened project**.
+- `UseSceneCamera=false` by default; set it to true explicitly to evaluate imported JSON camera keys. Animate the OFX Longitude, Latitude, Zoom and Bearing controls in the Edit Curve Editor. `RouteProgress=-1` uses JSON route timing; values 0–1 use native OFX keyframes. `SceneTimeOffset` and `SceneTimeScale` transform the evaluated scene frame: `(hostFrame-offset)*scale`, so 0 freezes and negative values reverse. Inspector camera parameters remain sampled at host time.
+- Existing projects: explicitly imported/embedded scenes remain intact; the new bundled default intentionally changes from an animated demonstration to a static neutral map. Other parameters retain prior behavior where feasible (`SceneTimeOffset=0`, `SceneTimeScale=1`, blank embedded assets). The OpenFX plugin ID is unchanged; the version is advanced to 0.2-dev. Built-in country dataset is still distributed alongside the plugin.
 - The Inspector shows `Installed plugin build`, making it easier to distinguish stale OFX binaries.
 
 ## Automated tests and CI gates
@@ -52,7 +63,7 @@ Use a **disposable project**; write down exact Resolve 20.x build, Windows build
 6. **Routes:** Set `Route reveal` to 0, keyframe to 1 then back to 0. Edit its native curve. Restore `-1` for JSON route timing. Confirm no coordinate jumps during playback, reverse, trimming and retiming of the clip.
 7. **Scene-time controls:** Change `Scene time scale` from 1 to -1 and 0 (reverse/hold); use positive offset to shift when route appears. Seek in random order and return to the same frame; verify identical output.
 8. **Persistence:** Paste a *small* custom scene into `Embedded scene JSON (portable)`, set an external `Scene .json` path to something deliberately unrelated, and verify embedded scene takes precedence. Do likewise for a small custom FeatureCollection in `Embedded GeoJSON`. Save project, close Resolve, reopen, verify strings/controls and output identical. Duplicate the clip and change the duplicate only. Move the project to a second workstation with plugin installed; no external asset should be required for the embedded test.
-9. **Offline data fallback:** Clear both embedded fields and both external paths; verify bundled Brazil–Venezuela sample still loads and renders. This confirms backward compatibility for pre-0.2 projects.
+9. **Offline data fallback:** Clear both embedded fields and both external paths; verify the static neutral map appears with no automatic camera/route animation. An explicitly imported older scene still loads, but the sample is no longer the default.
 10. **Export:** Test 1920×1080 and 2560×1440 in Deliver to a supported codec, inspect frames 0/96/239, compare Viewer appearance. Repeat 3840×2160 with playback/cache. Check output alpha only with a codec/workflow that actually preserves an alpha channel.
 11. **Cache:** Play, seek, duplicate Map and Overlay clips, save/reopen, enable/disable Render Cache, change scene-time parameters. Confirm frame changes are not incorrectly cached and separate clip instances do not leak state.
 12. **Load:** Duplicate/animate at least 20 independent map clips, random-seek for 10 minutes at 1080p, then export 4K sample. Monitor VRAM/RAM, GPU/CPU, crashes and hang. Record quantitative results, not merely PASS.
