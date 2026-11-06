@@ -46,3 +46,46 @@ CI tests are **not a replacement** for these host checks. The full Geographic Re
 - Real country raster path: C++ `NaturalEarthCatalog::countryPolygons()` → `cartorig::Dataset` → existing CPU renderer at all three scales.
 - Parallel Windows/Linux CMake, CTest, ASAN/UBSAN and OpenFX simulated host runs.
 - The complete **Natural Earth** claim is intentionally blocked until every raster family and source variant is acquired, converted and checked.
+
+
+## Experimental optional typed vector overlay (v0.4.0-dev, after 215-layer audit)
+
+The **Advanced: import custom scenes** section now includes:
+
+- **Vector GeoPackage:** the primary official aggregate GeoPackage for country base rendering.
+- **Vector detail:** Auto / 110m / 50m / 10m, unchanged.
+- **Additional vector layer (ne_...):** an exact SQLite table name (for example,
+  `ne_10m_rivers_lake_centerlines`, `ne_10m_populated_places`, or
+  `ne_10m_admin_1_states_provinces`). Blank disables the overlay entirely.
+- **Additional layer GeoPackage (optional):** a separate path for the supplemental
+  33-layer GeoPackage. Blank reads the additional layer from the primary GeoPackage.
+  Using a separate path does not replace the country base.
+
+The typed C++ reader supports GeoPackage Point/MultiPoint, LineString/MultiLineString
+and Polygon/MultiPolygon including polygon holes. It validates source table identifiers
+and EPSG:4326, reads strictly in read-only mode, bounds rows to 20,000 and total vertices
+to 2,000,000, and fails explicitly rather than partially drawing an oversized table.
+The renderer overlays polygons, antimeridian-unwrapped lines, and point markers onto
+the existing map. It uses fixed diagnostic colors in this iteration; individual
+styling, a dropdown/catalog picker, viewport streaming, raster sources and selection
+by click are **not** implemented.
+
+### Manual host acceptance for this experimental addition
+
+1. Open a new CartoRig Map or Overlay in Resolve 20 Edit; verify blank
+   **Additional vector layer** keeps the previous default output unchanged.
+2. Supply the verified primary `natural_earth_vector.gpkg`; choose
+   `ne_10m_rivers_lake_centerlines`, then inspect expected river strokes.
+3. Change the selected layer to `ne_10m_populated_places`; verify point symbols.
+   Try `ne_10m_admin_1_states_provinces` to inspect actual polygons.
+4. Use the **Additional layer GeoPackage** path to choose a verified supplemental
+   GeoPackage table while retaining the original country basemap.
+5. Scrub/seek, zoom across the antimeridian, render 4K, save/reopen the project
+   and compare frames. Test both Generator and Overlay against video.
+6. Try a nonexistent layer or invalid file path; it must report failure rather
+   than download or silently fabricate geographic data.
+
+The offline synthetic C++ test checks rendering of all three geometry families and
+rejection of injected SQL table-name text. This is **not** a substitute for host
+acceptance or publisher-wide render certification. Do not treat the 215/215 source
+audit as proof that every layer is drawable within the current 20k-feature budget.
