@@ -273,6 +273,14 @@ OfxStatus entry(const char *action,const void *handle,OfxPropertySetHandle args,
  if(!std::strcmp(action,kOfxActionUnload)){std::lock_guard<std::mutex> lock(cacheMutex);cache.clear();return kOfxStatOK;}
  if(!std::strcmp(action,kOfxActionDescribe))return describe((OfxImageEffectHandle)handle,filter);
  if(!std::strcmp(action,kOfxImageEffectActionDescribeInContext))return describeInContext((OfxImageEffectHandle)handle,filter);
+ if(!std::strcmp(action,kOfxActionInstanceChanged)){
+   // Log activation without requiring a successful render or valid OFX image.
+   char *changed=nullptr;
+   if(args&&prop->propGetString(args,kOfxPropName,0,&changed)==kOfxStatOK&&
+      changed&&!std::strcmp(changed,"DiagnosticLog"))
+     writeDiagnostics("INSPECTOR DiagnosticLog changed; render may not have started yet");
+   return kOfxStatReplyDefault;
+ }
  if(!std::strcmp(action,kOfxImageEffectActionGetClipPreferences)){
    // JSON-based camera/route motion changes per frame without animating any OFX parameter.
    if(!out)return kOfxStatFailed;
