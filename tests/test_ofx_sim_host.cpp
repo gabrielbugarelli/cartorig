@@ -303,6 +303,11 @@ int main(int argc,char**argv){
    setS(bh(regionAction),kOfxPropName,0,"GeographicRegionQuery");
    check(call(generator,kOfxActionInstanceChanged,styled,&regionAction)==kOfxStatReplyDefault,
          "offline type-filtered region search is host-action driven");
+   char *matchName=nullptr;
+   check(getS(bh(styled.params.params.at("GeographicRegionMatch")->properties),
+              kOfxParamPropChoiceOption,0,&matchName)==kOfxStatOK&&
+         matchName&&std::strstr(matchName,"Brazil")!=nullptr,
+         "location dropdown displays real SQLite country matching query");
    auto &regionPixels=styled.clips.at("Output")->pixels;
    check(render(generator,styled,W,H,0)==kOfxStatOK,
          "typed region map baseline renders");
