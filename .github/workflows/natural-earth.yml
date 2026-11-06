@@ -138,6 +138,10 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+      - name: Compile native C++ OpenFX map renderer smoke executable
+        run: |
+          cmake -S . -B build/natural-earth/native-preview -DCMAKE_BUILD_TYPE=Release -DCARTORIG_BUILD_TESTS=ON
+          cmake --build build/natural-earth/native-preview --target cartorig_ne_preview -j2
       - name: Validate 182 official GeoPackage layers plus 33 SHA-pinned supplements
         run: python -m tools.natural_earth.probe_vector_complete
       - name: Publish complete-vector report, never upload the huge datasets

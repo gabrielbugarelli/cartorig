@@ -13,6 +13,7 @@ import hashlib
 import json
 from pathlib import Path
 import sqlite3
+import subprocess
 import zipfile
 
 from tools.natural_earth.inventory import download_and_hash
@@ -69,6 +70,18 @@ def execute(root:Path)->dict:
             summary["main_layer_tables"]=db.execute("SELECT COUNT(*) FROM layers").fetchone()[0]
             summary["country_search_entries"]=db.execute(
                 "SELECT COUNT(*) FROM regions WHERE kind='country'").fetchone()[0]
+        preview=Path("build/natural-earth/native-preview/cartorig_ne_preview")
+        if not preview.is_file():
+            raise ValueError("real Natural Earth render test executable not compiled")
+        render_checks={}
+        for scale in ("110m","50m","10m"):
+            proc=subprocess.run((str(preview),str(gpkg),scale),capture_output=True,
+                                text=True,encoding="utf-8",timeout=120)
+            if proc.returncode!=0:
+                raise ValueError("Native C++ real-vector render failed for "+
+                                 scale+": "+proc.stderr[:400])
+            render_checks[scale]=proc.stdout.strip()
+        summary["real_native_render"]=render_checks
         summary["status"]="VERIFIED_VECTOR_215" if summary["vector_complete"] else "INCOMPLETE_VECTOR"
         if not summary["vector_complete"]:
             raise ValueError("vector source coverage is incomplete")
