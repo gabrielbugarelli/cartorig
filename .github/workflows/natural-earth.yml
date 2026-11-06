@@ -21,7 +21,7 @@ jobs:
         with:
           python-version: ${{ matrix.python }}
       - name: Exercise offline builder without network
-        run: python -m unittest discover -s tests -p "test_natural_earth.py" -v
+        run: python -m unittest discover -s tests -p "test_natural_earth*.py" -v
       - name: Assert pinned official layer manifest
         run: |
           python - <<'PY'
@@ -33,3 +33,24 @@ jobs:
           assert sum(d["summary"].values())==215
           print("PASS: 215 upstream vector layers, none falsely marked imported")
           PY
+
+  source-discovery:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Enumerate the eight official source pages and raster families
+        continue-on-error: true
+        run: |
+          mkdir -p build/natural-earth
+          python tools/natural_earth/inventory.py --output build/natural-earth/official_sources.json
+      - name: Always preserve the official source audit evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: NaturalEarth-Source-Audit
+          path: build/natural-earth/official_sources.json
+          if-no-files-found: warn
