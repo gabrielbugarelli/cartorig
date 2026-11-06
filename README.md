@@ -1,5 +1,10 @@
 # CartoRig Native — Edit-first OpenFX developer preview
 
+## Natural Earth complete offline backend (active development)
+
+The separate [Natural Earth offline integration branch](docs/NATURAL_EARTH_OFFLINE_BACKEND.md) adds a pinned 215-layer source inventory, audits official raster/vector downloads, a strict archive integrity pipeline, an FTS5/R*Tree GeoPackage index and a native C++ read-only search bridge. These are **backend foundations**, not a complete installation. The current OFX map renderer is deliberately unchanged until Natural Earth geometry and style integration pass host tests. No runtime HTTP/network dependency is introduced.
+
+
 **Status: developer preview v0.3.0.** The Map Generator and its antimeridian rendering fix have been validated by a user in DaVinci Resolve Studio 20. The new Overlay/alpha, persistence, keyframe/retime controls and 4K pipeline still require formal in-Resolve acceptance.
 
 This repository is a new, independently compiled C++ project. It does not require Electron, SVG screenshots, `fuscript.exe`, the Workflow Integration bridge or the Fusion page for normal image generation.
