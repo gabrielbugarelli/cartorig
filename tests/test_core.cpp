@@ -73,17 +73,17 @@ int main(){
   // Check multiple scanlines, not only a single synthetic polygon.
   View worldView;worldView.width=640;worldView.height=360;
   worldView.camera=evaluateCamera(sample,0);worldView.frame=0;
-  std::vector<uint8_t> worldPixels(640*360*4,0);
-  Surface worldOutput{worldPixels.data(),0,0,640,360,640*4,PixelFormat::ByteRGBA};
+  std::vector<uint8_t> worldRasterPixels(640*360*4,0);
+  Surface worldOutput{worldRasterPixels.data(),0,0,640,360,640*4,PixelFormat::ByteRGBA};
   render(sample,world,worldView,worldOutput);
   bool clearOcean=true;
   for(int y:{10,25,40,70,150,210,240})
     for(int x:{10,80,120}){
       const size_t offset=(static_cast<size_t>(359-y)*640+x)*4;
-      clearOcean &= worldPixels[offset]==sample.style.ocean.r &&
-                    worldPixels[offset+1]==sample.style.ocean.g &&
-                    worldPixels[offset+2]==sample.style.ocean.b &&
-                    worldPixels[offset+3]==255;
+      clearOcean &= worldRasterPixels[offset]==sample.style.ocean.r &&
+                    worldRasterPixels[offset+1]==sample.style.ocean.g &&
+                    worldRasterPixels[offset+2]==sample.style.ocean.b &&
+                    worldRasterPixels[offset+3]==255;
     }
   check(clearOcean,"default whole-world render contains no false horizontal ocean bands");
   // Hole coordinates follow the same world repeat as their outer ring.
