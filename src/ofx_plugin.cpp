@@ -154,6 +154,16 @@ cartorig::Surface surfaceOf(OfxPropertySetHandle image){cartorig::Surface s;void
 }
 void copySource(cartorig::Surface source,cartorig::Surface dst){const int bytes=dst.format==cartorig::PixelFormat::FloatRGBA?16:4;if(source.format!=dst.format)throw std::runtime_error("source/output depths do not match");clearRegion(dst);int x0=std::max(dst.x1,source.x1),x1=std::min(dst.x2,source.x2),y0=std::max(dst.y1,source.y1),y1=std::min(dst.y2,source.y2);for(int y=y0;y<y1;++y){auto *s=static_cast<char*>(source.data)+static_cast<ptrdiff_t>(y-source.y1)*source.rowBytes+static_cast<ptrdiff_t>(x0-source.x1)*bytes;auto *d=static_cast<char*>(dst.data)+static_cast<ptrdiff_t>(y-dst.y1)*dst.rowBytes+static_cast<ptrdiff_t>(x0-dst.x1)*bytes;std::memcpy(d,s,static_cast<size_t>(x1-x0)*bytes);}}
 OfxStatus render(OfxImageEffectHandle e,OfxPropertySetHandle args){Instance *i=instance(e);if(!i)return kOfxStatFailed;double time=0;if(readProp(args,kOfxPropTime,0,time)!=kOfxStatOK)return kOfxStatFailed;
+ const bool diagnosticLogging=intAt(i->diagnosticLog,time,0)!=0;
+ const int diagnosticMode=intAt(i->diagnosticMode,time,0);
+ int gpuFlag=0;
+ for(const char *key:{"OfxImageEffectPropOpenCLEnabled","OfxImageEffectPropCudaEnabled","OfxImageEffectPropMetalEnabled"}){
+   int enabled=0;if(prop->propGetInt(args,key,0,&enabled)==kOfxStatOK&&enabled)gpuFlag=1;
+ }
+ if(gpuFlag){
+   if(diagnosticLogging)writeDiagnostics("GPU pointer supplied, cannot use CPU pixel writer");
+   return kOfxStatErrUnsupported;
+ }
  ImageLease output;if(fx->clipGetImage(i->output,time,nullptr,&output.image)!=kOfxStatOK||!output.image)return kOfxStatFailed;
  auto target=surfaceOf(output.image);
  std::string sceneFile,datasetFile;stringAt(i->sceneFile,time,sceneFile);stringAt(i->datasetFile,time,datasetFile);
@@ -168,8 +178,34 @@ OfxStatus render(OfxImageEffectHandle e,OfxPropertySetHandle args){Instance *i=i
  // Rendering outside that region can race other Resolve render threads.
  int window[4]{};
  if(prop->propGetIntN(args,kOfxImageEffectPropRenderWindow,4,window)!=kOfxStatOK)return kOfxStatErrValue;
+ if(diagnosticLogging){
+   char *depth=nullptr,*components=nullptr,*premult=nullptr;
+   prop->propGetString(output.image,kOfxImageEffectPropPixelDepth,0,&depth);
+   prop->propGetString(output.image,kOfxImageEffectPropComponents,0,&components);
+   prop->propGetString(output.image,kOfxImageEffectPropPreMultiplication,0,&premult);
+   double range[2]{-1,-1};
+   const OfxStatus rangeStatus=prop->propGetDoubleN(effProps,kOfxImageEffectPropFrameRange,2,range);
+   std::ostringstream msg;
+   msg<<"render mode="<<diagnosticMode<<" isFilter="<<i->overlay
+      <<" time="<<time<<" rangeStatus="<<rangeStatus
+      <<" range="<<range[0]<<","<<range[1]
+      <<" project="<<w<<"x"<<h
+      <<" scale="<<scaleX<<","<<scaleY
+      <<" fullView="<<width<<"x"<<height
+      <<" allocationBounds="<<target.x1<<","<<target.y1<<","<<target.x2<<","<<target.y2
+      <<" renderWindow="<<window[0]<<","<<window[1]<<","<<window[2]<<","<<window[3]
+      <<" pitch="<<target.rowBytes
+      <<" depth="<<(depth?depth:"missing")
+      <<" components="<<(components?components:"missing")
+      <<" premult="<<(premult?premult:"missing");
+   writeDiagnostics(msg.str());
+ }
  target=cartorig::cropSurface(target,window[0],window[1],window[2],window[3]);
  if(!target.data)return kOfxStatOK;
+ if(diagnosticMode>0&&diagnosticMode<=4){
+   cartorig::renderDiagnosticPattern(target,width,height,diagnosticMode);
+   return kOfxStatOK;
+ }
  cartorig::View view;view.width=width;view.height=height;view.frame=time;view.camera=evaluateCamera(*scene,time);
  if(!intAt(i->useSceneKeys,time,1)){view.camera.lon=doubleAt(i->lon,time,view.camera.lon);view.camera.lat=doubleAt(i->lat,time,view.camera.lat);view.camera.zoom=doubleAt(i->zoom,time,view.camera.zoom);view.camera.bearing=doubleAt(i->bearing,time,view.camera.bearing);}
  view.routeProgress=doubleAt(i->route,time,-1);double opacity=std::clamp(doubleAt(i->opacity,time,1),0.0,1.0);
