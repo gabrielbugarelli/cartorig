@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(CartoRigNative VERSION 0.3.0 LANGUAGES CXX)
+project(CartoRigNative VERSION 0.4.0 LANGUAGES CXX)
 option(CARTORIG_BUILD_TESTS "Build the standalone C++ core tests" ON)
 option(CARTORIG_SANITIZERS "Build with address/undefined-behavior sanitizers (Clang/GCC)" OFF)
 if(CARTORIG_SANITIZERS AND NOT MSVC)

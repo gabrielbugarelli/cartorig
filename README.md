@@ -2,10 +2,12 @@
 
 ## Natural Earth complete offline backend (active development)
 
-The separate [Natural Earth offline integration branch](docs/NATURAL_EARTH_OFFLINE_BACKEND.md) adds a pinned 215-layer source inventory, audits official raster/vector downloads, a strict archive integrity pipeline, an FTS5/R*Tree GeoPackage index and a native C++ read-only search bridge. These are **backend foundations**, not a complete installation. The current OFX map renderer is deliberately unchanged until Natural Earth geometry and style integration pass host tests. No runtime HTTP/network dependency is introduced.
+The [Natural Earth integration](docs/NATURAL_EARTH_OFFLINE_BACKEND.md) audits the complete 215-layer pinned vector source (182 official aggregate GeoPackage layers plus 33 SHA-verified supplements), implements an offline SQLite FTS5/RTree search catalog and a native C++ geometry decoder. It also provides **opt-in local Natural Earth country rendering inside the OpenFX effect** at 110m / 50m / 10m, with native data load and rendering verified by CI on the real publisher GeoPackage.
+
+**This is a v0.4.0 developer preview, not a complete Natural Earth installation.** Raster variants, the large offline data installer, other physical/cultural map-layer rendering, Geographic Region search Inspector, independent region colors, and real DaVinci Resolve 20 acceptance are still outstanding. No network call is introduced in the plugin runtime. See [Edit integration test guide](docs/NATURAL_EARTH_EDIT_BRIDGE.md).
 
 
-**Status: developer preview v0.3.0.** The Map Generator and its antimeridian rendering fix have been validated by a user in DaVinci Resolve Studio 20. The new Overlay/alpha, persistence, keyframe/retime controls and 4K pipeline still require formal in-Resolve acceptance.
+**Status: developer preview v0.4.0.** The Map Generator and its antimeridian rendering fix have been validated by a user in DaVinci Resolve Studio 20. The new Overlay/alpha, persistence, keyframe/retime controls and 4K pipeline still require formal in-Resolve acceptance.
 
 This repository is a new, independently compiled C++ project. It does not require Electron, SVG screenshots, `fuscript.exe`, the Workflow Integration bridge or the Fusion page for normal image generation.
 

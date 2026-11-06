@@ -88,7 +88,7 @@ void writeDiagnostics(const std::string &message) noexcept {
       if(file) {
         file<<std::chrono::duration_cast<std::chrono::seconds>(
           std::chrono::system_clock::now().time_since_epoch()).count()
-          <<" CartoRigNative 0.3.0-dev/"<<CARTORIG_BUILD_SHA<<" "<<message<<"\n";
+          <<" CartoRigNative 0.4.0-dev/"<<CARTORIG_BUILD_SHA<<" "<<message<<"\n";
         file.flush();
         if(file.good())return;
       }
@@ -223,7 +223,7 @@ void defineNaturalEarthDetailChoice(OfxParamSetHandle ps){
   OfxPropertySetHandle properties=nullptr;
   if(param->paramDefine(ps,kOfxParamTypeChoice,"NaturalEarthDetail",&properties)!=kOfxStatOK)
     throw std::runtime_error("Natural Earth detail choice parameter unavailable");
-  prop->propSetString(properties,kOfxPropLabel,0,"Natural Earth detail");
+  prop->propSetString(properties,kOfxPropLabel,0,"Vector detail");
   prop->propSetString(properties,kOfxParamPropParent,0,"AdvancedScene");
   prop->propSetInt(properties,kOfxParamPropDefault,0,0);
   const char* levels[]={"Auto (zoom dependent)","110m (overview)","50m (medium)","10m (detailed)"};
@@ -236,7 +236,7 @@ void defineVersionLabel(OfxParamSetHandle ps){
     throw std::runtime_error("version label parameter failed");
   prop->propSetString(props,kOfxPropLabel,0,"Installed plugin build");
   prop->propSetString(props,kOfxParamPropStringMode,0,kOfxParamStringIsLabel);
-  const std::string info=std::string("0.3.0-dev / ")+CARTORIG_BUILD_SHA;
+  const std::string info=std::string("0.4.0-dev / ")+CARTORIG_BUILD_SHA;
   prop->propSetString(props,kOfxParamPropDefault,0,info.c_str());
   prop->propSetInt(props,kOfxParamPropPersistant,0,0);
   prop->propSetInt(props,kOfxParamPropAnimates,0,0);
@@ -322,7 +322,7 @@ OfxStatus describeInContext(OfxImageEffectHandle e,bool filter){
  defineNativeDouble(ps,"HighlightB","Highlight blue",192,0,255,"MapColors");
 
  defineNativeGroup(ps,"AdvancedScene","Advanced: import custom scenes",false);
- defineString(ps,"NaturalEarthVectorGpkg","Natural Earth vector GeoPackage (offline)","AdvancedScene");
+ defineString(ps,"NaturalEarthVectorGpkg","Vector GeoPackage","AdvancedScene");
  defineNaturalEarthDetailChoice(ps);
  defineString(ps,"SceneFile","Scene .json (blank: empty map)","AdvancedScene");
  defineString(ps,"CatalogFile","GeoJSON (blank: offline countries)","AdvancedScene");

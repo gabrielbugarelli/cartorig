@@ -22,6 +22,18 @@
 
 **Important:** These are two independent catalogs: 215 official *source vector layers* and 269 *publisher download links*. A publisher ZIP may contain multiple layers; some links are aggregate packages or alternate releases. They must not be added together or interpreted as a total number of unique dataset themes.
 
+## Real-data vector certification and Edit-first render bridge (Nov 6)
+
+**Completed:** the pinned Natural Earth `v5.1.2` source set contains **215 distinct vector layers**. The publisher's aggregate GeoPackage yields **182** of those layers. The complementary **33** official GeoJSON datasets were downloaded, verified against upstream Git blob identities, converted to a separate standards-compatible GeoPackage, and validated as **8,116 real geographic features**. A combined offline coverage gate passed with **215 / 215** source-vector layers.
+
+**Real rendering evidence:** the native C++ adapter read the publisher's aggregate GeoPackage and painted 177 country features / 288 polygons at 110m, 242 / 1,620 at 50m, and 258 / 4,274 at 10m. All three scale render tests passed using the existing raster core.
+
+The OpenFX Generator/Filter now expose an opt-in **Vector GeoPackage** file parameter and a **Vector detail** selection under Advanced. Embedded GeoJSON and explicit custom GeoJSON retain precedence, and blank values still load the previously validated bundled world map.
+
+**Unfinished:** The cataloged physical/cultural layers beyond country polygons, the complete raster repository, a no-network data pack installer and the Geographic Region search UI remain work in progress. Do not confuse *complete vector source coverage* with *complete Natural Earth feature parity*.
+
+[Edit/Resolve 20 manual testing procedure](NATURAL_EARTH_EDIT_BRIDGE.md).
+
 ## Code implemented in this branch
 
 - `data/natural-earth/vector_layers_v5.1.2.json`: pinned and auditable upstream layer list with per-layer Git blob identities. These are **not** archive SHA256 values.
