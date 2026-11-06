@@ -121,7 +121,9 @@ if(CARTORIG_BUILD_TESTS)
     add_test(NAME cartorig_ne_native_offline_search
       COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tests/test_ne_cpp.py
         $<TARGET_FILE:cartorig_ne_lookup> ${CMAKE_CURRENT_SOURCE_DIR}
-        $<TARGET_FILE:cartorig_ne_preview>)
+        $<TARGET_FILE:cartorig_ne_preview>
+        $<TARGET_FILE:cartorig_ofx_sim_host_tests>
+        $<TARGET_FILE:CartoRigNative>)
   endif()
   add_executable(cartorig_native_controls_tests tests/test_native_controls.cpp)
   target_link_libraries(cartorig_native_controls_tests PRIVATE cartorig_core)
