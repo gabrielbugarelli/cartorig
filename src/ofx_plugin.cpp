@@ -5,6 +5,10 @@
 #include "ofxParam.h"
 #include "ofxProperty.h"
 #include <algorithm>
+#include <atomic>
+#include <chrono>
+#include <fstream>
+#include <sstream>
 #include <cmath>
 #include <cstring>
 #include <filesystem>
@@ -28,7 +32,7 @@ const OfxPropertySuiteV1 *prop=nullptr;
 const OfxParameterSuiteV1 *param=nullptr;
 struct Instance {
   OfxImageClipHandle output=nullptr,source=nullptr;
-  OfxParamHandle sceneFile=nullptr,datasetFile=nullptr,useSceneKeys=nullptr,lon=nullptr,lat=nullptr,zoom=nullptr,bearing=nullptr,route=nullptr,opacity=nullptr;
+  OfxParamHandle sceneFile=nullptr,datasetFile=nullptr,useSceneKeys=nullptr,lon=nullptr,lat=nullptr,zoom=nullptr,bearing=nullptr,route=nullptr,opacity=nullptr,diagnosticMode=nullptr,diagnosticLog=nullptr;
   bool overlay=false;
 };
 struct CacheEntry {
@@ -38,6 +42,21 @@ struct CacheEntry {
 };
 std::mutex cacheMutex;
 std::unordered_map<std::string,CacheEntry> cache;
+std::mutex diagnosticsMutex;
+std::atomic<unsigned> diagnosticsCount{0};
+void writeDiagnostics(const std::string &message) noexcept {
+  try {
+    if(diagnosticsCount.fetch_add(1,std::memory_order_relaxed)>=250)return;
+    std::lock_guard<std::mutex> lock(diagnosticsMutex);
+    const auto dir=std::filesystem::temp_directory_path()/"CartoRigNative";
+    std::filesystem::create_directories(dir);
+    std::ofstream file(dir/"ofx-diagnostics.log",std::ios::app);
+    if(file)file<<std::chrono::duration_cast<std::chrono::seconds>(
+      std::chrono::system_clock::now().time_since_epoch()).count()
+      <<" CartoRigNative 0.1.0-dev "<<message<<"\n";
+  }catch(...){/* Diagnostic logging must never interrupt a render. */}
+}
+
 std::string defaultAsset(const char *filename){
   std::filesystem::path module;
 #ifdef _WIN32
@@ -74,6 +93,17 @@ Instance *instance(OfxImageEffectHandle e){OfxPropertySetHandle set=nullptr;if(f
 void defineDouble(OfxParamSetHandle set,const char*name,const char*label,double val,double lo,double hi){OfxPropertySetHandle p=nullptr;if(param->paramDefine(set,kOfxParamTypeDouble,name,&p)!=kOfxStatOK)throw std::runtime_error("param define");prop->propSetString(p,kOfxPropLabel,0,label);prop->propSetDouble(p,kOfxParamPropDefault,0,val);prop->propSetDouble(p,kOfxParamPropMin,0,lo);prop->propSetDouble(p,kOfxParamPropMax,0,hi);prop->propSetDouble(p,kOfxParamPropDisplayMin,0,lo);prop->propSetDouble(p,kOfxParamPropDisplayMax,0,hi);prop->propSetInt(p,kOfxParamPropAnimates,0,1);}
 void defineString(OfxParamSetHandle set,const char *name,const char *label){OfxPropertySetHandle p=nullptr;if(param->paramDefine(set,kOfxParamTypeString,name,&p)!=kOfxStatOK)throw std::runtime_error("param define string");prop->propSetString(p,kOfxPropLabel,0,label);prop->propSetString(p,kOfxParamPropDefault,0,"");prop->propSetInt(p,kOfxParamPropAnimates,0,0);prop->propSetString(p,kOfxParamPropStringMode,0,kOfxParamStringIsFilePath);}
 void defineBoolean(OfxParamSetHandle set,const char *name,const char *label,bool value){OfxPropertySetHandle p=nullptr;if(param->paramDefine(set,kOfxParamTypeBoolean,name,&p)!=kOfxStatOK)throw std::runtime_error("param define bool");prop->propSetString(p,kOfxPropLabel,0,label);prop->propSetInt(p,kOfxParamPropDefault,0,value?1:0);prop->propSetInt(p,kOfxParamPropAnimates,0,0);}
+void defineDiagnosticChoice(OfxParamSetHandle ps){
+  OfxPropertySetHandle p=nullptr;
+  if(param->paramDefine(ps,kOfxParamTypeChoice,"DiagnosticMode",&p)!=kOfxStatOK)
+    throw std::runtime_error("cannot create diagnostic choice");
+  prop->propSetString(p,kOfxPropLabel,0,"Diagnostic output (test only)");
+  prop->propSetInt(p,kOfxParamPropDefault,0,0);
+  prop->propSetInt(p,kOfxParamPropAnimates,0,0);
+  const char *names[]{"Normal map","RGB bars","Grayscale ramp","Alpha split","Solid white"};
+  for(int index=0;index<5;++index)
+    prop->propSetString(p,kOfxParamPropChoiceOption,index,names[index]);
+}
 void stringAt(OfxParamHandle handle,double time,std::string &str){char *value=nullptr;if(param->paramGetValueAtTime(handle,time,&value)==kOfxStatOK&&value)str=value;}
 double doubleAt(OfxParamHandle handle,double time,double fallback){double value=fallback;if(handle)param->paramGetValueAtTime(handle,time,&value);return value;}
 int intAt(OfxParamHandle handle,double time,int fallback){int value=fallback;if(handle)param->paramGetValueAtTime(handle,time,&value);return value;}
@@ -96,12 +126,13 @@ OfxStatus describeInContext(OfxImageEffectHandle e,bool filter){OfxPropertySetHa
  defineString(ps,"SceneFile","Scene .json (blank: bundled sample)");defineString(ps,"CatalogFile","GeoJSON (blank: offline countries)");defineBoolean(ps,"UseSceneCamera","Use camera keyframes from scene",true);
  defineDouble(ps,"Longitude","Camera longitude",-61,-180,180);defineDouble(ps,"Latitude","Camera latitude",-12,-85,85);defineDouble(ps,"Zoom","Camera zoom",3.2,0,18);defineDouble(ps,"Bearing","Camera bearing (degrees)",0,-360,360);
  defineDouble(ps,"RouteProgress","Route reveal (-1: scene)",-1,-1,1);defineDouble(ps,"Opacity","Cartography opacity",1,0,1);
+ defineDiagnosticChoice(ps);defineBoolean(ps,"DiagnosticLog","Write OFX diagnostic log",false);
  return kOfxStatOK;
 }
 OfxStatus createInstance(OfxImageEffectHandle e,bool filter){auto i=std::make_unique<Instance>();i->overlay=filter;OfxParamSetHandle ps=nullptr;if(fx->getParamSet(e,&ps)!=kOfxStatOK)return kOfxStatFailed;
  if(fx->clipGetHandle(e,kOfxImageEffectOutputClipName,&i->output,nullptr)!=kOfxStatOK)return kOfxStatFailed;
  if(filter&&fx->clipGetHandle(e,kOfxImageEffectSimpleSourceClipName,&i->source,nullptr)!=kOfxStatOK)return kOfxStatFailed;
- for(auto t:std::vector<std::pair<const char*,OfxParamHandle*>>{{"SceneFile",&i->sceneFile},{"CatalogFile",&i->datasetFile},{"UseSceneCamera",&i->useSceneKeys},{"Longitude",&i->lon},{"Latitude",&i->lat},{"Zoom",&i->zoom},{"Bearing",&i->bearing},{"RouteProgress",&i->route},{"Opacity",&i->opacity}})if(param->paramGetHandle(ps,t.first,t.second,nullptr)!=kOfxStatOK)return kOfxStatFailed;
+ for(auto t:std::vector<std::pair<const char*,OfxParamHandle*>>{{"SceneFile",&i->sceneFile},{"CatalogFile",&i->datasetFile},{"UseSceneCamera",&i->useSceneKeys},{"Longitude",&i->lon},{"Latitude",&i->lat},{"Zoom",&i->zoom},{"Bearing",&i->bearing},{"RouteProgress",&i->route},{"Opacity",&i->opacity},{"DiagnosticMode",&i->diagnosticMode},{"DiagnosticLog",&i->diagnosticLog}})if(param->paramGetHandle(ps,t.first,t.second,nullptr)!=kOfxStatOK)return kOfxStatFailed;
  OfxPropertySetHandle p=nullptr;fx->getPropertySet(e,&p);if(prop->propSetPointer(p,kOfxPropInstanceData,0,i.get())!=kOfxStatOK)return kOfxStatFailed;i.release();return kOfxStatOK;
 }
 OfxStatus destroyInstance(OfxImageEffectHandle e){Instance *i=instance(e);if(!i)return kOfxStatOK;OfxPropertySetHandle p=nullptr;fx->getPropertySet(e,&p);prop->propSetPointer(p,kOfxPropInstanceData,0,nullptr);delete i;return kOfxStatOK;}
@@ -114,6 +145,11 @@ cartorig::Surface surfaceOf(OfxPropertySetHandle image){cartorig::Surface s;void
  if(depth&&!strcmp(depth,kOfxBitDepthByte))s.format=cartorig::PixelFormat::ByteRGBA;
  else if(depth&&!strcmp(depth,kOfxBitDepthFloat))s.format=cartorig::PixelFormat::FloatRGBA;
  else throw std::runtime_error("only byte and float RGBA supported");
+ const int64_t required=static_cast<int64_t>(s.x2-s.x1)*
+   (s.format==cartorig::PixelFormat::ByteRGBA?4:16);
+ if(s.x2<=s.x1||s.y2<=s.y1||s.rowBytes==0||
+    std::abs(static_cast<int64_t>(s.rowBytes))<required)
+   throw std::runtime_error("OFX image row pitch too short for RGBA format");
  return s;
 }
 void copySource(cartorig::Surface source,cartorig::Surface dst){const int bytes=dst.format==cartorig::PixelFormat::FloatRGBA?16:4;if(source.format!=dst.format)throw std::runtime_error("source/output depths do not match");clearRegion(dst);int x0=std::max(dst.x1,source.x1),x1=std::min(dst.x2,source.x2),y0=std::max(dst.y1,source.y1),y1=std::min(dst.y2,source.y2);for(int y=y0;y<y1;++y){auto *s=static_cast<char*>(source.data)+static_cast<ptrdiff_t>(y-source.y1)*source.rowBytes+static_cast<ptrdiff_t>(x0-source.x1)*bytes;auto *d=static_cast<char*>(dst.data)+static_cast<ptrdiff_t>(y-dst.y1)*dst.rowBytes+static_cast<ptrdiff_t>(x0-dst.x1)*bytes;std::memcpy(d,s,static_cast<size_t>(x1-x0)*bytes);}}
