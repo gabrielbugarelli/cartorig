@@ -32,12 +32,263 @@ function Assert-Pack([string]$Root,[bool]$AllowExperimental) {
   }
   $rootFull = [IO.Path]::GetFullPath($Root).TrimEnd('\','/') + [IO.Path]::DirectorySeparatorChar
   $seen = New-Object 'System.Collections.Generic.HashSet[string]' ([StringComparer]::OrdinalIgnoreCase)
+  $canonical = New-Object 'System.Collections.Generic.List[string]'
   foreach ($entry in $entries) {
     $pathName = [string]$entry.path
     if ([string]::IsNullOrWhiteSpace($pathName) -or
         $pathName.StartsWith('/') -or $pathName.StartsWith('\') -or
         $pathName.Contains(':') -or $pathName.Contains('\') -or
         $pathName -match '(^|/)\.\.?(?:/|$)' -or
+        $pathName -notmatch '^[A-Za-z0-9][A-Za-z0-9_./-]{0,255}
+      throw "Unsafe or duplicated data path in manifest: $pathName"
+    }
+    $absolute = [IO.Path]::GetFullPath((Join-Path $Root $pathName))
+    if (-not $absolute.StartsWith($rootFull,[StringComparison]::OrdinalIgnoreCase)) {
+      throw 'Manifest path escapes data pack root.'
+    }
+    $file = Get-Item -LiteralPath $absolute -Force -ErrorAction Stop
+    if ($file.PSIsContainer -or
+        (($file.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0)) {
+      throw "Invalid or linked pack asset: $pathName"
+    }
+    $expectedHash = ([string]$entry.sha256).ToLowerInvariant()
+    $expectedSize = [int64]$entry.bytes
+    if ($expectedSize -lt 0 -or $expectedHash -notmatch '^[0-9a-f]{64}
+                 'vector/supplements.gpkg','vector/catalog.sqlite',
+                 'raster/validated-raster-assets.json')
+  foreach ($item in $essential) {
+    if (-not $seen.Contains($item)) { throw "Essential data pack asset missing: $item" }
+  }
+  return $manifest
+}
+
+$source = (Resolve-Path -LiteralPath $SourceRoot).Path
+$dest = [IO.Path]::GetFullPath($Destination)
+$sourceFull = [IO.Path]::GetFullPath($source).TrimEnd('\','/')
+$destFull = $dest.TrimEnd('\','/')
+if ($sourceFull -ieq $destFull -or
+    $destFull.StartsWith($sourceFull + [IO.Path]::DirectorySeparatorChar,
+                         [StringComparison]::OrdinalIgnoreCase) -or
+    $sourceFull.StartsWith($destFull + [IO.Path]::DirectorySeparatorChar,
+                           [StringComparison]::OrdinalIgnoreCase)) {
+  throw 'Source/destination must not be equal or nested inside one another.'
+}
+if (Get-Process -Name 'Resolve' -ErrorAction SilentlyContinue) {
+  throw 'Close DaVinci Resolve before changing Natural Earth data.'
+}
+$sourcePack = Assert-Pack -Root $source -AllowExperimental $AllowIncomplete.IsPresent
+if ((Test-Path -LiteralPath $dest) -and -not $Upgrade) {
+  throw 'Natural Earth data pack already installed. Use -Upgrade.'
+}
+$parent = Split-Path -Parent $dest
+$bytesRequired = [long]0
+foreach ($entry in $sourcePack.files) { $bytesRequired += [long]$entry.bytes }
+if ([IO.Path]::GetPathRoot($dest) -match '^[A-Za-z]:\\') {
+  $drive = New-Object IO.DriveInfo ([IO.Path]::GetPathRoot($dest))
+  $headroom = [long][Math]::Max(536870912, $bytesRequired * 0.05)
+  if ($drive.AvailableFreeSpace -lt ($bytesRequired + $headroom)) {
+    throw 'Not enough free space to stage and verify the offline Natural Earth data pack.'
+  }
+}
+if ($PSCmdlet.ShouldProcess($dest,"Install verified offline Natural Earth pack $($sourcePack.pack_id)")) {
+  New-Item -ItemType Directory -Path $parent -Force | Out-Null
+  $nonce=[guid]::NewGuid().ToString('N')
+  $stage=Join-Path $parent ('.NaturalEarth.stage.'+$nonce)
+  $backup=Join-Path $parent ('.NaturalEarth.backup.'+$nonce)
+  try {
+    # Copy into the destination volume first, so final directory rename is
+    # atomic on NTFS and never exposes a half-copied live data pack.
+    Copy-Item -LiteralPath $source -Destination $stage -Recurse -Force
+    $stagedPack=Assert-Pack -Root $stage -AllowExperimental $AllowIncomplete.IsPresent
+    if ($stagedPack.pack_id -ne $sourcePack.pack_id) {
+      throw 'Staged data pack identity has changed.'
+    }
+    if (Test-Path -LiteralPath $dest) {
+      Move-Item -LiteralPath $dest -Destination $backup
+    }
+    Move-Item -LiteralPath $stage -Destination $dest
+    if (Test-Path -LiteralPath $backup) {
+      Remove-Item -LiteralPath $backup -Recurse -Force
+    }
+    Write-Host "Installed offline pack: $dest"
+    Write-Host "Pack ID: $($stagedPack.pack_id)"
+    Write-Host 'Set Vector GeoPackage to <installed>\vector\natural_earth_vector.gpkg'
+    Write-Host 'Set Raster tiles directory to <installed>\raster'
+  } catch {
+    if (Test-Path -LiteralPath $stage) {
+      Remove-Item -LiteralPath $stage -Recurse -Force -ErrorAction SilentlyContinue
+    }
+    if ((Test-Path -LiteralPath $backup) -and -not (Test-Path -LiteralPath $dest)) {
+      Move-Item -LiteralPath $backup -Destination $dest
+    }
+    throw
+  }
+}
+ -or
+        -not $seen.Add($pathName)) {
+      throw "Unsafe or duplicated data path in manifest: $pathName"
+    }
+    $absolute = [IO.Path]::GetFullPath((Join-Path $Root $pathName))
+    if (-not $absolute.StartsWith($rootFull,[StringComparison]::OrdinalIgnoreCase)) {
+      throw 'Manifest path escapes data pack root.'
+    }
+    $file = Get-Item -LiteralPath $absolute -Force -ErrorAction Stop
+    if ($file.PSIsContainer -or
+        (($file.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0)) {
+      throw "Invalid or linked pack asset: $pathName"
+    }
+    if ($file.Length -ne [int64]$entry.bytes -or
+        (Get-FileHash -LiteralPath $absolute -Algorithm SHA256).Hash.ToLowerInvariant() -ne
+            ([string]$entry.sha256).ToLowerInvariant()) {
+      throw "Natural Earth pack integrity failure: $pathName"
+    }
+  }
+  $essential = @('vector/natural_earth_vector.gpkg',
+                 'vector/supplements.gpkg','vector/catalog.sqlite',
+                 'raster/validated-raster-assets.json')
+  foreach ($item in $essential) {
+    if (-not $seen.Contains($item)) { throw "Essential data pack asset missing: $item" }
+  }
+  return $manifest
+}
+
+$source = (Resolve-Path -LiteralPath $SourceRoot).Path
+$dest = [IO.Path]::GetFullPath($Destination)
+if ([IO.Path]::GetFullPath($source).TrimEnd('\','/') -ieq
+    $dest.TrimEnd('\','/')) {
+  throw 'Source and destination must be different locations.'
+}
+if (Get-Process -Name 'Resolve' -ErrorAction SilentlyContinue) {
+  throw 'Close DaVinci Resolve before changing Natural Earth data.'
+}
+$sourcePack = Assert-Pack -Root $source -AllowExperimental $AllowIncomplete.IsPresent
+if ((Test-Path -LiteralPath $dest) -and -not $Upgrade) {
+  throw 'Natural Earth data pack already installed. Use -Upgrade.'
+}
+$parent = Split-Path -Parent $dest
+if ($PSCmdlet.ShouldProcess($dest,"Install verified offline Natural Earth pack $($sourcePack.pack_id)")) {
+  New-Item -ItemType Directory -Path $parent -Force | Out-Null
+  $nonce=[guid]::NewGuid().ToString('N')
+  $stage=Join-Path $parent ('.NaturalEarth.stage.'+$nonce)
+  $backup=Join-Path $parent ('.NaturalEarth.backup.'+$nonce)
+  try {
+    # Copy into the destination volume first, so final directory rename is
+    # atomic on NTFS and never exposes a half-copied live data pack.
+    Copy-Item -LiteralPath $source -Destination $stage -Recurse -Force
+    $stagedPack=Assert-Pack -Root $stage -AllowExperimental $AllowIncomplete.IsPresent
+    if ($stagedPack.pack_id -ne $sourcePack.pack_id) {
+      throw 'Staged data pack identity has changed.'
+    }
+    if (Test-Path -LiteralPath $dest) {
+      Move-Item -LiteralPath $dest -Destination $backup
+    }
+    Move-Item -LiteralPath $stage -Destination $dest
+    if (Test-Path -LiteralPath $backup) {
+      Remove-Item -LiteralPath $backup -Recurse -Force
+    }
+    Write-Host "Installed offline pack: $dest"
+    Write-Host "Pack ID: $($stagedPack.pack_id)"
+    Write-Host 'Set Vector GeoPackage to <installed>\vector\natural_earth_vector.gpkg'
+    Write-Host 'Set Raster tiles directory to <installed>\raster'
+  } catch {
+    if (Test-Path -LiteralPath $stage) {
+      Remove-Item -LiteralPath $stage -Recurse -Force -ErrorAction SilentlyContinue
+    }
+    if ((Test-Path -LiteralPath $backup) -and -not (Test-Path -LiteralPath $dest)) {
+      Move-Item -LiteralPath $backup -Destination $dest
+    }
+    throw
+  }
+}
+ -or
+        $file.Length -ne $expectedSize -or
+        (Get-FileHash -LiteralPath $absolute -Algorithm SHA256).Hash.ToLowerInvariant() -ne
+            $expectedHash) {
+      throw "Natural Earth pack integrity failure: $pathName"
+    }
+    $pathJSON = ConvertTo-Json -InputObject $pathName -Compress
+    $canonical.Add('{"bytes":' + $expectedSize + ',"path":' + $pathJSON +
+                   ',"sha256":"' + $expectedHash + '"}')
+  }
+  # Rebuild producer's sorted, compact JSON and verify the top-level pack ID.
+  $canonicalText = '[' + [string]::Join(',', $canonical) + ']'
+  $digest = [Security.Cryptography.SHA256]::Create()
+  try {
+    $computed = ([BitConverter]::ToString($digest.ComputeHash(
+      [Text.Encoding]::UTF8.GetBytes($canonicalText)))).Replace('-','').ToLowerInvariant()
+  } finally { $digest.Dispose() }
+  if ($computed -ne ([string]$manifest.pack_id).ToLowerInvariant()) {
+    throw 'Natural Earth pack identity SHA256 does not match canonical contents.'
+  }
+  foreach ($actual in (Get-ChildItem -LiteralPath $Root -Recurse -Force)) {
+    if (($actual.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+      throw "Linked file/directory is forbidden in Natural Earth pack: $($actual.FullName)"
+    }
+    if (-not $actual.PSIsContainer) {
+      $relative = $actual.FullName.Substring($rootFull.Length).Replace('\','/')
+      if ($relative -ne 'pack.json' -and -not $seen.Contains($relative)) {
+        throw "Undeclared file in Natural Earth data pack: $relative"
+      }
+    }
+  }
+  $essential = @('vector/natural_earth_vector.gpkg',
+                 'vector/supplements.gpkg','vector/catalog.sqlite',
+                 'raster/validated-raster-assets.json')
+  foreach ($item in $essential) {
+    if (-not $seen.Contains($item)) { throw "Essential data pack asset missing: $item" }
+  }
+  return $manifest
+}
+
+$source = (Resolve-Path -LiteralPath $SourceRoot).Path
+$dest = [IO.Path]::GetFullPath($Destination)
+if ([IO.Path]::GetFullPath($source).TrimEnd('\','/') -ieq
+    $dest.TrimEnd('\','/')) {
+  throw 'Source and destination must be different locations.'
+}
+if (Get-Process -Name 'Resolve' -ErrorAction SilentlyContinue) {
+  throw 'Close DaVinci Resolve before changing Natural Earth data.'
+}
+$sourcePack = Assert-Pack -Root $source -AllowExperimental $AllowIncomplete.IsPresent
+if ((Test-Path -LiteralPath $dest) -and -not $Upgrade) {
+  throw 'Natural Earth data pack already installed. Use -Upgrade.'
+}
+$parent = Split-Path -Parent $dest
+if ($PSCmdlet.ShouldProcess($dest,"Install verified offline Natural Earth pack $($sourcePack.pack_id)")) {
+  New-Item -ItemType Directory -Path $parent -Force | Out-Null
+  $nonce=[guid]::NewGuid().ToString('N')
+  $stage=Join-Path $parent ('.NaturalEarth.stage.'+$nonce)
+  $backup=Join-Path $parent ('.NaturalEarth.backup.'+$nonce)
+  try {
+    # Copy into the destination volume first, so final directory rename is
+    # atomic on NTFS and never exposes a half-copied live data pack.
+    Copy-Item -LiteralPath $source -Destination $stage -Recurse -Force
+    $stagedPack=Assert-Pack -Root $stage -AllowExperimental $AllowIncomplete.IsPresent
+    if ($stagedPack.pack_id -ne $sourcePack.pack_id) {
+      throw 'Staged data pack identity has changed.'
+    }
+    if (Test-Path -LiteralPath $dest) {
+      Move-Item -LiteralPath $dest -Destination $backup
+    }
+    Move-Item -LiteralPath $stage -Destination $dest
+    if (Test-Path -LiteralPath $backup) {
+      Remove-Item -LiteralPath $backup -Recurse -Force
+    }
+    Write-Host "Installed offline pack: $dest"
+    Write-Host "Pack ID: $($stagedPack.pack_id)"
+    Write-Host 'Set Vector GeoPackage to <installed>\vector\natural_earth_vector.gpkg'
+    Write-Host 'Set Raster tiles directory to <installed>\raster'
+  } catch {
+    if (Test-Path -LiteralPath $stage) {
+      Remove-Item -LiteralPath $stage -Recurse -Force -ErrorAction SilentlyContinue
+    }
+    if ((Test-Path -LiteralPath $backup) -and -not (Test-Path -LiteralPath $dest)) {
+      Move-Item -LiteralPath $backup -Destination $dest
+    }
+    throw
+  }
+}
+ -or
         -not $seen.Add($pathName)) {
       throw "Unsafe or duplicated data path in manifest: $pathName"
     }
