@@ -4,6 +4,8 @@
 
 **Current source acquisition:** [NE-SOURCE-02 — available-source acquisition and experimental offline QA](docs/NE_SOURCE02_AVAILABLE_WORKFLOW_2026-11-07.md) documents the reviewed upstream outage, resilient local acquisition and opt-in non-certified Resolve test pack. The original 52-source production release gate remains mandatory.
 
+**Experimental pack and Windows Resolve host QA:** [Complete Windows workstation execution guide](docs/NE_WINDOWS_END_TO_END_QA_2026-11-07.md) links the new one-command 51-archive acquisition, resumable pack build, real native 1440p/4K asset validation and an actual Resolve Studio 20 scripting bridge. An [official pinned-source native 1440p/4K proof](data/natural-earth/native_real_4k_observation_2026-11-07.json) already verified bit-identical PNG v2/RGBA v1 frames (4K PNG v2 median 728.366 ms on the Ubuntu standard runner). **The 51 ZIPs have not been downloaded persistently, the experiment has not been built, and the licensed Windows Resolve 20 host has not been tested by this automation.** CI alone must not mark those gates complete.
+
 ## Natural Earth complete execution plan (zero-cost GitHub policy)
 
 The engineering work order is [Natural Earth Complete — Execution Plan](docs/NATURAL_EARTH_EXECUTION_PLAN.md). It defines source certification (215 vector layers and the frozen raster variants), download and builder recovery, all-layer rendering, independent pack verification, real Resolve Studio 20 acceptance, and GitHub **USD 0** infrastructure. The production pack has **not** been certified. The current PR remains draft.
