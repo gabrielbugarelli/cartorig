@@ -10,6 +10,12 @@ namespace cartorig {
 struct NaturalEarthRasterLevel {
   int z=0,width=0,height=0,tilesX=0,tilesY=0;
 };
+struct NaturalEarthRasterAsset {
+  std::string assetId;
+  std::string sourceId;
+};
+std::vector<NaturalEarthRasterAsset> listNaturalEarthRasterAssets(
+    const std::filesystem::path &root);
 struct NaturalEarthRaster {
   std::filesystem::path directory;
   std::string assetId;
