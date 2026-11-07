@@ -245,8 +245,8 @@ Tests must not define success as a mock summary reporting 215 or 52. At least on
 | Gate | Current evidence | Status |
 | --- | --- | --- |
 | G0 CI/Windows validation | Source tests and Windows checks exist; post-public-host run still requires confirmation | OPEN |
-| G1 locked source inventory | 215 vector pin exists; raster SHA lock incomplete | OPEN |
-| G2 source acquisition | resumable completed-archive checkpoints exist; 52 actual sources not acquired here | OPEN |
+| G1 locked source inventory | 215 vector pin exists; `source_lock.py` and adversarial tests implemented; real 52-source SHA lock still absent | OPEN |
+| G2 source acquisition | HTTP Range/ETag byte-resume and corruption tests implemented; 52 actual sources not acquired here | OPEN |
 | G3 raster derivative parity | builder + synthetic TIFF/PSD fixtures tested; actual 52/52 unknown | OPEN |
 | G4 all vector-layer rendering | 215/215 source inventory and primary polygons; not all types rendered | OPEN |
 | G5 pack/installer | fail-closed builder and installer source; real full pack absent | OPEN |
