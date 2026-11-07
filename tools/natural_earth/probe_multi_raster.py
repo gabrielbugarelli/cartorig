@@ -45,6 +45,14 @@ ALLOWED_SAMPLES={
         "SR_50M.zip",11380369,
         "ff810f5f2747463fd8ffa612b23e5f5e5d593a345218976872b6749610976ab7"),
 }
+# Frame hashes were measured in the previous independent, unoptimized
+# official-source run: https://github.com/gabrielbugarelli/cartorig/actions/runs/42344497361
+# Re-running after any renderer optimization MUST remain bit-identical.
+LEGACY_NATIVE_FRAME_HASHES={
+    "50m-gray-earth":"13024482577733760989",
+    "50m-prisma-shaded-relief":"11708255958712787630",
+    "50m-shaded-relief":"6987416738967865316",
+}
 PROOF_LINE=re.compile(r"^raster_pixels=(\d+) frame_hash=(\d+) atlas_levels=(\d+)$")
 BENCH_LINE=re.compile(
     r"^bench_width=1280 bench_height=720 bench_passes=5 median_frame_ms=(\d+\.\d{3})$")
@@ -184,6 +192,8 @@ def convert_and_compare(source:dict,workspace:Path,preview:Path,
                 old["renderer"]["rendered_pixels"]!=new["renderer"]["rendered_pixels"] or
                 old["extent"]!=new["extent"] or old["levels"]!=new["levels"]):
                 raise ValueError("native PNG/RGBA pixel or geographic parity mismatch")
+            if old["renderer"]["native_frame_hash"]!=LEGACY_NATIVE_FRAME_HASHES[source["family"]]:
+                raise ValueError("native optimized raster frame differs from previous official source baseline")
         record.update({
             "status":"VERIFIED_REAL_PUBLISHER_NATIVE_PARITY",
             "publisher_zip_sha256_matches_previous_independent_observation":True,
