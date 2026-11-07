@@ -155,6 +155,11 @@ srv.animateRoute(1,3,12)
 check(route.node.frames.RouteProgress[0]==0 and
       route.node.frames.RouteProgress[12]==1,
       "route reveal uses native spline at host time")
+srv.style(1,3,"#C92A2A","#3CB371",70)
+check(route.node:GetInput("NativeRouteRed")==60 and
+      route.node:GetInput("NativeRouteGreen")==179 and
+      route.node:GetInput("NativeRouteBlue")==113,
+      "Route applies universal Stroke picker rather than polygon Fill")
 srv.baseStyle(1,"land","#243547")
 check(map:GetInput("LandR")==36,"base style can change independently")
 srv.editRoute(1,3,nil,nil,{curve=-40,width=6,arrowhead=true})
