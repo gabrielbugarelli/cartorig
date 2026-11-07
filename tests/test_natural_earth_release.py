@@ -159,5 +159,74 @@ class ProducerTests(unittest.TestCase):
         with self.assertRaises(FileExistsError):
             assemble_pack.assemble(**cfg,out=dest,allow_incomplete=True,resume=True)
 
+
+    def test_reviewed_missing_zip_allows_only_an_experimental_pack(self):
+        """Keep the upstream gap in coverage and pack manifest, never certify."""
+        from tools.natural_earth import verify_release
+        cfg=self.fixture()
+        source=json.loads(cfg["sources"].read_text(encoding="utf-8"))
+        archives=json.loads(cfg["archives"].read_text(encoding="utf-8"))
+        missing_id="ne-10m-raster-test-upstream-404"
+        missing_url="https://www.naturalearthdata.com/download/10m/raster/US_MSR_10M.zip"
+        missing_source=dict(source["resources"][0],resource_id=missing_id,
+                            scale="10m",url=missing_url)
+        source["resources"].append(missing_source)
+        cfg["sources"].write_text(json.dumps(source),encoding="utf-8")
+        missing_archive=dict(archives["resources"][0],resource_id=missing_id,
+                             scale="10m",url=missing_url,
+                             status="KNOWN_UNAVAILABLE",
+                             upstream_issue="https://github.com/gabrielbugarelli/cartorig/issues/4",
+                             sha256=None,archive_bytes=None,file="unavailable.zip")
+        archives["resources"].append(missing_archive)
+        archives["summary"]["complete"]=False
+        cfg["archives"].write_text(json.dumps(archives),encoding="utf-8")
+        audited={missing_id:{"issue":missing_archive["upstream_issue"]}}
+        with self.assertRaisesRegex(ValueError,"not fully SHA256/CRC"):
+            assemble_pack.assemble(**cfg,out=self.root/"full")
+        out=self.root/"experimental"
+        built=assemble_pack.assemble(**cfg,out=out,
+                                     allow_incomplete=True,
+                                     reviewed_unavailable=audited)
+        self.assertFalse(built["complete"])
+        self.assertEqual(built["raster_sources"],1)
+        metadata=json.loads((out/"pack.json").read_text(encoding="utf-8"))
+        self.assertEqual(metadata["status"],"EXPERIMENTAL_INCOMPLETE")
+        kept=json.loads((out/"provenance/source-archives.json").read_text())
+        self.assertEqual(len(kept["resources"]),2)
+        self.assertIn("KNOWN_UNAVAILABLE",[r["status"] for r in kept["resources"]])
+        self.assertFalse(json.loads((out/"provenance/coverage-report.json").read_text())["complete"])
+        with self.assertRaisesRegex(ValueError,"incomplete"):
+            verify_release.verify_release(out)
+        self.assertFalse(verify_release.verify_release(
+            out,allow_incomplete=True)["complete"])
+
+    def test_experimental_subset_rejects_unreviewed_or_corrupt_data(self):
+        cfg=self.fixture()
+        archives=json.loads(cfg["archives"].read_text())
+        sources=json.loads(cfg["sources"].read_text())
+        missing=dict(archives["resources"][0],
+                     resource_id="ne-10m-raster-other-source",
+                     url="https://www.naturalearthdata.com/download/10m/raster/OTHER.zip",
+                     scale="10m",status="KNOWN_UNAVAILABLE",
+                     upstream_issue="https://github.com/gabrielbugarelli/cartorig/issues/4",
+                     sha256=None,archive_bytes=None)
+        archives["resources"].append(missing)
+        sources["resources"].append(dict(missing,status="DISCOVERED_UNVERIFIED"))
+        expected={missing["resource_id"]:{"issue":missing["upstream_issue"]}}
+        with self.assertRaisesRegex(ValueError,"only the exact reviewed"):
+            assemble_pack._verified_raster_subset(
+                archives,sources,cfg["archive_root"],
+                {"ne-10m-raster-wrong":{"issue":missing["upstream_issue"]}})
+        bad=json.loads(json.dumps(archives))
+        bad["resources"][1]["status"]="NOT_INSTALLED"
+        with self.assertRaisesRegex(ValueError,"explicitly marked"):
+            assemble_pack._verified_raster_subset(
+                bad,sources,cfg["archive_root"],expected)
+        proof=cfg["archive_root"]/"publisher.zip"
+        proof.write_bytes(b"tampered archive contents")
+        with self.assertRaisesRegex(ValueError,"corrupt or unproven"):
+            assemble_pack._verified_raster_subset(
+                archives,sources,cfg["archive_root"],expected)
+
 if __name__=="__main__":
     unittest.main()
