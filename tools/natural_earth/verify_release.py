@@ -191,12 +191,14 @@ def verify_release(root:Path,*,allow_incomplete:bool=False)->dict[str,Any]:
         raise OfflinePackVerificationError("offline pack identity hash mismatch")
     # An experimental pack with nonzero 51/215 coverage claims must also
     # prove source-to-atlas traceability, not only its self-declared pack hash.
+    experimental_chain_verified=False
     if not complete and (manifest.get("raster_sources")==51 or
                          manifest.get("vector_sources")==215):
         if (manifest.get("raster_sources"),manifest.get("vector_sources"))!=(51,215):
             raise OfflinePackVerificationError("inconsistent experimental 51/215 counts")
         _verify_experimental_source_chain(
             root,manifest,{item["path"]:item["sha256"] for item in items})
+        experimental_chain_verified=True
     if complete:
         audit=root/"provenance/coverage-report.json"
         if not audit.is_file():
@@ -210,7 +212,8 @@ def verify_release(root:Path,*,allow_incomplete:bool=False)->dict[str,Any]:
                 "certified Natural Earth report fails full publisher gates")
     return {"pack_id":actual_id,"complete":complete,"files_verified":len(items),
             "verified_bytes":total_bytes,"raster_sources":manifest.get("raster_sources",0),
-            "vector_sources":manifest.get("vector_sources",0)}
+            "vector_sources":manifest.get("vector_sources",0),
+            "experimental_source_chain_verified":experimental_chain_verified}
 
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
