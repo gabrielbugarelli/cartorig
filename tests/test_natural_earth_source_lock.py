@@ -45,6 +45,16 @@ class SourceLockTests(unittest.TestCase):
         self.assertEqual(locked["baseline_variants"],2)
         self.assertEqual(len(locked["resources"]),2)
         source_lock.verify(locked,inventory,acquired,expected=2)
+    def test_interrupted_download_manifest_cannot_be_frozen_as_released_source_lock(self):
+        inventory,acquired=self.make_fixtures()
+        acquired["checkpoint_in_progress"]=True
+        with self.assertRaisesRegex(source_lock.SourceLockError,
+                                    "interrupted acquisition checkpoint"):
+            source_lock.freeze(inventory,acquired,expected=2)
+        acquired["checkpoint_in_progress"]=False
+        self.assertEqual(source_lock.freeze(
+            inventory,acquired,expected=2)["baseline_variants"],2)
+
     def test_sha_and_source_url_tampering_rejected(self):
         inventory,acquired=self.make_fixtures()
         locked=source_lock.freeze(inventory,acquired,expected=2)
