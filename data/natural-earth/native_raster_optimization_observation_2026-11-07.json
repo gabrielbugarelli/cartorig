@@ -1,0 +1,100 @@
+{
+  "schema_version": 1,
+  "format": "cartorig-ne-native-projection-optimization-observation-v1",
+  "observed_utc": "2026-11-07",
+  "source": "Natural Earth 50m genuine publisher ZIPs SHA-verified against prior 15-family real archive audit",
+  "pipeline": "cartorig_ne_raster_preview --bench, native C++ full-frame 1280x720, 5 passes per format and family, median, standard public Ubuntu runner",
+  "evidence": [
+    {
+      "stage": "baseline_per_pixel_unproject_and_per_pixel_lru",
+      "run": "https://github.com/gabrielbugarelli/cartorig/actions/runs/42344497361"
+    },
+    {
+      "stage": "axis_projection_precomputed",
+      "run": "https://github.com/gabrielbugarelli/cartorig/actions/runs/42345094882"
+    },
+    {
+      "stage": "row_local_tile_reuse",
+      "run": "https://github.com/gabrielbugarelli/cartorig/actions/runs/42345342349"
+    }
+  ],
+  "families": [
+    {
+      "family": "50m-gray-earth",
+      "source_archive_sha256": "25230eaa5c82c9e913b9acede197e29e575817e36df9925231c1a1b92a101d8c",
+      "native_640x360_frame_hash_identical_all_stages": "13024482577733760989",
+      "benchmarks_by_stage": [
+        {
+          "stage": "baseline_per_pixel_unproject_and_per_pixel_lru",
+          "rgba_v1_720p_median_ms": 149.178,
+          "png_v2_720p_median_ms": 160.544
+        },
+        {
+          "stage": "axis_projection_precomputed",
+          "rgba_v1_720p_median_ms": 71.525,
+          "png_v2_720p_median_ms": 84.58
+        },
+        {
+          "stage": "row_local_tile_reuse",
+          "rgba_v1_720p_median_ms": 62.459,
+          "png_v2_720p_median_ms": 74.386
+        }
+      ],
+      "png_v2_overall_render_time_reduction_pct": 53.67,
+      "rgba_v1_overall_render_time_reduction_pct": 58.13
+    },
+    {
+      "family": "50m-prisma-shaded-relief",
+      "source_archive_sha256": "2aa9c316bb767b4c4aecbb1c2de255d00d43ab93e7d837e85f01a6dc4e2043fe",
+      "native_640x360_frame_hash_identical_all_stages": "11708255958712787630",
+      "benchmarks_by_stage": [
+        {
+          "stage": "baseline_per_pixel_unproject_and_per_pixel_lru",
+          "rgba_v1_720p_median_ms": 153.041,
+          "png_v2_720p_median_ms": 169.818
+        },
+        {
+          "stage": "axis_projection_precomputed",
+          "rgba_v1_720p_median_ms": 74.163,
+          "png_v2_720p_median_ms": 98.256
+        },
+        {
+          "stage": "row_local_tile_reuse",
+          "rgba_v1_720p_median_ms": 66.205,
+          "png_v2_720p_median_ms": 87.977
+        }
+      ],
+      "png_v2_overall_render_time_reduction_pct": 48.19,
+      "rgba_v1_overall_render_time_reduction_pct": 56.74
+    },
+    {
+      "family": "50m-shaded-relief",
+      "source_archive_sha256": "ff810f5f2747463fd8ffa612b23e5f5e5d593a345218976872b6749610976ab7",
+      "native_640x360_frame_hash_identical_all_stages": "6987416738967865316",
+      "benchmarks_by_stage": [
+        {
+          "stage": "baseline_per_pixel_unproject_and_per_pixel_lru",
+          "rgba_v1_720p_median_ms": 151.037,
+          "png_v2_720p_median_ms": 159.566
+        },
+        {
+          "stage": "axis_projection_precomputed",
+          "rgba_v1_720p_median_ms": 70.295,
+          "png_v2_720p_median_ms": 83.445
+        },
+        {
+          "stage": "row_local_tile_reuse",
+          "rgba_v1_720p_median_ms": 62.467,
+          "png_v2_720p_median_ms": 74.337
+        }
+      ],
+      "png_v2_overall_render_time_reduction_pct": 53.41,
+      "rgba_v1_overall_render_time_reduction_pct": 58.64
+    }
+  ],
+  "official_variant_count_verified_in_this_benchmark": 3,
+  "native_frame_hash_equal_to_previous_versions": true,
+  "strict_52_source_release_gate_unchanged": true,
+  "resolve_20_host_or_4k_test": false,
+  "limitations": "End-to-end native CPU render timing on distinct public-runner executions, not isolated PNG decode, not hardware-neutral FPS, not Resolve Studio 20 host performance."
+}
