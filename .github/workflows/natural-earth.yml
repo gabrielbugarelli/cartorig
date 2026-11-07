@@ -28,7 +28,7 @@ jobs:
         with:
           python-version: ${{ matrix.python }}
       - name: Install release-builder-only TIFF/PSD decoder
-        run: python -m pip install Pillow==11.3.0
+        run: python -m pip install -r tools/natural_earth/requirements-release.txt
       - name: Exercise offline builder without network
         run: python -m unittest discover -s tests -p "test_natural_earth*.py" -v
       - name: Assert pinned official layer manifest
@@ -174,7 +174,7 @@ jobs:
         with:
           python-version: "3.12"
       - name: Install release-machine raster decoder
-        run: python -m pip install Pillow==11.3.0
+        run: python -m pip install -r tools/natural_earth/requirements-release.txt
       - name: Build native C++ raster tile renderer
         run: |
           cmake -S . -B build/real-raster -DCMAKE_BUILD_TYPE=Release
