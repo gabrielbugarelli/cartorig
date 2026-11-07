@@ -1,5 +1,6 @@
 #include "natural_earth_raster.hpp"
 #include "json11.hpp"
+#include "lodepng.h"
 #include <algorithm>
 #include <array>
 #include <cmath>
@@ -30,14 +31,30 @@ int integer(const json11::Json &json,const char*name,int min,int max){
     throw std::invalid_argument("invalid raster metadata integer");
   return static_cast<int>(v);
 }
-std::vector<std::uint8_t> readTile(const std::filesystem::path &path){
-  if(!std::filesystem::is_regular_file(path)||
-     std::filesystem::file_size(path)!=tileBytes)
-    throw std::runtime_error("Natural Earth offline raster tile missing or corrupt");
+std::vector<std::uint8_t> readTile(const std::filesystem::path &path,bool compressedPng){
+  if(!std::filesystem::is_regular_file(path))
+    throw std::runtime_error("Natural Earth offline raster tile missing");
+  const auto bytes=std::filesystem::file_size(path);
+  if(!compressedPng && bytes!=tileBytes)
+    throw std::runtime_error("Natural Earth raw RGBA tile has invalid size");
+  if(compressedPng && (bytes<1 || bytes>1024*1024))
+    throw std::runtime_error("Natural Earth PNG tile exceeds bounded size");
   std::ifstream input(path,std::ios::binary);
+  if(!input)throw std::runtime_error("Natural Earth raster tile could not be opened");
+  if(compressedPng){
+    std::vector<std::uint8_t> png(static_cast<std::size_t>(bytes));
+    input.read(reinterpret_cast<char*>(png.data()),static_cast<std::streamsize>(png.size()));
+    if(!input)throw std::runtime_error("Natural Earth compressed PNG tile read failed");
+    std::vector<std::uint8_t> rgba;
+    unsigned width=0,height=0;
+    const unsigned error=lodepng::decode(rgba,width,height,png);
+    if(error||width!=tileSize||height!=tileSize||rgba.size()!=tileBytes)
+      throw std::runtime_error("Natural Earth PNG tile corrupt or wrong dimensions");
+    return rgba;
+  }
   std::vector<std::uint8_t> rgba(tileBytes);
   input.read(reinterpret_cast<char*>(rgba.data()),static_cast<std::streamsize>(tileBytes));
-  if(!input)throw std::runtime_error("Natural Earth offline raster tile read failed");
+  if(!input)throw std::runtime_error("Natural Earth raw RGBA tile read failed");
   return rgba;
 }
 } // namespace
@@ -89,7 +106,8 @@ NaturalEarthRaster loadNaturalEarthRaster(
   const auto obj=json11::Json::parse(source,error);
   if(!error.empty()||!obj.is_object()||
      integer(obj,"schema_version",1,1)!=1||
-     obj["format"].string_value()!="cartorig-rgba-tiles-v1"||
+     (obj["format"].string_value()!="cartorig-rgba-tiles-v1" &&
+      obj["format"].string_value()!="cartorig-png-tiles-v2")||
      obj["asset_id"].string_value()!=assetId||
      integer(obj,"tile_size",tileSize,tileSize)!=tileSize)
     throw std::invalid_argument("unsupported Natural Earth raster metadata");
@@ -103,6 +121,7 @@ NaturalEarthRaster loadNaturalEarthRaster(
      south<-90.001||north>90.001||west>=east||south>=north)
     throw std::invalid_argument("invalid EPSG:4326 raster extent");
   raster.west=west;raster.south=south;raster.east=east;raster.north=north;
+  raster.compressedPng=(obj["format"].string_value()=="cartorig-png-tiles-v2");
   const auto &levels=obj["levels"].array_items();
   if(levels.empty()||levels.size()>20)
     throw std::invalid_argument("invalid raster resolution pyramid");
@@ -166,8 +185,9 @@ void renderNaturalEarthRaster(const NaturalEarthRaster &raster,
     }
     // Verify the next tile *before* evicting the last valid entry.
     const auto file=raster.directory/"tiles"/tileFolder/
-                    (std::to_string(tx)+"_"+std::to_string(ty)+".rgba");
-    auto rgba=readTile(file);
+                    (std::to_string(tx)+"_"+std::to_string(ty)+
+                     (raster.compressedPng?".png":".rgba"));
+    auto rgba=readTile(file,raster.compressedPng);
     if(tiles.size()==maxResidentTiles){
       const auto victim=recent.back();
       tiles.erase(victim);
