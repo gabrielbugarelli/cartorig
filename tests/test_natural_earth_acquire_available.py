@@ -137,6 +137,38 @@ class AcquisitionTests(unittest.TestCase):
         proof=verify_pack.verify_manifest(manifest,self.workspace/"downloads")
         self.assertFalse(proof["complete"])  # missing source is NOT a release
         self.assertEqual(proof["verified"],51)
+    def test_power_loss_preserves_full_52_row_checkpoint_and_resumes(self):
+        successful=[]
+        def interrupted(url,path):
+            if len(successful)==2:
+                raise KeyboardInterrupt("simulated workstation power loss")
+            successful.append(url)
+            return self.fake_fetch(url,path)
+        with patch.object(acquire_available.release_pipeline,
+                          "_load_verified_inventory",return_value=self.inventory),patch.object(
+                          acquire_available.known_unavailable,"read_verified",
+                          return_value=self.exceptions),patch.object(
+                          materialize,"download_and_hash",side_effect=interrupted):
+            with self.assertRaisesRegex(KeyboardInterrupt,"power loss"):
+                acquire_available.acquire(
+                    workspace=self.workspace,project_root=self.root,
+                    max_downloads=12,allow_network=True,
+                    skip_reviewed_unavailable=True)
+        checkpoint_path=self.workspace/"downloads/source-archives.json"
+        self.assertTrue(checkpoint_path.is_file())
+        saved=json.loads(checkpoint_path.read_text())
+        self.assertTrue(saved["checkpoint_in_progress"])
+        self.assertFalse(saved["summary"]["complete"])
+        self.assertEqual(len(saved["resources"]),52)
+        self.assertEqual(sum(r["status"]=="VERIFIED" for r in saved["resources"]),2)
+        self.assertFalse((self.workspace/"acquisition-status.json").exists())
+        finished=self.acquire(max_downloads=100)
+        self.assertEqual(finished["verified_archives"],51)
+        self.assertEqual(finished["known_unavailable"],1)
+        self.assertEqual(len(self.calls),51,
+                         "previous two publisher files must be rehashed, not re-downloaded")
+        self.assertFalse(json.loads(checkpoint_path.read_text())["checkpoint_in_progress"])
+
     def test_source_recovers_later_then_no_exception_remains(self):
         self.acquire(max_downloads=100)
         result=self.acquire(max_downloads=100,skip=False)
