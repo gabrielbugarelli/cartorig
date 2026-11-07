@@ -86,7 +86,7 @@ class CompletenessTests(unittest.TestCase):
             self.assertIsNone(
                 materialize.official_raster_mirror(dict(record,**change)))
 
-    def test_materializer_uses_official_mirror_only_after_verified_failure(self):
+    def test_materializer_prefers_official_s3_then_falls_back_to_wordpress(self):
         from unittest.mock import patch
         url="https://www.naturalearthdata.com/download/50m/raster/MSR_50M.zip"
         source={"resource_id":"ne-50m-raster-test","theme":"raster",
@@ -97,8 +97,8 @@ class CompletenessTests(unittest.TestCase):
         urls=[]
         def fake_fetch(request,path):
             urls.append(request)
-            if request==url:
-                raise ValueError("publisher WordPress URL no longer available")
+            if request=="https://naturalearth.s3.amazonaws.com/50m_raster/MSR_50M.zip":
+                raise ValueError("publisher S3 temporarily unavailable")
             path.parent.mkdir(parents=True,exist_ok=True)
             path.write_bytes(payload)
             return len(payload),hashlib.sha256(payload).hexdigest()
@@ -107,9 +107,34 @@ class CompletenessTests(unittest.TestCase):
                 {"schema_version":1,"resources":[source]},
                 self.root/"acquired",allow_network=True)
         self.assertTrue(report["summary"]["complete"],report)
-        self.assertEqual(urls,[url,"https://naturalearth.s3.amazonaws.com/50m_raster/MSR_50M.zip"])
+        self.assertEqual(urls,["https://naturalearth.s3.amazonaws.com/50m_raster/MSR_50M.zip",url])
         self.assertEqual(report["resources"][0]["url"],url)
         self.assertEqual(report["resources"][0]["acquisition_url"],urls[-1])
+
+    def test_official_s3_primary_succeeds_without_wordpress_attempt(self):
+        from unittest.mock import patch
+        original="https://www.naturalearthdata.com/download/50m/raster/MSR_50M.zip"
+        mirror="https://naturalearth.s3.amazonaws.com/50m_raster/MSR_50M.zip"
+        source={"resource_id":"ne-50m-raster-s3-primary","theme":"raster",
+                "scale":"50m","url":original}
+        sample=self.root/"s3-primary.zip"
+        with zipfile.ZipFile(sample,"w") as z:
+            z.writestr("MSR_50M.tfw",b"test")
+        payload=sample.read_bytes()
+        requested=[]
+        def fake(url,path):
+            requested.append(url)
+            path.parent.mkdir(parents=True,exist_ok=True)
+            path.write_bytes(payload)
+            return len(payload),hashlib.sha256(payload).hexdigest()
+        with patch.object(materialize,"download_and_hash",side_effect=fake):
+            manifest=materialize.materialize(
+                {"schema_version":1,"resources":[source]},
+                self.root/"s3-primary",allow_network=True)
+        self.assertTrue(manifest["summary"]["complete"])
+        self.assertEqual(requested,[mirror])
+        self.assertEqual(manifest["resources"][0]["url"],original)
+        self.assertEqual(manifest["resources"][0]["acquisition_url"],mirror)
 
     def test_resumable_acquisition_reuses_verified_archives_and_rejects_stale_source(self):
         from unittest.mock import patch
