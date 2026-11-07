@@ -71,7 +71,9 @@ try {
   Write-Host 'Result: EXPERIMENTAL_INCOMPLETE, not NATURAL_EARTH_COMPLETE.'
   Write-Host "QA evidence: $(Join-Path $Workspace 'workstation-qa-report.json')"
   if ($InstallExperimentalPack) {
-    & (Join-Path $PSScriptRoot 'Install-DataPack.ps1') -SourceRoot $Output -AllowIncomplete -Confirm:$false
+    # An explicitly requested QA rerun must upgrade the already installed
+    # experimental pack rather than fail after successful re-verification.
+    & (Join-Path $PSScriptRoot 'Install-DataPack.ps1') -SourceRoot $Output -AllowIncomplete -Upgrade -Confirm:$false
     if (-not $?) {throw 'Experimental offline data pack installation failed.'}
     Write-Host 'Offline data installed; restart DaVinci Resolve 20 for in-host acceptance.'
   }
