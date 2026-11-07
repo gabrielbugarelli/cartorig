@@ -367,7 +367,23 @@ function M.addMarker(sceneIndex,location,label,color)
                 lon=location.lon,lat=location.lat,fill=color or "#D4AF37",
                 visible=true,opacity=100,size=6}
     rgb(meta.fill)
+    meta.showPin=true
     return addObject(sceneIndex,"Marker",meta,function(tool)
+        set(tool,"EmbeddedSceneJSON",serializeMarker(meta))
+    end)
+end
+function M.addLabel(sceneIndex,location,text,color)
+    if not location or not tonumber(location.lon) or not tonumber(location.lat) then
+        error("Cannot anchor label without real geographic coordinates",2)
+    end
+    text=tostring(text or location.name or "")
+    if #text<1 or #text>250 then error("Label length must be 1–250 characters",2) end
+    local meta={type="Label",name="Label: "..text,label=text,
+        key="label-"..tostring(os.time()).."-"..tostring(math.random(100000)),
+        lon=location.lon,lat=location.lat,fill=color or "#D4AF37",
+        visible=true,opacity=100,size=6,showPin=false}
+    rgb(meta.fill)
+    return addObject(sceneIndex,"Label",meta,function(tool)
         set(tool,"EmbeddedSceneJSON",serializeMarker(meta))
     end)
 end
@@ -507,7 +523,7 @@ function M.style(sceneIndex,objectIndex,hex,stroke,opacity)
             set(entry.node,"NativeRouteGreen",g)
             set(entry.node,"NativeRouteBlue",b)
             set(entry.node,"Opacity",alpha(opacity)/255)
-        elseif m.type=="Marker" then
+        elseif m.type=="Marker" or m.type=="Label" then
             set(entry.node,"EmbeddedSceneJSON",serializeMarker(m))
             set(entry.node,"Opacity",alpha(opacity)/255)
         end
@@ -645,8 +661,11 @@ function M.duplicateObject(sceneIndex,objectIndex)
             geometry="MULTIPOLYGON",sourceLayer=meta.sourceLayer,
             rowid=meta.rowid,scale=meta.scale,key=meta.key}
         return M.addRegion(sceneIndex,loc,meta.fill,meta.stroke,meta.opacity)
-    elseif meta.type=="Marker" then
+    elseif meta.type=="Marker" or meta.type=="Label" then
         local loc={kind="city",name=meta.name,lon=meta.lon,lat=meta.lat}
+        if meta.type=="Label" then
+            return M.addLabel(sceneIndex,loc,meta.label,meta.fill)
+        end
         return M.addMarker(sceneIndex,loc,meta.label,meta.fill)
     elseif meta.type=="Route" then
         local from={kind="city",name=meta.from,lon=meta.lon,lat=meta.lat}
