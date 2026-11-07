@@ -115,6 +115,40 @@ class MultiRasterTests(unittest.TestCase):
         self.assertEqual(row["summary"]["storage_reduction_pct"],round(
             100*(1-png/raw),2))
 
+    def test_render_optimization_proof_matches_prior_real_publisher_frame_hashes(self):
+        root=Path(__file__).resolve().parents[1]/"data/natural-earth"
+        previous=json.loads((root/"multi_raster_native_observation_2026-11-07.json")
+                            .read_text(encoding="utf-8"))
+        updated=json.loads((root/"native_raster_optimization_observation_2026-11-07.json")
+                           .read_text(encoding="utf-8"))
+        self.assertTrue(updated["native_frame_hash_equal_to_previous_versions"])
+        self.assertTrue(updated["strict_52_source_release_gate_unchanged"])
+        self.assertFalse(updated["resolve_20_host_or_4k_test"])
+        self.assertEqual(updated["official_variant_count_verified_in_this_benchmark"],3)
+        old={r["family"]:r for r in previous["families"]}
+        self.assertEqual(len(updated["families"]),len(old))
+        for row in updated["families"]:
+            with self.subTest(family=row["family"]):
+                historic=old[row["family"]]
+                self.assertEqual(row["source_archive_sha256"],historic["sha256"])
+                self.assertEqual(row["native_640x360_frame_hash_identical_all_stages"],
+                                 historic["native_640x360_frame_hash"])
+                stages=row["benchmarks_by_stage"]
+                self.assertEqual(len(stages),3)
+                self.assertEqual(stages[0]["rgba_v1_720p_median_ms"],
+                                 historic["render_720p_v1_median_ms"])
+                self.assertEqual(stages[0]["png_v2_720p_median_ms"],
+                                 historic["render_720p_v2_median_ms"])
+                for stage in stages:
+                    self.assertGreater(stage["rgba_v1_720p_median_ms"],0)
+                    self.assertGreater(stage["png_v2_720p_median_ms"],0)
+                self.assertEqual(row["png_v2_overall_render_time_reduction_pct"],
+                                 round(100*(1-stages[2]["png_v2_720p_median_ms"]/
+                                              stages[0]["png_v2_720p_median_ms"]),2))
+                self.assertEqual(row["rgba_v1_overall_render_time_reduction_pct"],
+                                 round(100*(1-stages[2]["rgba_v1_720p_median_ms"]/
+                                              stages[0]["rgba_v1_720p_median_ms"]),2))
+
     def test_bounded_selection_cannot_request_undiscovered_families(self):
         with tempfile.TemporaryDirectory() as tmp:
             with self.assertRaisesRegex(ValueError,"unreviewed probe"):
