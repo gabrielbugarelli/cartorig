@@ -38,6 +38,13 @@ D:\CartoRigBuild\downloads\source-archives.json. Exit code 2/INCOMPLETE means
 repeat; it is never a release. Network use is explicit: omit --allow-network
 when all publisher archives already exist on disk.
 
+The official publisher audit was performed by a free public Actions runner:
+https://github.com/gabrielbugarelli/cartorig/actions/runs/42336954400 .
+It discovered 24/24 pages and exactly 52 unique ZIP links (38 at 10m,
+14 at 50m). Its URL/version inventory has been frozen by the checked-in
+`data/natural-earth/raster_discovery_v2026-11-07.lock.json`. This is
+separate from — and cannot substitute for — the 52 actual archive SHA256 pins.
+
 ### Mandatory reviewed raster source lock (M1)
 
 The download report is a **local observation**, not a trusted publisher checksum
@@ -82,7 +89,9 @@ Large TIFFs are decoded in bounded rasterio windows, using matching world
 files and independently verified tile checksums.
 
 Conversion happens in a same-volume persistent staging directory named
-.CartoRigNaturalEarth.assembling. A failed conversion can resume from
+.CartoRigNaturalEarth.assembling, with a sibling
+.CartoRigNaturalEarth.assembling.resume.json proof file that survives even
+a crash during the final manifest SHA256 scan. A failed conversion can resume from
 fully rehashed tiles; changed publisher source hashes invalidate the stage.
 The 52 publisher raster variants are distinct source archives, not 52 unique
 styles. TIFF, JPG and PNG can be read in windows; official layered PSD raster
