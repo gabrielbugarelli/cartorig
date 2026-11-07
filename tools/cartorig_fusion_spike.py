@@ -14,6 +14,9 @@ import json
 from pathlib import Path
 import re
 import sys
+import time
+
+from tools.resolve_host_acceptance import _video_resolution
 
 from tools.resolve_host_acceptance import load_resolve, installed_bundle_path
 
@@ -255,8 +258,68 @@ def verify(app, name):
     }
 
 
+def render(app, name, output_dir, *, clock=time.monotonic,
+           sleeper=time.sleep, timeout_seconds=900):
+    # Render only the dedicated QA project, never a user's work project.
+    validate_name(name)
+    require(output_dir is not None, "Explicit fresh --render-dir is required")
+    manager = invoke(app, "GetProjectManager")
+    project = manager.LoadProject(name)
+    require(project and str(project.GetName()) == name,
+            "Dedicated hybrid project not found for Deliver")
+    item = _find_timeline_item(project)
+    timeline = None
+    for index in range(1, int(invoke(project, "GetTimelineCount")) + 1):
+        candidate = invoke(project, "GetTimelineByIndex", index)
+        if invoke(candidate, "GetName") == TIMELINE:
+            timeline = candidate
+            break
+    require(timeline is not None, "Hybrid QA timeline not found")
+    invoke(project, "SetCurrentTimeline", timeline)
+    directory = output_dir.resolve()
+    require(not directory.exists() or not any(directory.iterdir()),
+            "Render folder must be empty to avoid overwriting files")
+    directory.mkdir(parents=True, exist_ok=True)
+    invoke(project, "SetCurrentRenderFormatAndCodec", "mp4", "H264")
+    output_name = "CartoRig-Hybrid-QA-1920x1080"
+    invoke(project, "SetRenderSettings", {
+        "SelectAllFrames": True, "TargetDir": str(directory),
+        "CustomName": output_name, "ExportVideo": True,
+        "ExportAudio": False, "FormatWidth": 1920, "FormatHeight": 1080,
+    })
+    job = invoke(project, "AddRenderJob")
+    invoke(app, "OpenPage", "deliver")
+    invoke(project, "StartRendering", [job])
+    start = clock()
+    while project.IsRenderingInProgress():
+        if clock() - start > timeout_seconds:
+            project.StopRendering()
+            raise ProbeError("Hybrid QA Deliver render timed out")
+        sleeper(1)
+    status = invoke(project, "GetRenderJobStatus", job)
+    require(isinstance(status, dict) and status.get("JobStatus") == "Complete",
+            "Hybrid QA Deliver job did not complete: " + str(status))
+    rendered = [file for file in directory.rglob("*")
+                if file.is_file() and file.name.startswith(output_name)
+                and file.suffix.lower() == ".mp4"]
+    require(len(rendered) == 1 and rendered[0].stat().st_size > 1024,
+            "Deliver did not produce exactly one nonempty QA video")
+    resolution = _video_resolution(rendered[0])
+    require(resolution is None or resolution == (1920, 1080),
+            "ffprobe detected an unexpected QA video resolution")
+    return {
+        "status": "LIVE_HYBRID_QA_DELIVER_JOB_COMPLETE_VISUAL_REVIEW_PENDING",
+        "project": name, "video_file": str(rendered[0]),
+        "video_bytes": rendered[0].stat().st_size,
+        "ffprobe_resolution": list(resolution) if resolution else None,
+        "real_resolve_deliver_job_complete": True,
+        "geographic_anchoring_tested": False,
+        "visual_composite_pixels_accepted": False,
+    }
+
+
 def run_cli(mode, report, project, *, app=None, binary=None,
-            allow_project_switch=False):
+            allow_project_switch=False, render_dir=None):
     validate_name(project)
     result = {
         "format": FORMAT, "schema_version": 1,
@@ -279,6 +342,13 @@ def run_cli(mode, report, project, *, app=None, binary=None,
         elif mode == "verify":
             result["action"] = verify(app, project)
             result["status"] = result["action"]["status"]
+        elif mode == "render":
+            require(allow_project_switch,
+                    "Save your current work and pass --allow-switch-project")
+            result["keyframe_precheck"] = verify(app, project)
+            result["action"] = render(app, project, render_dir)
+            result["status"] = result["action"]["status"]
+            result["real_host_viewer_or_deliver_verified"] = True
         else:
             raise ProbeError("Unsupported mode: " + str(mode))
         return result
@@ -296,16 +366,18 @@ def run_cli(mode, report, project, *, app=None, binary=None,
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--mode", required=True,
-                        choices=("inspect", "prepare", "verify"))
+                        choices=("inspect", "prepare", "verify", "render"))
     parser.add_argument("--report", required=True, type=Path)
     parser.add_argument("--project", default="CartoRig_Fusion_Architecture_QA")
     parser.add_argument("--plugin-binary", type=Path)
+    parser.add_argument("--render-dir", type=Path)
     parser.add_argument("--allow-switch-project", action="store_true")
     args = parser.parse_args()
     try:
         result = run_cli(args.mode, args.report, args.project,
                          binary=args.plugin_binary,
-                         allow_project_switch=args.allow_switch_project)
+                         allow_project_switch=args.allow_switch_project,
+                         render_dir=args.render_dir)
     except (RuntimeError, OSError, ValueError) as exc:
         print("Hybrid architecture test BLOCKED: " + str(exc), file=sys.stderr)
         raise SystemExit(2) from exc
