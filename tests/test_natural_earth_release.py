@@ -110,6 +110,23 @@ class ProducerTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError,"SHA256 mismatch"):
             release_pipeline._extract_pinned_vector(self.root,False)
 
+    def test_interrupted_pack_hashing_preserves_resume_proof(self):
+        cfg=self.fixture()
+        destination=self.root/"CertifiedNaturalEarth"
+        checkpoint=self.root/".CertifiedNaturalEarth.assembling.resume.json"
+        with patch.object(assemble_pack.build_pack,"build_pack",
+                          side_effect=OSError("simulated full-pack SHA256 interruption")):
+            with self.assertRaisesRegex(OSError,"SHA256 interruption"):
+                assemble_pack.assemble(**cfg,out=destination,
+                                       allow_incomplete=True,resume=True)
+        self.assertFalse(destination.exists())
+        self.assertTrue(checkpoint.is_file())
+        completed=assemble_pack.assemble(**cfg,out=destination,
+                                         allow_incomplete=True,resume=True)
+        self.assertFalse(completed["complete"])
+        self.assertTrue(destination.is_dir())
+        self.assertFalse(checkpoint.exists())
+
     def test_staged_build_source_pin_changes_and_verified_raster_resume(self):
         cfg=self.fixture()
         dest=self.root/"CartoRigNaturalEarth"
@@ -118,7 +135,7 @@ class ProducerTests(unittest.TestCase):
             assemble_pack.assemble(**cfg,out=dest)
         self.assertFalse(dest.exists())
         self.assertTrue((stage/"raster/ne-50m-raster-fixture_0/index.json").is_file())
-        self.assertTrue((stage/".cartorig-build-inputs.json").is_file())
+        self.assertTrue((self.root/".CartoRigNaturalEarth.assembling.resume.json").is_file())
         with self.assertRaisesRegex(FileExistsError,"partial producer build"):
             assemble_pack.assemble(**cfg,out=dest,allow_incomplete=True)
         different=dict(cfg)
