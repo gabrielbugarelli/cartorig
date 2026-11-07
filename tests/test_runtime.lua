@@ -4,6 +4,7 @@ local G=assert(loadfile(root..'/fusion/CartoRig/graph.lua'))()
 local f=C.load(root..'/fusion/CartoRig/data')
 assert(#f>=178)
 assert(C.search(f,'Brasil','Country',5)[1].name=='Brazil')
+assert(C.search(f,'South America','Continent',5)[1].name=='South America')
 local x,y=C.project(-47.917998,-15.781394)
 assert(math.abs(x-0.36689445)<1e-7 and y>0 and y<1)
 local nodes, data, undos={}, {}, {}

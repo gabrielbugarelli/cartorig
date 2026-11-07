@@ -33,6 +33,7 @@ def lua_geometry(polys):return '{' + ','.join('{' + ','.join('{' + ','.join(lua_
 def build(data):
     out=['-- Generated from Natural Earth public-domain source; do not edit by hand.', 'return {']
     country_geoms=[]
+    continents={}
     for f in sorted(data['features'],key=lambda f:str(f['properties'].get('NAME_EN') or f['properties'].get('name') or f['properties'].get('NAME'))):
         p=f['properties']; name=p.get('NAME_EN') or p.get('name') or p.get('NAME')
         if not name:continue
@@ -41,10 +42,19 @@ def build(data):
         geo=shape(f['geometry']);polys=rings(geo)
         if not polys:continue
         country_geoms.append(geo)
+        continent=p.get('CONTINENT') or p.get('continent')
+        if continent in {'Africa','Antarctica','Asia','Europe','North America','Oceania','South America'}:
+            continents.setdefault(continent,[]).append(geo)
         aliases=list(dict.fromkeys(filter(None,[p.get('NAME_PT'),p.get('NAME_LONG'),p.get('name'),p.get('NAME'),p.get('ADMIN')])))
         if iso=='BRA': aliases.insert(0,'Brasil')
         anchor=geo.representative_point()
         out.append('{id=' + lua_string('ne110:'+str(iso)+':'+str(name)) + ',kind="Country",name='+lua_string(name)+',parent="World",code='+lua_string(iso)+',aliases={' + ','.join(lua_string(x) for x in aliases[:8]) + '},lon='+str(round(anchor.x,5))+',lat='+str(round(anchor.y,5))+',polygons='+lua_geometry(polys)+'},')
+    # Continent objects are explicitly derived from Natural Earth country attribution.
+    # Transcontinental country grouping follows the publisher's recorded continent attribute.
+    for continent,parts in sorted(continents.items()):
+        geom=unary_union(parts)
+        anchor=geom.representative_point()
+        out.append('{id='+lua_string('ne110:continent:'+continent)+',kind="Continent",name='+lua_string(continent)+',parent="World",lon='+str(round(anchor.x,5))+',lat='+str(round(anchor.y,5))+',polygons='+lua_geometry(rings(geom,.2))+'},')
     land=unary_union(country_geoms)
     landp=rings(land,.2)
     out.append('{id="ne110:world-land",kind="Internal",name="World land",parent="World",polygons='+lua_geometry(landp)+'},')

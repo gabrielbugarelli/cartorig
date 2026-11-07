@@ -14,3 +14,13 @@ jobs:
         run: lua5.4 tests/test_runtime.lua .
       - name: Catalog and naming contracts
         run: python -m unittest discover -s tests -p 'test_*.py' -v
+      - name: Publish Windows offline installation package
+        uses: actions/upload-artifact@v4
+        with:
+          name: CartoRig-FusionFirst-Windows-Alpha
+          path: |
+            fusion/**
+            packaging/Install-CartoRig.cmd
+            README.md
+            docs/Resolve20-acceptance.md
+          if-no-files-found: error

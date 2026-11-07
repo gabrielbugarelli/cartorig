@@ -7,7 +7,7 @@
 ## What actually works in the source implementation
 
 - Create or reopen a **managed Fusion Composition** rendered in a single Edit-page clip; never overwrite an arbitrary unrelated comp.
-- Generate an offline 2D world base from Natural Earth 110m vector polygons, with separate **Land** and **Ocean** Fill colors.
+- Generate an offline 2D world base from Natural Earth 110m vector polygons, with separate **Land** and **Ocean** Fill colors. Continent selections are derived from country groups.
 - Search **177 named countries**, **27 Brazilian states** (Natural Earth 50m Admin1), and **243 populated-place points** (Natural Earth 110m). Search is case/accent insensitive; `Brasil` and `Brazil` both resolve to Brazil. `Rio de Janeiro` matches a State and City, each with a distinct type.
 - Add independent **Region** objects with authentic polygon geometry; apply fill RGB and alpha by the **same controls** used by the basemap.
 - Add **georeferenced markers** from named city points.
@@ -20,7 +20,7 @@
 
 ## Installation / use (Windows, DaVinci Resolve Studio 20)
 
-1. Download **all files on this branch** (Code → Download ZIP), not a single Lua script. Unzip.
+1. Download **all files on this branch** (Code → Download ZIP) or the **CartoRig-FusionFirst-Windows-Alpha** artifact from the latest successful GitHub Actions run. Do not download an individual Lua script. Unzip.
 2. Close Resolve and run `packaging/Install-CartoRig.cmd`; it copies the new sources and data into the user Fusion Scripts/Comp directory.
 3. Restart Resolve. Insert a **new empty Fusion Composition** into the Edit timeline. Select it and switch to Fusion.
 4. Launch `CartoRig Fusion-first` from Fusion Scripts (menu positioning varies). The initial vector basemap uses many native mask nodes and may be slow on first creation; this is a known alpha performance cost.

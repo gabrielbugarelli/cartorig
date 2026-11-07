@@ -92,7 +92,7 @@ function C.search(features,term,kind,limit)
     local results={}
     for _,f in ipairs(features) do
         if f.kind~='Internal' and (not kind or kind=='All' or kind==f.kind) then
-            local candidates={f.name,f.parent or '',f.code or ''}
+            local candidates={f.name,f.code or ''}
             for _,alias in ipairs(f.aliases or {}) do candidates[#candidates+1]=alias end
             local match = term==''
             local score = 5

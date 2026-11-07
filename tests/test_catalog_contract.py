@@ -10,6 +10,7 @@ class CatalogContractTest(unittest.TestCase):
         self.assertIn('name="Brazil"',data)
         self.assertIn('"Brasil"',data)
         self.assertGreaterEqual(data.count('kind="Country"'),170)
+        self.assertEqual(data.count('kind="Continent"'),7)
     def test_state_pack_is_full_brazil_admin1(self):
         path=ROOT/'fusion/CartoRig/data/ne50m_br_states.lua'
         if not path.exists(): self.skipTest('Admin1 source must be included in complete GitHub branch source distribution')

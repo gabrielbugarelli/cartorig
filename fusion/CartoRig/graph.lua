@@ -31,7 +31,7 @@ local function make_polyline(comp,id,ring,closed,node_x,node_y)
     if #ring<2 and not closed then errorf('Route requires two points') end
     if #ring>5000 then errorf('Geometry exceeds safe Fusion mask budget') end
     local ctor=rawget(_G,'Polyline')
-    if type(ctor)~='function' and type(ctor)~='table' then
+    if not ctor then
         errorf('Fusion Polyline constructor unavailable; cannot create geographic mask')
     end
     local points={}
@@ -46,8 +46,8 @@ local function make_polyline(comp,id,ring,closed,node_x,node_y)
     node:SetInput('Center',{0.5,0.5})
     local ok,poly=pcall(function() return ctor{Closed=closed,Points=points} end)
     if not ok then errorf('Could not make Polyline geometry: '..tostring(poly)) end
-    local set_ok,why=pcall(function() node:SetInput('Polyline',poly) end)
-    if not set_ok then
+    local set_ok,why=pcall(function() return node:SetInput('Polyline',poly) end)
+    if not set_ok or why==false then
         errorf('Fusion rejected geographic Polyline input: '..tostring(why))
     end
     if not closed then
@@ -186,7 +186,7 @@ function G.add_region(comp,feature)
     for _,p in ipairs(feature.polygons) do
         if #p>1 then errorf('Region contains holes; current renderer requires validated hole masks') end
     end
-    if #feature.polygons>80 then errorf('Region contains more than 80 pieces; needs optimized rendering') end
+    if #feature.polygons>250 then errorf('Region contains more than 250 pieces; needs optimized rendering') end
     return transaction(comp,'CartoRig: add '..feature.name,function()
         local serial=(tonumber(comp:GetData('CartoRig.Scene.Serial')) or 0)+1
         local fg=add(comp,'Background',PREFIX..'Pending_'..serial,'Pending','',0,5)
@@ -215,6 +215,8 @@ function G.add_marker(comp,feature)
 end
 function G.add_route(comp,from,to)
     if not from or not to or not from.lon or not to.lon then errorf('Choose point endpoints first') end
+    if math.abs(to.lon-from.lon)>180 then errorf('Route crosses the antimeridian: this first 2D renderer cannot draw it correctly') end
+    if math.abs(to.lon-from.lon)+math.abs(to.lat-from.lat)<0.00001 then errorf('Route origin and destination coincide') end
     return transaction(comp,'CartoRig: add geographic route',function()
         local serial=(tonumber(comp:GetData('CartoRig.Scene.Serial')) or 0)+1
         local fg=add(comp,'Background',PREFIX..'RoutePending_'..serial,'Pending','',1,7)

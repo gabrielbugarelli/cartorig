@@ -119,8 +119,9 @@ local function results_refresh()
     local matches=catalog.search(features,w.CR_Find.Text,current_kind(),75)
     result_rows={}
     tree_clear(w.CR_Results)
-    for _,f in ipairs(matches) do
+    for i,f in ipairs(matches) do
         local label=catalog.description(f)
+        if result_rows[label] then label=label..' · '..tostring(i) end
         result_rows[label]=f
         tree_add(w.CR_Results,label)
     end
@@ -146,6 +147,18 @@ local function select_object(obj)
     chosenObj=obj
     if not obj then return end
     w.CR_Selected.Text=obj.label
+    -- The property panel reflects the selected native Fusion node, not stale values.
+    local function channel(k)
+        local t=tonumber(comp.CurrentTime)
+        local value=t and obj.node:GetInput(k,t) or nil
+        if type(value)~='number' then value=obj.node:GetInput(k) end
+        if type(value)~='number' then return nil end
+        return math.max(0,math.min(255,math.floor(value*255+0.5)))
+    end
+    local r,g,b=channel('TopLeftRed'),channel('TopLeftGreen'),channel('TopLeftBlue')
+    if r and g and b then w.CR_Hex.Text=string.format('#%02X%02X%02X',r,g,b) end
+    local alpha=channel('TopLeftAlpha')
+    if alpha then w.CR_Opacity.Text=tostring(math.floor(alpha*100/255+0.5)) end
     local ok,msg=graph.select(comp,obj.node)
     status((ok and 'Fusion: ' or 'Fusion selection pending: ')..msg)
 end
