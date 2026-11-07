@@ -8,7 +8,15 @@ assert(C.search(f,'South America','Continent',5)[1].name=='South America')
 local x,y=C.project(-47.917998,-15.781394)
 assert(math.abs(x-0.36689445)<1e-7 and y>0 and y<1)
 local nodes, data, undos={}, {}, {}
-_G.Polyline=function(p) assert(type(p.Points)=='table');return p end
+_G.Polyline=nil
+local parsed_mask_count=0
+_G.bmd={ readstring=function(source)
+    assert(type(source)=='string' and source:find('PolylineMask',1,true))
+    assert(source:find('Value = Polyline',1,true))
+    assert(source:find('Points = {',1,true))
+    parsed_mask_count=parsed_mask_count+1
+    return { kind='native-mask-setting', text=source }
+end }
 local tool={}
 tool.__index=tool
 function tool:GetAttrs()return {TOOLS_RegID=self.regid} end
@@ -24,6 +32,12 @@ function tool:GetInput(k,t)
 end
 function tool:AddModifier(k,kind)
    assert(kind=='BezierSpline' or kind=='XYPath');self.modifiers[k]=kind
+   return true
+end
+function tool:LoadSettings(setting)
+   assert(self.regid=='PolylineMask')
+   assert(type(setting)=='table' and setting.kind=='native-mask-setting')
+   self.native_mask=setting.text
    return true
 end
 function tool:ConnectInput(k,src)
@@ -56,6 +70,8 @@ assert(G.ensure(comp,f)==false)
 local world=comp:FindTool('CR2_Land')
 local ocean=comp:FindTool('CR2_Ocean')
 assert(world and ocean and world~=ocean)
+assert(parsed_mask_count>0, 'Expected native mask-setting parsing')
+assert(_G.Polyline==nil, 'Test must not simulate a global Polyline constructor')
 local base=G.get_base(comp)
 assert(base.land==world and base.ocean==ocean)
 local brazil=C.search(f,'Brazil','Country',5)[1]
@@ -87,6 +103,7 @@ assert(route=='3')
 objects=G.get_objects(comp)
 assert(#objects==3)
 assert(objects[3].kind=='Route')
+assert(comp:FindTool('CR2_Mask_Route_3').native_mask:find('Closed = false',1,true))
 comp.CurrentTime=0
 G.route_reveal(comp,objects[3],0)
 comp.CurrentTime=30
