@@ -247,7 +247,7 @@ Tests must not define success as a mock summary reporting 215 or 52. At least on
 | G0 CI/Windows validation | Source tests and Windows checks exist; post-public-host run still requires confirmation | OPEN |
 | G1 locked source inventory | Official 24/24-page discovery pin and 52-source fingerprint; 15 real family source SHA256 observations committed; 52-source reviewed content lock remains unavailable, including one official 10m 404 | PARTIAL |
 | G2 source acquisition | Byte-range resume and archive security tests passed; 51/52 official source URLs returned HEAD metadata; 15/16 families sampled from genuine ZIPs, 654,444,735 acquired bytes; US_MSR_10M.zip 404 upstream; 52-source acquisition still blocked | PARTIAL |
-| G3 raster derivative parity | PRISMA real source ZIP audited; macOS AppleDouble metadata bug fixed in native raster compiler; synthetic TIFF-to-RGBA regression passes; full 52-source atlas conversion still absent | OPEN |
+| G3 raster derivative parity | Real 50m Manual Shaded Relief converted and rendered in RGBA v1 and PNG v2 with identical native frame pixels; PNG v2 cut one atlas by 90%; 51 remaining raster variants unconverted | PARTIAL |
 | G4 all vector-layer rendering | 215/215 source inventory and primary polygons; not all types rendered | OPEN |
 | G5 pack/installer | fail-closed builder and installer source; real full pack absent | OPEN |
 | G6 Resolve Studio 20 host | original Generator test exists; full data Inspector/Overlay not certified | OPEN |
@@ -292,6 +292,12 @@ A feature, status or source count is marked PASS only with reproducible evidence
 - After 51 verified official raster ZIPs are actually acquired, a separately opt-in, offline, nonproduction experimental pack can be built with real vectors and rasters for Resolve tests; it retains the full 52-source audit and is deliberately rejected by the production verifier.
 - Code and synthetic regression tests are implemented. **No full 51-archive workstation download or full actual raster conversion is claimed.** G1/G2 still require publisher-content evidence, and all G0–G7 complete release gates remain intact.
 - Practical workflow: [NE-SOURCE-02 Available-source acquisition](NE_SOURCE02_AVAILABLE_WORKFLOW_2026-11-07.md).
+
+### M3 native raster PNG v2 evidence — 2026-11-07
+
+The official MSR_50M.zip (SHA256 e38f8b256f64eccae250a1e482761d4a7a585e6602c941e6bdb860e160faf609) was converted from TIFF/TFW to both raw RGBA v1 and lossless PNG v2 atlases. Both rendered identical 230,400 native C++ pixels (frame hash 13112041101257582482). Original atlas: 335,806,464 bytes; compressed PNG v2: 33,583,241 bytes (90.0% less). Both had seven LODs and 1,281 tiles. This only verifies one real 50m source, not 52/52 coverage or a Resolve host render.
+
+Vendored portable LodePNG decodes both formats, bounds PNG input and IHDR dimensions before allocation, and retains offline runtime. Experimental and complete release producers choose PNG v2. Existing raw atlas reading remains supported. Evidence and license provenance: [NE_RASTER_PNG_V2_2026-11-07](NE_RASTER_PNG_V2_2026-11-07.md). Full M3 source conversion, 4K host profiling and total pack size remain OPEN.
 
 ## 15. Definition of Done — Natural Earth Complete
 
