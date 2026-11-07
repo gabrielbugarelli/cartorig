@@ -98,18 +98,61 @@ def materialize(inventory:dict,root:Path,allow_network:bool=False,
     source_ids={r.get("resource_id") for r in inventory.get("resources",[])}
     if not set(exemptions).issubset(source_ids):
         raise ValueError("upstream exception does not exist in current source inventory")
-    root.mkdir(parents=True,exist_ok=True)
-    prior=_prior_resources(root)
-    entries=[];downloaded=0;ids=set()
-    for source in inventory.get("resources",[]):
-        item=dict(source)
-        ident=item.get("resource_id","")
-        if not IDENT.fullmatch(ident) or ident in ids:
+    sources=inventory.get("resources",[])
+    if not isinstance(sources,list) or not sources:
+        raise ValueError("official source inventory must contain source records")
+    ids=set()
+    prepared=[]
+    for source in sources:
+        ident=source.get("resource_id","")
+        if not isinstance(ident,str) or not IDENT.fullmatch(ident) or ident in ids:
             raise ValueError("invalid or duplicate source ID")
         ids.add(ident)
-        ext=Path(item["url"].split("?",1)[0]).suffix.lower()
+        ext=Path(source["url"].split("?",1)[0]).suffix.lower()
         if ext not in EXTENSIONS:ext=".bin"
-        relative="archives/"+ident+ext
+        prepared.append((source,"archives/"+ident+ext))
+    root.mkdir(parents=True,exist_ok=True)
+    prior=_prior_resources(root)
+    entries=[]
+    for source,relative in prepared:
+        item=dict(source,file=relative)
+        cached=prior.get(item["resource_id"],{})
+        if (cached.get("url")==item["url"] and
+            cached.get("theme")==item.get("theme") and
+            cached.get("scale")==item.get("scale") and
+            cached.get("file")==relative and
+            cached.get("status")=="VERIFIED"):
+            item.update({key:cached.get(key) for key in
+                         ("sha256","archive_bytes","acquisition_url","status")})
+        else:
+            item.update(status="NOT_INSTALLED",sha256=None,archive_bytes=None)
+        entries.append(item)
+    path=root/"source-archives.json"
+    temporary=path.with_suffix(".json.tmp")
+    def checkpoint(*,final:bool=False)->dict:
+        counts={status:sum(x["status"]==status for x in entries) for status in
+                ("VERIFIED","KNOWN_UNAVAILABLE","NOT_INSTALLED","BLOCKED")}
+        report={"schema_version":1,"publisher":"Natural Earth",
+                "checkpoint_in_progress":not final,
+                "resources":entries,
+                "summary":{"expected":len(entries),
+                           "verified":counts["VERIFIED"],
+                           "known_unavailable":counts["KNOWN_UNAVAILABLE"],
+                           "remaining":counts["NOT_INSTALLED"]+counts["BLOCKED"],
+                           "blocked":counts["BLOCKED"],
+                           "complete":final and all(
+                               x["status"]=="VERIFIED" for x in entries)}}
+        temporary.write_text(json.dumps(report,indent=2,ensure_ascii=False)+"\n",
+                             encoding="utf-8")
+        temporary.replace(path)
+        return report
+    # Crash-safe full 52-row checkpoint; already verified later records stay
+    # available for rehash on resume. Interim completeness is ALWAYS false.
+    checkpoint()
+    downloaded=0
+    for index,(source,relative) in enumerate(prepared):
+        item=dict(source)
+        ident=item["resource_id"]
         dest=root/relative
         item["file"]=relative
         checkpoint=prior.get(ident,{})
@@ -156,22 +199,11 @@ def materialize(inventory:dict,root:Path,allow_network:bool=False,
         else:
             item["status"]="NOT_INSTALLED"
             item["sha256"]=None;item["archive_bytes"]=None
-        entries.append(item)
-    counts={status:sum(x["status"]==status for x in entries) for status in
-            ("VERIFIED","KNOWN_UNAVAILABLE","NOT_INSTALLED","BLOCKED")}
-    report={"schema_version":1,"publisher":"Natural Earth","resources":entries,
-            "summary":{"expected":len(entries),
-                       "verified":counts["VERIFIED"],
-                       "known_unavailable":counts["KNOWN_UNAVAILABLE"],
-                       "remaining":counts["NOT_INSTALLED"]+counts["BLOCKED"],
-                       "blocked":counts["BLOCKED"],
-                       "complete":bool(entries) and all(x["status"]=="VERIFIED" for x in entries)}}
-    path=root/"source-archives.json"
-    temporary=path.with_suffix(".json.tmp")
-    temporary.write_text(json.dumps(report,indent=2,ensure_ascii=False)+"\n",
-                         encoding="utf-8")
-    temporary.replace(path)
-    return report
+        entries[index]=item
+        # A hard kill after this source cannot erase its SHA256/CRC proof.
+        # A later restart independently rehashes the file before reuse.
+        checkpoint()
+    return checkpoint(final=True)
 
 def main():
     p=argparse.ArgumentParser(description=__doc__)
