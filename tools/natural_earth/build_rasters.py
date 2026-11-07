@@ -15,6 +15,7 @@ import json
 from pathlib import Path, PurePosixPath
 import re
 import shutil
+import subprocess
 import tempfile
 import zipfile
 
@@ -92,6 +93,29 @@ def _write_windowed_tiff(
                         tile[:th,:tw,3]=channels[3] if src.count==4 else 255
                     (level/f"{tx}_{ty}.rgba").write_bytes(tile.tobytes())
 
+def psd_composite_to_tiff(psd: Path, output_tif: Path) -> Path:
+    """Flatten official layered PSDs only on the release workstation.
+
+    ImageMagick runs with bounded memory and disk-backed pixel caches;
+    the shipped C++ OpenFX runtime never uses it.
+    """
+    magick=shutil.which("magick")
+    if not magick:
+        raise RuntimeError("Official PSD requires release-only ImageMagick 7 (magick)")
+    try:
+        subprocess.run([
+            magick,"-limit","memory","512MiB","-limit","map","512MiB",
+            "-limit","disk","32GiB",str(psd)+"[0]",
+            "-alpha","on","-depth","8",
+            "-define","tiff:tile-geometry=256x256","-compress","zip",
+            str(output_tif),
+        ],check=True,capture_output=True,text=True,timeout=3600)
+    except (subprocess.CalledProcessError,subprocess.TimeoutExpired) as error:
+        raise RuntimeError("Official PSD composite conversion failed") from error
+    if not output_tif.is_file() or not output_tif.stat().st_size:
+        raise RuntimeError("Publisher PSD did not yield a TIFF composite")
+    return output_tif
+
 def build_asset(image_path: Path, world_text: str, root: Path,
                 asset_id: str, provenance: dict) -> dict:
     try:
@@ -121,15 +145,19 @@ def build_asset(image_path: Path, world_text: str, root: Path,
                        "tiles_x":(zw+TILE-1)//TILE,
                        "tiles_y":(zh+TILE-1)//TILE}
                       for z,(zw,zh) in enumerate(sizes)]
-            use_windows=(image_path.suffix.lower() in (".tif", ".tiff") and
-                         w*h>2_000_000)
+            fmt=image_path.suffix.lower()
+            is_psd=fmt==".psd"
+            # Rasterio streams TIFF/PNG/JPEG in bounded windows; large
+            # publisher PSD bathymetry is converted to TIFF first.
+            use_windows=(is_psd or w*h>2_000_000)
             if use_windows:
-                _write_windowed_tiff(image_path,stage,sizes,w,h)
+                prepared=(psd_composite_to_tiff(
+                              image_path,Path(temporary)/"psd-composite.tif")
+                          if is_psd else image_path)
+                _write_windowed_tiff(prepared,stage,sizes,w,h)
             else:
                 if w*h>25_000_000:
-                    raise RuntimeError(
-                        "Large non-TIFF image cannot be safely resized in memory; "
-                        "convert it to a georeferenced TIFF first")
+                    raise RuntimeError("Raster exceeds bounded Pillow pixel budget")
                 for z,(zw,zh) in enumerate(sizes):
                     level=stage/"tiles"/str(z)
                     level.mkdir(parents=True)
@@ -157,8 +185,9 @@ def build_asset(image_path: Path, world_text: str, root: Path,
                 "asset_id":asset_id,"tile_size":TILE,
                 "extent":extent,"original_width":w,"original_height":h,
                 "levels":levels,"provenance":provenance,
-                "raster_builder":"windowed-rasterio-bilinear" if use_windows else
-                                 "pillow-lanczos",
+                "raster_builder":("publisher-psd-composite-windowed" if is_psd else
+                                  "windowed-rasterio-bilinear" if use_windows else
+                                  "pillow-lanczos"),
             }
             (stage/"index.json").write_text(
                 json.dumps(metadata,indent=2,sort_keys=True)+"\n",encoding="utf-8")
