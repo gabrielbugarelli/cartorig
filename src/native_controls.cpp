@@ -85,7 +85,7 @@ Scene sceneWithNativeControls(const Scene &original,const NativeMapControls &n) 
     s.markers.push_back(std::move(start));
     s.markers.push_back(std::move(end));
     Route route;route.id="__cartorig_native_route__";route.from=fromId;route.to=toId;
-    route.curve=n.routeCurve;route.width=n.routeWidth;route.color=n.routeColor;
+    route.curve=n.routeCurve;route.width=n.routeWidth;route.arrowhead=n.routeArrowhead;route.color=n.routeColor;
     route.start=0;route.end=1;
     s.routes.push_back(std::move(route));
   }
