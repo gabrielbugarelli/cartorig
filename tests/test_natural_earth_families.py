@@ -92,6 +92,21 @@ class FamilyTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError,"authorized free-runner cap"):
             probe_families.run(self.report,self.lock,out=self.root,
                                allow_network=True,max_total_bytes=probe_families.MAX_TOTAL+1)
+    def test_appledouble_resource_forks_are_not_cartographic_images(self):
+        archive=self.root/"prisma-source.zip"
+        with zipfile.ZipFile(archive,"w") as z:
+            z.writestr("PRISMA.tif",b"actual-TIFF-contents")
+            z.writestr("PRISMA.tfw","0.25\\n0\\n0\\n-0.25\\n-179.875\\n89.875\\n".replace("\\n","\n"))
+            z.writestr("__MACOSX/._PRISMA.tif",bytes.fromhex("0005160700020000"))
+            z.writestr("__MACOSX/._PRISMA.tfw",bytes.fromhex("0005160700020000a2"))
+            z.writestr(".DS_Store",b"Finder metadata")
+        result=probe_families.inspect_zip(archive)
+        self.assertEqual(result["ignored_macos_metadata_members"],3)
+        self.assertEqual(len(result["georeferenced_images"]),1)
+        self.assertEqual(result["georeferenced_images"][0]["image"],"PRISMA.tif")
+        self.assertFalse(probe_families.build_rasters.is_payload_member(
+            "__MACOSX/._PRISMA.tfw"))
+
     def test_corrupt_archive_never_reports_complete(self):
         def tampered(url,path,max_bytes):
             path.parent.mkdir(parents=True,exist_ok=True)
