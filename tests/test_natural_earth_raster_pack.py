@@ -112,6 +112,29 @@ class OfflineNaturalEarthPackTests(unittest.TestCase):
         self.assertEqual(report["non_georeferenced_companions"][0]["files"],
                          ["preview.jpg"])
 
+    def test_complete_status_rejects_fabricated_missing_raster_atlases(self):
+        root=self.make_root()
+        records=[{"resource_id":f"ne-50m-raster-{n}","theme":"raster",
+                  "sha256":"a"*64} for n in range(52)]
+        passing={"complete":True,
+                 "vector":{"passed":True,"expected":215,"indexed":215,
+                           "supplemental_verified":33},
+                 "raster":{"passed":True,"source_variants":52,
+                           "validated_derivatives":52},
+                 "pages":{"passed":True},
+                 "archives":{"pack_verified":True,"source_links":52}}
+        folder=root/"provenance"
+        folder.mkdir()
+        (folder/"coverage-report.json").write_text(json.dumps(passing))
+        (folder/"official_sources.json").write_text(
+            json.dumps({"resources":records}))
+        (folder/"source-archives.json").write_text(
+            json.dumps({"resources":records}))
+        for name in ("vector_layers.json","supplement_pin.json"):
+            (folder/name).write_text("{}")
+        with self.assertRaisesRegex(ValueError,"validated raster asset set"):
+            build_pack.build_pack(root,passing)
+
     def test_verified_raster_zip_to_native_tile_asset(self):
         try:
             from PIL import Image
