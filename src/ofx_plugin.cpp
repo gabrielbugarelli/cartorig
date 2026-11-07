@@ -17,6 +17,7 @@
 #include <sstream>
 #include <cmath>
 #include <cstring>
+#include <cstdlib>
 #include <filesystem>
 #include <iostream>
 #include <memory>
@@ -40,6 +41,7 @@ struct Instance {
   OfxImageClipHandle output=nullptr,source=nullptr;
   OfxParamHandle sceneFile=nullptr,datasetFile=nullptr,sceneInline=nullptr,datasetInline=nullptr;
   OfxParamHandle naturalEarthGpkg=nullptr,naturalEarthDetail=nullptr,naturalEarthLayer=nullptr,naturalEarthLayerFile=nullptr,naturalEarthRasterRoot=nullptr,naturalEarthRasterAsset=nullptr;
+  OfxParamHandle useInstalledNaturalEarth=nullptr;
   OfxParamHandle regionCatalog=nullptr,regionKind=nullptr,regionQuery=nullptr,regionMatch=nullptr;
   OfxParamHandle regionRed=nullptr,regionGreen=nullptr,regionBlue=nullptr,regionAlpha=nullptr;
   OfxParamHandle regionAdd=nullptr,regionRemove=nullptr,regionSaved=nullptr,regionStatus=nullptr;
@@ -125,6 +127,44 @@ void writeDiagnostics(const std::string &message) noexcept {
   }
 }
 
+// An explicit Inspector opt-in is required, so installing a data pack does
+// not silently change the appearance of previously saved video projects.
+std::filesystem::path installedNaturalEarthRoot(){
+#ifdef _WIN32
+  const auto getEnv=[](const wchar_t *key)->std::filesystem::path{
+    wchar_t value[32768]{};
+    const DWORD n=GetEnvironmentVariableW(key,value,32768);
+    if(n==0||n>=32768)return {};
+    return std::filesystem::path(std::wstring(value,n));
+  };
+  const auto configured=getEnv(L"CARTORIG_NATURAL_EARTH_PACK");
+  if(!configured.empty())return configured;
+  const auto local=getEnv(L"LOCALAPPDATA");
+  if(!local.empty())return local/"CartoRigNative"/"NaturalEarth";
+#else
+  const char *configured=std::getenv("CARTORIG_NATURAL_EARTH_PACK");
+  if(configured&&*configured)return std::filesystem::path(configured);
+  const char *xdg=std::getenv("XDG_DATA_HOME");
+  if(xdg&&*xdg)
+    return std::filesystem::path(xdg)/"CartoRigNative"/"NaturalEarth";
+  const char *home=std::getenv("HOME");
+  if(home&&*home)
+    return std::filesystem::path(home)/".local"/"share"/
+           "CartoRigNative"/"NaturalEarth";
+#endif
+  return {};
+}
+std::filesystem::path installedNaturalEarthAsset(const char *relative){
+  const auto root=installedNaturalEarthRoot();
+  if(root.empty()||!std::filesystem::is_regular_file(root/"pack.json"))
+    throw std::runtime_error(
+        "Natural Earth data pack not installed: pack.json missing");
+  const auto path=root/relative;
+  if(!std::filesystem::is_regular_file(path))
+    throw std::runtime_error(std::string(
+        "Natural Earth pack is missing offline asset: ")+relative);
+  return path;
+}
 std::string defaultAsset(const char *filename){
   std::filesystem::path module;
 #ifdef _WIN32
@@ -481,6 +521,8 @@ OfxStatus describeInContext(OfxImageEffectHandle e,bool filter){
  // Optional raw publisher table name. Never changes existing map clips unless set.
  defineString(ps,"NaturalEarthLayer","Additional vector layer (ne_...)","AdvancedScene");
  defineString(ps,"NaturalEarthLayerGpkg","Additional layer GeoPackage (optional)","AdvancedScene");
+ defineBoolean(ps,"UseInstalledNaturalEarth",
+               "Use installed offline Natural Earth data pack",false,"AdvancedScene");
  defineString(ps,"NaturalEarthRasterRoot","Raster tiles directory (offline)","AdvancedScene");
  defineNativeText(ps,"NaturalEarthRasterAsset","Raster asset ID (blank: disabled)","AdvancedScene");
  defineString(ps,"SceneFile","Scene .json (blank: empty map)","AdvancedScene");
@@ -500,6 +542,7 @@ OfxStatus createInstance(OfxImageEffectHandle e,bool filter){auto i=std::make_un
  {"NaturalEarthLayerGpkg",&i->naturalEarthLayerFile},
  {"NaturalEarthRasterRoot",&i->naturalEarthRasterRoot},
  {"NaturalEarthRasterAsset",&i->naturalEarthRasterAsset},
+ {"UseInstalledNaturalEarth",&i->useInstalledNaturalEarth},
  {"GeographicCatalog",&i->regionCatalog},
  {"GeographicRegionKind",&i->regionKind},{"GeographicRegionQuery",&i->regionQuery},
  {"GeographicRegionMatch",&i->regionMatch},{"GeographicRegionStatus",&i->regionStatus},
@@ -639,6 +682,10 @@ OfxStatus render(OfxImageEffectHandle e,OfxPropertySetHandle args){Instance *i=i
  stringAt(i->sceneFile,time,sceneFile);stringAt(i->datasetFile,time,datasetFile);
  stringAt(i->sceneInline,time,inlineScene);stringAt(i->datasetInline,time,inlineCatalog);
  stringAt(i->naturalEarthGpkg,time,naturalEarthPath);
+ const bool useInstalled=intAt(i->useInstalledNaturalEarth,time,0)!=0;
+ if(useInstalled && naturalEarthPath.empty())
+   naturalEarthPath=installedNaturalEarthAsset(
+       "vector/natural_earth_vector.gpkg").string();
  if(sceneFile.empty())sceneFile=defaultAsset("default-map.cartorig-native.json");
  auto scene=inlineScene.empty()?sceneAt(sceneFile):embeddedSceneAt(*i,inlineScene);
  // Priority: Embedded GeoJSON > explicit GeoJSON filename > local Natural
@@ -701,6 +748,9 @@ OfxStatus render(OfxImageEffectHandle e,OfxPropertySetHandle args){Instance *i=i
  std::string rasterRoot,rasterAsset;
  stringAt(i->naturalEarthRasterRoot,time,rasterRoot);
  stringAt(i->naturalEarthRasterAsset,time,rasterAsset);
+ if(useInstalled && rasterRoot.empty() && !rasterAsset.empty())
+   rasterRoot=installedNaturalEarthAsset(
+       "raster/validated-raster-assets.json").parent_path().string();
  if(!rasterAsset.empty()){
    if(rasterRoot.empty())
      throw std::invalid_argument("Natural Earth raster asset requires offline tile directory");
@@ -710,6 +760,8 @@ OfxStatus render(OfxImageEffectHandle e,OfxPropertySetHandle args){Instance *i=i
  std::string extraLayer,extraLayerPath;
  stringAt(i->naturalEarthLayer,time,extraLayer);
  stringAt(i->naturalEarthLayerFile,time,extraLayerPath);
+ if(useInstalled && extraLayerPath.empty())
+   extraLayerPath=installedNaturalEarthAsset("vector/supplements.gpkg").string();
  if(!extraLayer.empty()){
    const auto &source=extraLayerPath.empty()?naturalEarthPath:extraLayerPath;
    if(source.empty())
@@ -753,6 +805,8 @@ OfxStatus onGeographicRegionChanged(OfxImageEffectHandle effect,
   if(choice<0||choice>3)throw std::invalid_argument("unknown geographic region type");
   std::string indexFile,query,saved;
   stringAt(i->regionCatalog,time,indexFile);
+  if(intAt(i->useInstalledNaturalEarth,time,0)!=0 && indexFile.empty())
+    indexFile=installedNaturalEarthAsset("vector/catalog.sqlite").string();
   stringAt(i->regionQuery,time,query);
   stringAt(i->regionSaved,time,saved);
   const bool actionAdd=changed=="GeographicRegionAdd";
