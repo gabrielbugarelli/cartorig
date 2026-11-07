@@ -215,7 +215,7 @@ jobs:
   # [family-head] interrogates HEAD metadata; [family-samples] downloads
   # one bounded ZIP per family then deletes the raw archive.
   raster-family-probe:
-    if: github.event_name == 'push' && (contains(github.event.head_commit.message, '[family-head]') || contains(github.event.head_commit.message, '[family-samples]'))
+    if: github.event_name == 'push' && (contains(github.event.head_commit.message, '[family-head]') || contains(github.event.head_commit.message, '[family-samples]') || contains(github.event.head_commit.message, '[prisma-diagnostic]'))
     runs-on: ubuntu-24.04
     timeout-minutes: 40
     steps:
@@ -236,6 +236,9 @@ jobs:
                      --max-archive-mb 250 --max-total-mb 1200)
           if [[ "${{ contains(github.event.head_commit.message, '[family-samples]') }}" == "true" ]]; then
             ARGUMENTS+=(--fetch-samples)
+          fi
+          if [[ "${{ contains(github.event.head_commit.message, '[prisma-diagnostic]') }}" == "true" ]]; then
+            ARGUMENTS+=(--fetch-samples --only-family 50m-prisma-shaded-relief)
           fi
           python -m tools.natural_earth.probe_families "${ARGUMENTS[@]}"
       - name: Upload JSON-only raster family source evidence
