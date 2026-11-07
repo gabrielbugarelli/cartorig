@@ -2,7 +2,8 @@
 """NE-FETCH-01: live, bounded Natural Earth raster-family acquisition probe.
 
 Only runs with explicit --allow-network in a release/probe machine.
-52 official download URLs are measured; one smallest real publisher ZIP
+52 official download URLs are measured in the initial HEAD preflight;
+one smallest real publisher ZIP
 per each of the 16 family pages is acquired and checked, where within budget.
 The report is JSON-only: NO publisher binaries uploaded to GitHub artifacts.
 This is family sample evidence, NEVER a lock of the 52 full archive hashes.
