@@ -82,11 +82,22 @@ def _verified_existing(dest:Path,record:dict)->bool:
 
 
 def materialize(inventory:dict,root:Path,allow_network:bool=False,
-                max_downloads:int|None=None)->dict:
+                max_downloads:int|None=None,
+                known_unavailable:dict[str,dict]|None=None)->dict:
+    """Acquire all official available sources without certifying missing ones.
+
+    known_unavailable MUST come from known_unavailable.validate(), which binds
+    every bypass to the immutable 52-source publisher discovery fingerprint.
+    Verified files always take precedence if a source becomes available again.
+    """
     if inventory.get("schema_version")!=1:
         raise ValueError("unsupported source inventory")
     if max_downloads is not None and max_downloads<0:
         raise ValueError("max_downloads must not be negative")
+    exemptions=known_unavailable or {}
+    source_ids={r.get("resource_id") for r in inventory.get("resources",[])}
+    if not set(exemptions).issubset(source_ids):
+        raise ValueError("upstream exception does not exist in current source inventory")
     root.mkdir(parents=True,exist_ok=True)
     prior=_prior_resources(root)
     entries=[];downloaded=0;ids=set()
@@ -113,6 +124,14 @@ def materialize(inventory:dict,root:Path,allow_network:bool=False,
             item["archive_bytes"]=dest.stat().st_size
             item["status"]="VERIFIED"
             item["acquisition_url"]=verified.get("acquisition_url",item["url"])
+        elif ident in exemptions:
+            # Exclude from fetch attempts, NOT from the required inventory.
+            # It remains a real missing source for complete-data certification.
+            item["status"]="KNOWN_UNAVAILABLE"
+            item["upstream_issue"]=exemptions[ident]["issue"]
+            item["error"]="Official publisher URL unavailable; exemption is acquisition-only"
+            item["sha256"]=None
+            item["archive_bytes"]=None
         elif allow_network and (max_downloads is None or downloaded<max_downloads):
             mirrors=[item["url"]]
             fallback=official_raster_mirror(item)
@@ -138,9 +157,14 @@ def materialize(inventory:dict,root:Path,allow_network:bool=False,
             item["status"]="NOT_INSTALLED"
             item["sha256"]=None;item["archive_bytes"]=None
         entries.append(item)
+    counts={status:sum(x["status"]==status for x in entries) for status in
+            ("VERIFIED","KNOWN_UNAVAILABLE","NOT_INSTALLED","BLOCKED")}
     report={"schema_version":1,"publisher":"Natural Earth","resources":entries,
             "summary":{"expected":len(entries),
-                       "verified":sum(x["status"]=="VERIFIED" for x in entries),
+                       "verified":counts["VERIFIED"],
+                       "known_unavailable":counts["KNOWN_UNAVAILABLE"],
+                       "remaining":counts["NOT_INSTALLED"]+counts["BLOCKED"],
+                       "blocked":counts["BLOCKED"],
                        "complete":bool(entries) and all(x["status"]=="VERIFIED" for x in entries)}}
     path=root/"source-archives.json"
     temporary=path.with_suffix(".json.tmp")
