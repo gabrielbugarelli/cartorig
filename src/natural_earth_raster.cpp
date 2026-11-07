@@ -45,6 +45,18 @@ std::vector<std::uint8_t> readTile(const std::filesystem::path &path,bool compre
     std::vector<std::uint8_t> png(static_cast<std::size_t>(bytes));
     input.read(reinterpret_cast<char*>(png.data()),static_cast<std::streamsize>(png.size()));
     if(!input)throw std::runtime_error("Natural Earth compressed PNG tile read failed");
+    // Bound the decoded dimensions *before* the PNG decoder allocates memory.
+    // The v2 producer emits exactly 256x256, 8-bit RGBA PNG (color type 6).
+    // Reject a tiny compressed decompression bomb with enormous IHDR width.
+    const std::array<std::uint8_t,16> signatureAndIHDR{{
+        137,80,78,71,13,10,26,10,0,0,0,13,73,72,68,82}};
+    if(png.size()<33||
+       !std::equal(signatureAndIHDR.begin(),signatureAndIHDR.end(),png.begin())||
+       png[16]!=0||png[17]!=0||png[18]!=1||png[19]!=0||
+       png[20]!=0||png[21]!=0||png[22]!=1||png[23]!=0||
+       png[24]!=8||png[25]!=6||
+       png[26]!=0||png[27]!=0||png[28]!=0)
+      throw std::runtime_error("Natural Earth PNG tile has unsafe IHDR");
     std::vector<std::uint8_t> rgba;
     unsigned width=0,height=0;
     const unsigned error=lodepng::decode(rgba,width,height,png);
