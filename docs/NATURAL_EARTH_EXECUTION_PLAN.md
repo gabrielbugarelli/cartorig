@@ -245,9 +245,9 @@ Tests must not define success as a mock summary reporting 215 or 52. At least on
 | Gate | Current evidence | Status |
 | --- | --- | --- |
 | G0 CI/Windows validation | Source tests and Windows checks exist; post-public-host run still requires confirmation | OPEN |
-| G1 locked source inventory | Official audit 24/24 pages, 52 distinct raster ZIP variants (38 at 10m, 14 at 50m); immutable discovery fingerprint `dbd0bb7a...` committed; independent 52-archive content-SHA lock pending | PARTIAL |
-| G2 source acquisition | HTTP Range/ETag byte-resume, redirect checks and ZIP symlink safeguards tested; live source-page probe succeeded, 52 actual archives still pending | PARTIAL |
-| G3 raster derivative parity | builder + synthetic TIFF/PSD fixtures tested; actual 52/52 unknown | OPEN |
+| G1 locked source inventory | Official 24/24-page discovery pin and 52-source fingerprint; 15 real family source SHA256 observations committed; 52-source reviewed content lock remains unavailable, including one official 10m 404 | PARTIAL |
+| G2 source acquisition | Byte-range resume and archive security tests passed; 51/52 official source URLs returned HEAD metadata; 15/16 families sampled from genuine ZIPs, 654,444,735 acquired bytes; US_MSR_10M.zip 404 upstream; 52-source acquisition still blocked | PARTIAL |
+| G3 raster derivative parity | PRISMA real source ZIP audited; macOS AppleDouble metadata bug fixed in native raster compiler; synthetic TIFF-to-RGBA regression passes; full 52-source atlas conversion still absent | OPEN |
 | G4 all vector-layer rendering | 215/215 source inventory and primary polygons; not all types rendered | OPEN |
 | G5 pack/installer | fail-closed builder and installer source; real full pack absent | OPEN |
 | G6 Resolve Studio 20 host | original Generator test exists; full data Inspector/Overlay not certified | OPEN |
@@ -272,6 +272,18 @@ A feature, status or source count is marked PASS only with reproducible evidence
   manifests. Real WAN full-corpus acquisition remains outstanding.
 - Staging resume evidence is now stored OUTSIDE the future pack tree, surviving
   interrupted final SHA256 hashing and atomic directory rename.
+
+### NE-FETCH-01 verified sample evidence — 2026-11-07
+
+- Details, exact SHA256 observations, public workflow links, blocker and
+  reproducible commands: [NE-FETCH-01 acceptance audit](NE_FETCH01_ACCEPTANCE_2026-11-07.md).
+- 15 of 16 family examples were genuinely downloaded and validated; all ZIPs
+  discarded from the free runner after verification.
+- Real 50m PRISMA TIFF/TFW regression: ignore `__MACOSX/._*` sidecars.
+- Unique publisher block: `US_MSR_10M.zip`, HTTP 404 on both official tested
+  endpoints; tracked as [issue #4](https://github.com/gabrielbugarelli/cartorig/issues/4).
+- M1/M2 and the Complete pack must **not** be marked PASSED based on this
+  sample evidence alone. The 52-source content SHA lock is still missing.
 
 ## 15. Definition of Done — Natural Earth Complete
 
