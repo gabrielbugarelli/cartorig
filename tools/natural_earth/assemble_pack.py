@@ -19,10 +19,52 @@ from tools.natural_earth import (
     build_catalog, build_pack, build_rasters, coverage, verify_pack
 )
 
+def _verified_raster_subset(acquired:dict,discovery:dict,root:Path,
+                            reviewed_unavailable:dict[str,dict])->dict:
+    """Only for an explicitly reviewed, non-certified experimental pack.
+
+    Do not remove the missing source from source-archives.json or the official
+    publisher inventory. Compile the verified subset, but independently audit
+    the original full manifest and always mark the resulting pack incomplete.
+    """
+    from tools.natural_earth.verify_pack import verify_manifest
+    records=acquired.get("resources",[])
+    discovered={r["resource_id"]:r for r in discovery.get("resources",[])
+                if r.get("theme")=="raster"}
+    if (not reviewed_unavailable or not isinstance(records,list) or
+            len(records)!=len(discovered) or len(discovered)<2 or
+            len({r.get("resource_id") for r in records})!=len(records)):
+        raise ValueError("experimental data pack must preserve all discovered raster source IDs")
+    actual_ids={r.get("resource_id") for r in records}
+    if actual_ids!=set(discovered):
+        raise ValueError("experimental archive manifest omits or invents source IDs")
+    missing={r["resource_id"] for r in records if r.get("status")!="VERIFIED"}
+    if not missing or missing!=set(reviewed_unavailable):
+        raise ValueError("only the exact reviewed upstream source gap may be excluded")
+    for row in records:
+        source=discovered[row["resource_id"]]
+        if (row.get("url")!=source.get("url") or
+            row.get("theme")!="raster" or row.get("scale")!=source.get("scale")):
+            raise ValueError("experimental archive provenance differs from reviewed discovery")
+        if row["resource_id"] in missing:
+            exception=reviewed_unavailable[row["resource_id"]]
+            if (row.get("status")!="KNOWN_UNAVAILABLE" or
+                row.get("upstream_issue")!=exception.get("issue") or
+                row.get("sha256") is not None or row.get("archive_bytes") is not None):
+                raise ValueError("missing source was not explicitly marked upstream unavailable")
+    subset={"schema_version":1,
+            "resources":[r for r in records if r["resource_id"] not in missing]}
+    proof=verify_manifest(subset,root)
+    if not proof["complete"] or proof["verified"]!=len(subset["resources"]):
+        raise ValueError("verified subset contains corrupt or unproven publisher archives")
+    return subset
+
+
 def assemble(*,vector:Path,supplement:Path,sources:Path,
              archives:Path,archive_root:Path,vector_pin:Path,
              supplement_pin:Path,out:Path,allow_incomplete:bool=False,
-             resume:bool=False)->dict:
+             resume:bool=False,
+             reviewed_unavailable:dict[str,dict]|None=None)->dict:
     out=out.resolve()
     if out.exists():
         raise FileExistsError("offline data pack output already exists: "+str(out))
@@ -32,8 +74,12 @@ def assemble(*,vector:Path,supplement:Path,sources:Path,
     pinned=json.loads(vector_pin.read_text(encoding="utf-8"))
     supplemental_pin=json.loads(supplement_pin.read_text(encoding="utf-8"))
     verified=verify_pack.verify_manifest(acquired,archive_root)
+    raster_inputs=acquired
     if not verified["complete"]:
-        raise ValueError("publisher source archives are not fully SHA256/CRC verified")
+        if not allow_incomplete or not reviewed_unavailable:
+            raise ValueError("publisher source archives are not fully SHA256/CRC verified")
+        raster_inputs=_verified_raster_subset(
+            acquired,discovery,archive_root,reviewed_unavailable)
     # Persistent same-volume staging permits bounded, resumable 50+ GB builds.
     root=out.with_name("."+out.name+".assembling")
     # Resume proof lives OUTSIDE the future data pack. A hard kill during
@@ -106,12 +152,14 @@ def assemble(*,vector:Path,supplement:Path,sources:Path,
         build_catalog.index_source(
             root/"vector/natural_earth_vector.gpkg",catalog)
     raster=build_rasters.compile_archives(
-        acquired,archive_root,root/"raster",resume=resume)
+        raster_inputs,archive_root,root/"raster",resume=resume)
     audit=coverage.audit(
         pinned,catalog,discovery,acquired,raster,
         root/"vector/supplements.gpkg",supplemental_pin)
     (root/"provenance/coverage-report.json").write_text(
         json.dumps(audit,indent=2,sort_keys=True)+"\n",encoding="utf-8")
+    if reviewed_unavailable and raster_inputs is not acquired and audit["complete"]:
+        raise ValueError("experimental upstream gap cannot produce complete certification")
     if not audit["complete"] and not allow_incomplete:
         raise ValueError("Natural Earth Complete audit failed: "+
                          json.dumps({k:v.get("passed") for k,v in audit.items()
