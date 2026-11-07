@@ -14,7 +14,7 @@ local ui=fusion.UIManager
 local dispatcher=bmd.UIDispatcher(ui)
 local win=dispatcher:AddWindow({
     ID="CartoRigEditor", WindowTitle="CartoRig | Map Editor",
-    Geometry={120,75,1040,855}, Spacing=9, Margin=13
+    Geometry={110,60,1070,925}, Spacing=9, Margin=13
 },ui:VGroup{
     ID="Root",Spacing=8,
     ui:HGroup{
@@ -35,7 +35,8 @@ local win=dispatcher:AddWindow({
     },
     ui:HGroup{
         ui:Button{ID="AddRegion",Text="+ Region"},
-        ui:Button{ID="AddMarker",Text="+ Marker / Label"},
+        ui:Button{ID="AddMarker",Text="+ Marker"},
+        ui:Button{ID="AddLabel",Text="+ Label"},
         ui:Button{ID="Focus",Text="Focus camera"},
         ui:Button{ID="AnimateCamera",Text="Animate camera"}
     },
@@ -45,6 +46,10 @@ local win=dispatcher:AddWindow({
         ui:Label{Text="Duration in frames",Weight=0.2},
         ui:LineEdit{ID="Duration",Text="24",Weight=0.12},
         ui:Label{Text="(Only Animate creates keys)",Weight=0.35}
+    },
+    ui:HGroup{
+        ui:Label{Text="Label text (optional; location name by default)",Weight=0.5},
+        ui:LineEdit{ID="LabelText",PlaceholderText="Label name",Weight=0.5}
     },
     ui:VGap(5),
     ui:HGroup{
@@ -86,6 +91,12 @@ local win=dispatcher:AddWindow({
         ui:ComboBox{ID="BasePart",Weight=0.25},
         ui:Button{ID="BaseStyle",Text="Apply base color",Weight=0.25},
         ui:Label{Text="Same Fill control for base map and objects",Weight=0.32}
+    },
+    ui:HGroup{
+        ui:Label{Text="Map background",Weight=0.25},
+        ui:ComboBox{ID="BackgroundMode",Weight=0.30},
+        ui:Button{ID="ApplyBackground",Text="Apply transparency",Weight=0.25},
+        ui:Label{Text="Transparent oceans for overlay on video",Weight=0.20}
     },
     ui:VGap(5),
     ui:Label{Text="ROUTE  |  Choose endpoints using Find above. Regions need a manually selected point."},
@@ -187,6 +198,7 @@ local function kind()
 end
 setItems(it.Kind,{"All locations","Continent","Country","State / Province","City"})
 setItems(it.BasePart,{"Land","Ocean","Borders"})
+setItems(it.BackgroundMode,{"Opaque map","Transparent ocean"})
 setItems(it.Arrowhead,{"Arrowhead","Plain line"})
 action(updateScenes)
 if #scenes>0 then action(updateObjects)end
@@ -229,6 +241,16 @@ function win.On.AddMarker.Clicked(_)
         service.addMarker(sceneIndex(),loc,loc.name,chosenColor("Fill"))
         updateObjects()
         return "Georeferenced marker added without any automatic animation."
+    end)
+end
+function win.On.AddLabel.Clicked(_)
+    action(function()
+        local loc=selectedLocation()
+        local title=tostring(it.LabelText.Text or "")
+        if title=="" then title=loc.name end
+        service.addLabel(sceneIndex(),loc,title,chosenColor("Fill"))
+        updateObjects()
+        return "Independent text label anchored to an offline geographic point."
     end)
 end
 function win.On.Focus.Clicked(_)
@@ -289,6 +311,15 @@ function win.On.RemoveObject.Clicked(_)
         service.delete(sceneIndex(),objectIndex())
         updateObjects()
         return "Only selected CartoRig object deleted."
+    end)
+end
+function win.On.ApplyBackground.Clicked(_)
+    action(function()
+        local transparent=(tonumber(it.BackgroundMode.CurrentIndex) or 0)==1
+        service.backgroundMode(sceneIndex(),transparent)
+        return transparent and
+            "Transparent ocean mode requested. Validate alpha over video." or
+            "Opaque map mode requested."
     end)
 end
 function win.On.BaseStyle.Clicked(_)
