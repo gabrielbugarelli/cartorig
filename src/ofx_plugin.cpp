@@ -503,6 +503,9 @@ OfxStatus describeInContext(OfxImageEffectHandle e,bool filter){
  defineDouble(ps,"RouteProgress","Route reveal (animate 0 to 1)",1,-1,1,"RouteControls");
  defineNativeDouble(ps,"NativeRouteCurve","Route curvature",-20,-100,100,"RouteControls");
  defineNativeDouble(ps,"NativeRouteWidth","Route width",3,.5,30,"RouteControls");
+ defineNativeDouble(ps,"NativeRouteRed","Route red",255,0,255,"RouteControls");
+ defineNativeDouble(ps,"NativeRouteGreen","Route green",200,0,255,"RouteControls");
+ defineNativeDouble(ps,"NativeRouteBlue","Route blue",100,0,255,"RouteControls");
  defineNativeToggle(ps,"RouteMarkers","Show route endpoints",true,"RouteControls");
  defineNativeText(ps,"RouteFromLabel","Origin label","RouteControls");
  defineNativeText(ps,"RouteToLabel","Destination label","RouteControls");
@@ -596,7 +599,9 @@ OfxStatus createInstance(OfxImageEffectHandle e,bool filter){auto i=std::make_un
  {"NativeRouteEnabled",&i->routeEnabled},{"RouteStartLongitude",&i->routeStartLon},
  {"RouteStartLatitude",&i->routeStartLat},{"RouteEndLongitude",&i->routeEndLon},
  {"RouteEndLatitude",&i->routeEndLat},{"NativeRouteCurve",&i->routeCurve},
- {"NativeRouteWidth",&i->routeWidth},{"RouteMarkers",&i->showRouteMarkers},
+ {"NativeRouteWidth",&i->routeWidth},{"NativeRouteRed",&i->routeRed},
+ {"NativeRouteGreen",&i->routeGreen},{"NativeRouteBlue",&i->routeBlue},
+ {"RouteMarkers",&i->showRouteMarkers},
  {"RouteFromLabel",&i->routeStartLabel},{"RouteToLabel",&i->routeEndLabel},
  {"CustomMapColors",&i->manualColors},{"OceanR",&i->oceanR},{"OceanG",&i->oceanG},
  {"OceanB",&i->oceanB},{"LandR",&i->landR},{"LandG",&i->landG},{"LandB",&i->landB},
@@ -763,6 +768,8 @@ OfxStatus render(OfxImageEffectHandle e,OfxPropertySetHandle args){Instance *i=i
    return static_cast<uint8_t>(std::lround(
      std::clamp(doubleAt(h,time,fallback),0.0,255.0)));
  };
+ controls.routeColor={byteAt(i->routeRed,255),byteAt(i->routeGreen,200),
+                      byteAt(i->routeBlue,100),255};
  if(controls.customColors){
    controls.ocean={byteAt(i->oceanR,13),byteAt(i->oceanG,30),byteAt(i->oceanB,50),255};
    controls.land={byteAt(i->landR,35),byteAt(i->landG,59),byteAt(i->landB,82),255};
