@@ -81,6 +81,40 @@ class MultiRasterTests(unittest.TestCase):
             stored=json.loads((root/"multi-raster-proof.json").read_text())
             self.assertEqual(stored["families"][0]["status"],"FAILED_REAL_SOURCE_QA")
             self.assertEqual(len(stored["families"]),1)
+    def test_persisted_real_publisher_metrics_match_independent_source_hashes(self):
+        proof=Path(__file__).resolve().parents[1]/(
+            "data/natural-earth/multi_raster_native_observation_2026-11-07.json")
+        row=json.loads(proof.read_text(encoding="utf-8"))
+        self.assertFalse(row["full_source_lock_certified"])
+        self.assertFalse(row["resolve_host_test"])
+        originals={r["archive"]:r for r in self.observations["observations"]}
+        self.assertEqual(row["summary"]["verified_new_official_families"],3)
+        self.assertEqual(len(row["families"]),3)
+        self.assertEqual({r["family"] for r in row["families"]},set(multi.SAMPLE_FAMILIES))
+        raw=png=0
+        for sample in row["families"]:
+            with self.subTest(family=sample["family"]):
+                official=originals[sample["archive"]]
+                self.assertEqual(sample["sha256"],official["observed_sha256"])
+                self.assertEqual(sample["source_archive_bytes"],official["archive_bytes"])
+                self.assertEqual(sample["rgba_v1_bytes"],
+                                 sample["tiles"]*256*256*4)
+                self.assertGreater(sample["rgba_v1_bytes"],sample["png_v2_bytes"])
+                self.assertEqual(sample["storage_reduction_pct"],round(
+                    100*(1-sample["png_v2_bytes"]/sample["rgba_v1_bytes"]),2))
+                self.assertGreater(sample["render_720p_v1_median_ms"],0)
+                self.assertGreater(sample["render_720p_v2_median_ms"],0)
+                self.assertEqual(sample["native_720p_v2_time_overhead_pct"],round(
+                    100*(sample["render_720p_v2_median_ms"]/
+                         sample["render_720p_v1_median_ms"]-1),2))
+                self.assertTrue(sample["native_640x360_frame_hash"].isdigit())
+                raw+=sample["rgba_v1_bytes"]
+                png+=sample["png_v2_bytes"]
+        self.assertEqual(row["summary"]["sum_rgba_v1_bytes"],raw)
+        self.assertEqual(row["summary"]["sum_png_v2_bytes"],png)
+        self.assertEqual(row["summary"]["storage_reduction_pct"],round(
+            100*(1-png/raw),2))
+
     def test_bounded_selection_cannot_request_undiscovered_families(self):
         with tempfile.TemporaryDirectory() as tmp:
             with self.assertRaisesRegex(ValueError,"unreviewed probe"):
