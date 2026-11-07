@@ -11,7 +11,7 @@ param(
   [switch]$InstallExperimentalPack,
   [ValidateRange(1,52)][int]$MaxDownloads=12,
   [ValidateRange(1,100)][int]$MaxBatches=10,
-  [ValidateRange(0,1000)][double]$MinFreeGiB=4,
+  [ValidateRange(0,1000)][double]$MinFreeGiB=50,
   [string]$Python='python'
 )
 $ErrorActionPreference='Stop'
