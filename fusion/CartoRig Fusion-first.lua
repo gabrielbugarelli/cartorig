@@ -1,3 +1,17 @@
+-- CartoRig Fusion-first v0.2.1: protected startup with persistent diagnostics.
+-- The editor is shown BEFORE any expensive Fusion map-node construction.
+local function startup_log(message)
+    local line = os.date('%Y-%m-%d %H:%M:%S') .. ' | ' .. tostring(message)
+    pcall(function() print('[CartoRig] ' .. line) end)
+    local temp = os.getenv('TEMP') or os.getenv('TMP') or '.'
+    local path = temp .. '/CartoRig_FusionFirst_startup.log'
+    local ok, f = pcall(io.open, path, 'a')
+    if ok and f then
+        pcall(function() f:write(line, '\n'); f:close() end)
+    end
+end
+local function main()
+    startup_log('START v0.2.1 — entry point executed')
 -- CartoRig 0.2 greenfield Fusion-first authoring interface for DaVinci Resolve Studio 20.
 -- This file deliberately does not depend on earlier CartoRig plugin implementations.
 -- Creates genuine Natural Earth polygon masks, Fusion nodes, independent native splines.
@@ -20,13 +34,14 @@ local bmd=rawget(_G,'bmd')
 if not ui or not bmd or not bmd.UIDispatcher then error('CartoRig: Fusion UIManager is unavailable.',0) end
 
 -- Do not modify third-party nodes: this is a managed CartoRig scene only.
-graph.ensure(comp,features)
+startup_log('Modules loaded; opening UIManager without creating map')
 local dispatcher=bmd.UIDispatcher(ui)
 local win=dispatcher:AddWindow({
     ID='CartoRigMain',WindowTitle='CartoRig — Fusion-first Map Editor',Geometry={80,90,490,810},
 },ui:VGroup{ID='CR_Root',Spacing=6,
     ui:Label{ID='CR_Title',Text='CARTORIG · MAP SCENE'},
-    ui:Label{ID='CR_Source',Text='Offline Natural Earth 110m · Edit clip / Fusion animation'},
+    ui:Label{ID='CR_Source',Text='Fusion-first v0.2.1 · Offline Natural Earth · Editor'},
+    ui:Button{ID='CR_CreateScene',Text='Create Map in this Fusion Composition'},
     ui:HGroup{
         ui:LineEdit{ID='CR_Find',PlaceholderText='Find location: Brasil, São Paulo, Amapá...'},
         ui:Button{ID='CR_Search',Text='Find'},
@@ -75,7 +90,7 @@ local win=dispatcher:AddWindow({
         ui:Button{ID='CR_Reveal0',Text='Route Reveal 0% key'},
         ui:Button{ID='CR_Reveal100',Text='Route Reveal 100% key'},
     },
-    ui:Label{ID='CR_Status',Text='Ready. Native Fusion spline keys follow the playhead.'},
+    ui:Label{ID='CR_Status',Text='Editor ready. Click Create Map to initialize the scene.'},
     ui:Button{ID='CR_Close',Text='Close CartoRig Editor'},
 })
 if not win then error('CartoRig: Could not create native UIManager window',0) end
@@ -88,7 +103,10 @@ local pendingDestination=nil
 local result_rows={}
 local object_rows={}
 
-local function status(message) w.CR_Status.Text=tostring(message) end
+local function status(message)
+    w.CR_Status.Text=tostring(message)
+    if tostring(message):find('ERROR:',1,true) then startup_log(tostring(message)) end
+end
 local function try(action)
     local ok,result=pcall(action)
     if not ok then status('ERROR: '..tostring(result));return nil end
@@ -132,10 +150,9 @@ local function objects_refresh()
     object_rows={}
     tree_clear(w.CR_Objects)
     local layers=graph.get_base(comp)
-    local entries={
-        {kind='BaseMap',label='Base Map · Ocean',node=layers.ocean,id='base-ocean'},
-        {kind='BaseMap',label='Base Map · Land',node=layers.land,id='base-land'},
-    }
+    local entries={}
+    if layers.ocean then entries[#entries+1]={kind='BaseMap',label='Base Map · Ocean',node=layers.ocean,id='base-ocean'} end
+    if layers.land then entries[#entries+1]={kind='BaseMap',label='Base Map · Land',node=layers.land,id='base-land'} end
     for _,obj in ipairs(graph.get_objects(comp)) do entries[#entries+1]=obj end
     for _,obj in ipairs(entries) do
         local label=obj.label..'  ['..obj.kind..' # '..obj.id..']'
@@ -193,6 +210,16 @@ local function set_focus(animated)
         graph.camera_focus(comp,chosen,w.CR_Zoom.Text,animated)
         return (animated and 'Keyframed camera on ' or 'Focused camera on ')..chosen.name
     end)
+end
+win.On.CR_CreateScene.Clicked=function()
+    status('Building Natural Earth map in Fusion. Large native mask scenes may take time.')
+    startup_log('CREATE_MAP button clicked')
+    try(function()
+        local created=graph.ensure(comp,features)
+        objects_refresh()
+        return created and 'Map created. Search a location and choose + Region.' or 'Existing CartoRig map reloaded.'
+    end)
+    startup_log('CREATE_MAP handler finished')
 end
 win.On.CR_Find.TextChanged=results_refresh
 win.On.CR_Search.Clicked=results_refresh
@@ -256,6 +283,30 @@ win.On.CR_Close.Clicked=function()dispatcher:ExitLoop() end
 win.On.CartoRigMain.Close=function()dispatcher:ExitLoop() end
 objects_refresh()
 results_refresh()
+if comp:GetData('CartoRig.Scene.Version') == '0.2' then
+    status('Existing CartoRig scene detected; objects are available.')
+else
+    status('Editor ready. Click Create Map to initialize the scene.')
+end
+startup_log('Opening CartoRig window')
 win:Show()
 dispatcher:RunLoop()
 win:Hide()
+startup_log('Editor window closed')
+
+
+end
+local ok, err = xpcall(main, function(reason)
+    local message = tostring(reason)
+    if debug and debug.traceback then message = debug.traceback(message, 2) end
+    return message
+end)
+if not ok then
+    startup_log('STARTUP ERROR: ' .. tostring(err))
+    local comp = rawget(_G,'comp')
+    if comp and type(comp.AskUser)=='function' then
+        pcall(function() comp:AskUser('CartoRig startup failed', {
+            { ID='Details', Name='Error: see %TEMP%/CartoRig_FusionFirst_startup.log', Type='Text', Default=tostring(err):sub(1,300) }
+        }) end)
+    end
+end
