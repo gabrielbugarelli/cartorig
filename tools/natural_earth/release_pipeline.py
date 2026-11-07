@@ -183,7 +183,7 @@ def produce(*,workspace:Path,output:Path,allow_network:bool=False,
         archives=workspace/"downloads/source-archives.json",
         archive_root=workspace/"downloads",
         vector_pin=vector_pin,supplement_pin=supplement_pin,
-        out=output,resume=resume)
+        out=output,resume=resume,raster_tile_format="png")
 
 
 def main()->None:
