@@ -5,7 +5,10 @@ on:
   pull_request:
     paths:
       - "tools/natural_earth/**"
-      - "tests/test_natural_earth.py"
+      - "tests/test_natural_earth*.py"
+      - "tests/test_install_data_pack.ps1"
+      - "packaging/Build-NaturalEarth.ps1"
+      - "packaging/Install-DataPack.ps1"
       - "data/natural-earth/**"
       - ".github/workflows/natural-earth.yml"
   workflow_dispatch:
@@ -16,7 +19,7 @@ concurrency:
   cancel-in-progress: true
 jobs:
   offline-data-tests:
-    # Run full Python tests on PR/dispatch; tagged publisher probes use push.
+    # Public standard runners only. PR/dispatch run all release-builder tests.
     if: github.event_name != 'push'
     runs-on: ubuntu-24.04
     strategy:
@@ -66,6 +69,7 @@ jobs:
         with:
           name: NaturalEarth-110m-Archive-Smoke
           path: build/natural-earth/smoke/
+          retention-days: 1
           if-no-files-found: warn
       - name: Always preserve the official source audit evidence
         if: always()
@@ -73,6 +77,7 @@ jobs:
         with:
           name: NaturalEarth-Source-Audit
           path: build/natural-earth/official_sources.json
+          retention-days: 1
           if-no-files-found: warn
 
   # Triggers only for a deliberately tagged one-off commit; never for regular
@@ -94,6 +99,7 @@ jobs:
         with:
           name: NaturalEarth-Real-GeoPackage-Probe
           path: build/natural-earth/gpkg-probe/gpkg-probe.json
+          retention-days: 1
           if-no-files-found: warn
 
   # One-off build-machine test of all 33 missing publisher GeoJSON files.
@@ -137,6 +143,7 @@ jobs:
         with:
           name: NaturalEarth-33-Supplement-Probe
           path: build/natural-earth/supplements-report.json
+          retention-days: 1
           if-no-files-found: warn
 
   combined-vector-probe:
@@ -160,6 +167,7 @@ jobs:
         with:
           name: NaturalEarth-215-Real-Vector-Coverage
           path: build/natural-earth/combined-vector/complete-vector-report.json
+          retention-days: 1
           if-no-files-found: warn
 
   # Publisher-backed TIFF/TFW conversion plus actual native RGBA pixels.
@@ -190,4 +198,5 @@ jobs:
         with:
           name: NaturalEarth-Real-50m-Raster-Proof
           path: build/natural-earth/real-raster-probe/real-raster-proof.json
+          retention-days: 1
           if-no-files-found: warn
