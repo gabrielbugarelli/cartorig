@@ -303,6 +303,13 @@ The official MSR_50M.zip (SHA256 e38f8b256f64eccae250a1e482761d4a7a585e6602c941e
 
 Vendored portable LodePNG decodes both formats, bounds PNG input and IHDR dimensions before allocation, and retains offline runtime. Experimental and complete release producers choose PNG v2. Existing raw atlas reading remains supported. Evidence and license provenance: [NE_RASTER_PNG_V2_2026-11-07](NE_RASTER_PNG_V2_2026-11-07.md). Full M3 source conversion, 4K host profiling and total pack size remain OPEN.
 
+### Windows experimental build and real 1440p/4K host QA entrypoints — 2026-11-07
+
+- **Implemented:** Windows release-workstation orchestrator runs bounded 51-source batches with publisher S3 priority, per-ZIP CRC/SHA rehash and durable atomic checkpoints, then builds a real 215-vector/51-raster experimental offline pack and runs native 720p/1440p/4K tests on both 10m and 50m assets. Any failure yields a machine-readable INCOMPLETE report. This code has not run on an external local Windows SSD, so full data acquisition remains OPEN.
+- **Actually executed:** An official SHA-pinned Natural Earth MSR_50M.zip source was converted to PNG v2 and raw RGBA v1, and both formats produced identical pixel/frame hashes at native 720p, 1440p, 4K. Real 4K PNG median 728.366 ms vs RGBA 542.239 ms (5 passes on standard Ubuntu runner), not host Resolve FPS. [Full real-source observation](../data/natural-earth/native_real_4k_observation_2026-11-07.json).
+- **Real Resolve host bridge:** Windows-only API probes the locally installed Resolve Studio 20, independently validates installed pack and OFX DLL, creates a dedicated QA project with OFX Map Generator in 1440p/4K timelines, and supports real Deliver exports. Host access, Inspector-selected raster, Overlay transparency and final video outputs are still UNTESTED; no remote CI may mark them PASSED.
+- **Reproduction:** [NE_WINDOWS_END_TO_END_QA_2026-11-07.md](NE_WINDOWS_END_TO_END_QA_2026-11-07.md). PR remains draft, release remains incomplete pending 52nd upstream official ZIP.
+
 ## 15. Definition of Done — Natural Earth Complete
 
 The complete release is accepted only when:
