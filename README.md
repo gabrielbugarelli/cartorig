@@ -1,5 +1,10 @@
 # CartoRig Native — Edit-first OpenFX developer preview
 
+## Natural Earth complete execution plan (zero-cost GitHub policy)
+
+The engineering work order is [Natural Earth Complete — Execution Plan](docs/NATURAL_EARTH_EXECUTION_PLAN.md). It defines source certification (215 vector layers and the frozen raster variants), download and builder recovery, all-layer rendering, independent pack verification, real Resolve Studio 20 acceptance, and GitHub **USD 0** infrastructure. The production pack has **not** been certified. The current PR remains draft.
+
+
 ## Natural Earth complete offline backend (active development)
 
 The [Natural Earth integration](docs/NATURAL_EARTH_OFFLINE_BACKEND.md) audits the complete 215-layer pinned vector source (182 official aggregate GeoPackage layers plus 33 SHA-verified supplements), implements an offline SQLite FTS5/RTree search catalog and a native C++ geometry decoder. It also provides **opt-in local Natural Earth country rendering inside the OpenFX effect** at 110m / 50m / 10m, with native data load and rendering verified by CI on the real publisher GeoPackage.
