@@ -5,6 +5,7 @@ Run in a scratch project and scratch timeline. Record Resolve exact build, Windo
 | ID | Workflow | Exact observation required |
 |---|---|---|
 | HOST-00 | Run script in new Fusion Composition | Editor opens without rendering map; Create Map triggers scene creation; failures visible in status and `%TEMP%` log |
+| HOST-00B | Polygon mask native setting parser | Check bmd.readstring and PolylineMask LoadSettings in Resolve Studio 20, without global Polyline; inspect mask geometry | 
 | HOST-01 | Create 30s Fusion Composition; invoke CartoRig | Basemap renders; single clip visible in Edit; no crash |
 | HOST-02 | Search `Brasil` | Country result without ISO3 input; no network |
 | HOST-03 | Search `Rio de Janeiro` | `State` and `City` clearly distinct; State polygon correct |
