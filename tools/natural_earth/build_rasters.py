@@ -174,10 +174,63 @@ def find_world_file(names: list[str], image_name: str) -> str | None:
             return lookup[candidate.casefold()]
     return None
 
-def compile_archives(manifest: dict, archive_root: Path, output: Path) -> dict:
-    from tools.natural_earth.verify_pack import verify_manifest, verify_zip
-    # Only the declared raster subset must be verified; vector archive
-    # preparation is independently certified elsewhere.
+def reusable_asset(output: Path, asset_id: str, source_sha: str,
+                   publisher_image: str, world_file: str) -> bool:
+    """Rehash every generated tile before reusing an interrupted producer job."""
+    directory=output/asset_id
+    path=directory/"index.json"
+    if not path.is_file() or directory.is_symlink():
+        return False
+    try:
+        metadata=json.loads(path.read_text(encoding="utf-8"))
+        provenance=metadata.get("provenance",{})
+        if (metadata.get("schema_version")!=1 or
+            metadata.get("format")!="cartorig-rgba-tiles-v1" or
+            metadata.get("asset_id")!=asset_id or
+            provenance.get("source_sha256")!=source_sha or
+            provenance.get("publisher_image")!=publisher_image or
+            provenance.get("publisher_world_file")!=world_file):
+            return False
+        levels=metadata.get("levels",[])
+        if not isinstance(levels,list) or not 1<=len(levels)<=20:
+            return False
+        proof=directory/"tiles.sha256"
+        if proof.is_symlink() or not proof.is_file():
+            return False
+        lines=proof.read_text(encoding="ascii").splitlines()
+        expected={}
+        for line in lines:
+            if len(line)<70 or line[64:66]!="  ":
+                return False
+            key=line[66:]
+            if key in expected or len(line[:64])!=64:
+                return False
+            expected[key]=line[:64]
+        if len(expected)!=sum(l["tiles_x"]*l["tiles_y"] for l in levels):
+            return False
+        for index,level in enumerate(levels):
+            w,h=level["width"],level["height"]
+            nx,ny=level["tiles_x"],level["tiles_y"]
+            if (level["z"]!=index or not isinstance(w,int) or
+                not isinstance(h,int) or w<1 or h<1 or
+                nx!=(w+TILE-1)//TILE or ny!=(h+TILE-1)//TILE or
+                nx*ny>100000):
+                return False
+            for ty in range(ny):
+                for tx in range(nx):
+                    tile=directory/"tiles"/str(index)/f"{tx}_{ty}.rgba"
+                    if (tile.is_symlink() or not tile.is_file() or
+                        tile.stat().st_size!=TILE*TILE*4 or
+                        not hmac.compare_digest(
+                            sha256(tile),expected.get(f"tiles/{index}/{tx}_{ty}.rgba",""))):
+                        return False
+        return True
+    except (ValueError,KeyError,TypeError,OSError):
+        return False
+
+def compile_archives(manifest: dict, archive_root: Path, output: Path,
+                     *, resume: bool=False) -> dict:
+    from tools.natural_earth.verify_pack import verify_manifest
     resources=[r for r in manifest.get("resources",[]) if r.get("theme")=="raster"]
     if not resources:
         raise ValueError("no official raster resources found in manifest")
@@ -187,55 +240,80 @@ def compile_archives(manifest: dict, archive_root: Path, output: Path) -> dict:
                          json.dumps(verified["failed"][:6]))
     output.mkdir(parents=True,exist_ok=True)
     report={"schema_version":1,"complete":False,"sources_expected":len(resources),
-            "sources_converted":0,"assets":[],"failures":[]}
+            "sources_converted":0,"assets":[],"failures":[],"reused_assets":0}
+    def checkpoint()->None:
+        path=output/"validated-raster-assets.json"
+        temp=path.with_suffix(".json.tmp")
+        temp.write_text(json.dumps(report,indent=2,sort_keys=True)+"\n",
+                        encoding="utf-8")
+        temp.replace(path)
     for r in resources:
         key=r["resource_id"]
         try:
             archive=archive_root / r["file"]
             if archive.suffix.lower()!=".zip":
                 raise ValueError("unsupported publisher raster container (requires ZIP)")
-            verify_zip(archive, max_uncompressed=12_000_000_000)
+            # verify_manifest already checked source SHA256 and all ZIP CRCs.
             with zipfile.ZipFile(archive) as z:
                 names=[i.filename for i in z.infolist() if not i.is_dir()]
                 images=[name for name in names
                         if PurePosixPath(name).suffix.lower() in IMAGE_EXTENSIONS]
-                if not images:
-                    raise ValueError("archive contains no convertible raster imagery")
-                for index,img in enumerate(images):
-                    world = find_world_file(names,img)
-                    if world is None:
-                        raise ValueError("missing matching TFW/world file: "+img)
-                    # Extract one verified item at a time; no untrusted path
-                    # is ever used to create a filesystem path.
-                    with tempfile.TemporaryDirectory() as temp:
-                        image_path=Path(temp)/"image"
-                        with z.open(img) as src, image_path.open("wb") as dst:
-                            shutil.copyfileobj(src,dst,1024*1024)
-                        suffix=PurePosixPath(img).suffix
-                        real_image=image_path.with_suffix(suffix)
-                        image_path.rename(real_image)
-                        world_text=z.read(world).decode("ascii")
-                        asset_id=re.sub(r"[^a-zA-Z0-9_-]","_",
-                                      key+"_"+str(index))
-                        metadata=build_asset(real_image,world_text,output,
-                                             asset_id,{
-                            "source_id":key,"publisher_image":img,
-                            "publisher_world_file":world,
-                            "source_sha256":r["sha256"],
-                        })
-                        report["assets"].append({
-                            "source_id":key,"asset_id":asset_id,
-                            "status":"VALIDATED",
-                            "original_pixels":[metadata["original_width"],
-                                               metadata["original_height"]],
-                            "levels":len(metadata["levels"])})
+                geo_images=[(name,find_world_file(names,name)) for name in images]
+                unreferenced=[name for name,world in geo_images if world is None]
+                missing_tiff=[name for name in unreferenced
+                              if PurePosixPath(name).suffix.lower() in (".tif",".tiff")]
+                if missing_tiff:
+                    raise ValueError("unreferenced publisher TIFF layer: "+missing_tiff[0])
+                georeferenced=[(name,world) for name,world in geo_images if world]
+                if not georeferenced:
+                    raise ValueError("archive contains no georeferenced renderable raster")
+                for index,(img,world) in enumerate(georeferenced):
+                    asset_id=re.sub(r"[^a-zA-Z0-9_-]","_",
+                                    key+"_"+str(index))
+                    if resume and reusable_asset(
+                            output,asset_id,r["sha256"],img,world):
+                        metadata=json.loads((output/asset_id/"index.json").read_text(
+                            encoding="utf-8"))
+                        report["reused_assets"]+=1
+                    else:
+                        prior=output/asset_id
+                        if prior.exists():
+                            if not resume:
+                                raise FileExistsError("raster asset already exists: "+asset_id)
+                            if prior.is_symlink() or not prior.is_dir():
+                                raise ValueError("unsafe existing raster staging path")
+                            shutil.rmtree(prior)
+                        # Avoid decompressing unchanged atlas images on resume.
+                        with tempfile.TemporaryDirectory() as temp:
+                            image_path=Path(temp)/"image"
+                            with z.open(img) as src, image_path.open("wb") as dst:
+                                shutil.copyfileobj(src,dst,1024*1024)
+                            suffix=PurePosixPath(img).suffix
+                            real_image=image_path.with_suffix(suffix)
+                            image_path.rename(real_image)
+                            metadata=build_asset(
+                                real_image,z.read(world).decode("ascii"),
+                                output,asset_id,{
+                                    "source_id":key,"publisher_image":img,
+                                    "publisher_world_file":world,
+                                    "source_sha256":r["sha256"],
+                                })
+                    report["assets"].append({
+                        "source_id":key,"asset_id":asset_id,
+                        "status":"VALIDATED",
+                        "original_pixels":[metadata["original_width"],
+                                           metadata["original_height"]],
+                        "levels":len(metadata["levels"])})
+            if unreferenced:
+                report.setdefault("non_georeferenced_companions",[]).append({
+                    "source_id":key,"files":unreferenced})
             report["sources_converted"]+=1
         except Exception as exc:
             report["failures"].append({"resource_id":key,"reason":str(exc)})
+        checkpoint()
     report["complete"]=(not report["failures"] and
                         report["sources_converted"]==report["sources_expected"])
-    (output/"validated-raster-assets.json").write_text(
-        json.dumps(report,indent=2,sort_keys=True)+"\n",encoding="utf-8")
+    checkpoint()
     return report
 
 def main():
@@ -243,9 +321,11 @@ def main():
     ap.add_argument("--manifest",type=Path,required=True)
     ap.add_argument("--archives",type=Path,required=True)
     ap.add_argument("--out",type=Path,required=True)
+    ap.add_argument("--resume",action="store_true",
+                    help="Reuse fully validated source-hash-matching tile atlases")
     args=ap.parse_args()
     report=compile_archives(json.loads(args.manifest.read_text(encoding="utf-8")),
-                            args.archives,args.out)
+                            args.archives,args.out,resume=args.resume)
     print(json.dumps({k:v for k,v in report.items() if k!="assets"},indent=2))
     if not report["complete"]:
         raise SystemExit(1)
