@@ -74,7 +74,8 @@ def verify_manifest(manifest: dict, root: Path) -> dict:
             continue
         try:
             if path.suffix.lower() == ".zip":
-                verify_zip(path)
+                verify_zip(path,max_uncompressed=(12_000_000_000 if
+                           item.get("theme")=="raster" else 4_000_000_000))
         except (VerificationError, zipfile.BadZipFile) as exc:
             failed.append({"resource_id": ident, "reason": str(exc)})
             continue
