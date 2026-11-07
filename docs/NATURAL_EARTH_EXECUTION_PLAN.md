@@ -8,6 +8,8 @@
 **Status:** PLAN APPROVED FOR EXECUTION; DATA PACK NOT YET CERTIFIED. PR #3 remains draft until every release gate passes.  
 **Baseline:** branch feat/natural-earth-offline-data; source SHA must be recorded with every acceptance artifact.
 
+**Producer toolchain baseline:** Python 3.12 / rasterio 1.5.0; CI also exercises Python 3.11 with rasterio 1.4.4 for cross-version compatibility. The pinned producer versions and exact runtime platform are recorded in build provenance.
+
 This is the normative work order and acceptance contract for the complete Natural Earth backend. It supersedes the older informal release plan wherever they conflict. It does not claim that an unexecuted task has passed.
 
 ## 1. Product contract and strict scope
