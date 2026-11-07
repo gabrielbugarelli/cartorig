@@ -85,6 +85,8 @@ def freeze(inventory:dict,acquired:dict,*,expected:int=EXPECTED_VARIANTS)->dict:
     """Build a reviewed candidate lock: does NOT claim publisher-certified SHA."""
     found=_source_map(inventory,expected)
     records=acquired.get("resources")
+    if acquired.get("checkpoint_in_progress") is True:
+        raise SourceLockError("cannot freeze a power-loss/interrupted acquisition checkpoint")
     if acquired.get("schema_version")!=1 or not isinstance(records,list):
         raise SourceLockError("missing official source archive proof")
     if len(records)!=len(found):
