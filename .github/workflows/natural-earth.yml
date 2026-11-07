@@ -2,6 +2,14 @@ name: Natural Earth offline backend checks
 on:
   push:
     branches: [feat/natural-earth-offline-data]
+    paths:
+      - "tools/natural_earth/**"
+      - "tests/test_natural_earth*.py"
+      - "tests/test_install_data_pack.ps1"
+      - "packaging/Build-NaturalEarth.ps1"
+      - "packaging/Install-DataPack.ps1"
+      - "data/natural-earth/**"
+      - ".github/workflows/natural-earth.yml"
   pull_request:
     paths:
       - "tools/natural_earth/**"
@@ -19,8 +27,8 @@ concurrency:
   cancel-in-progress: true
 jobs:
   offline-data-tests:
-    # Public standard runners only. PR/dispatch run all release-builder tests.
-    if: github.event_name != 'push'
+    # Public standard runners only. Relevant pushes/PRs/dispatch run tests.
+    # No publisher download or persistent big data artifacts in this job.
     runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
