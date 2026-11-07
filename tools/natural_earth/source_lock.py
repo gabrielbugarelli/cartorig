@@ -47,6 +47,40 @@ def _source_map(inventory:dict,expected:int)->dict:
         found[ident]=item
     return found
 
+
+DISCOVERY_FIELDS=("resource_id","scale","url","source_page",
+                  "archive_format","theme_version")
+
+def discovery_fingerprint(inventory:dict,*,expected:int=EXPECTED_VARIANTS)->dict:
+    """Pin reviewed publisher identities before downloading source bytes.
+
+    This proves stable discovery only. Source content needs the separately
+    reviewed archive SHA256 lock and an independent rehash before release.
+    """
+    import hashlib
+    found=_source_map(inventory,expected)
+    rows=[{field:found[ident].get(field) for field in DISCOVERY_FIELDS}
+          for ident in sorted(found)]
+    payload=json.dumps(rows,sort_keys=True,separators=(",",":"),
+                       ensure_ascii=False).encode("utf-8")
+    counts={scale:sum(r["scale"]==scale for r in rows)
+            for scale in sorted(SCALES)}
+    return {
+        "schema_version":1,
+        "format":"cartorig-natural-earth-raster-discovery-v1",
+        "publisher":"Natural Earth / NACIS",
+        "baseline_variants":len(rows),
+        "variants_by_scale":counts,
+        "source_rows_sha256":hashlib.sha256(payload).hexdigest(),
+        "digest_contract":"sorted resource_id; fields resource_id,scale,url,source_page,archive_format,theme_version; canonical json UTF-8",
+    }
+
+def verify_discovery(locked:dict,inventory:dict,*,expected:int=EXPECTED_VARIANTS)->None:
+    actual=discovery_fingerprint(inventory,expected=expected)
+    if locked!=actual:
+        raise SourceLockError("official raster inventory differs from reviewed source-discovery fingerprint")
+
+
 def freeze(inventory:dict,acquired:dict,*,expected:int=EXPECTED_VARIANTS)->dict:
     """Build a reviewed candidate lock: does NOT claim publisher-certified SHA."""
     found=_source_map(inventory,expected)
