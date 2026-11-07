@@ -5,14 +5,8 @@ param([switch]$Elevated)
 $ErrorActionPreference='Stop'
 $root=Split-Path -Parent $PSCommandPath
 $bundle=Join-Path $root 'CartoRigNative.ofx.bundle'
-$utilityScripts=@(
-  'CartoRig - Create Map.lua',
-  'CartoRig - Add Country.lua',
-  'CartoRig - Add Route.lua',
-  'CartoRig - Set Camera.lua',
-  'CartoRig Hybrid Test.lua'
-)
-$libraryScripts=@('core.lua','countries.lua')
+$utilityScripts=@('CartoRig - Editor.lua')
+$libraryScripts=@('core.lua','countries.lua','service_v1.lua','cartorig_ne_lookup.exe')
 $nativeInstaller=Join-Path $root 'Install-CartoRigNative.ps1'
 $allFiles=@($nativeInstaller,(Join-Path $bundle 'Contents\Win64\CartoRigNative.ofx'))
 $allFiles+=@($utilityScripts | ForEach-Object {Join-Path $root $_})
@@ -80,5 +74,20 @@ foreach ($filename in $libraryScripts) {
 Write-Host ''
 Write-Host 'CartoRig Edit-first authoring installed successfully.'
 Write-Host 'Open Resolve 20, select a timeline, then:'
-Write-Host 'Workspace > Scripts > Utility > CartoRig - Create Map'
-Write-Host 'Add Country, Add Route and Set Camera commands become available for the map clip.'
+Write-Host 'Workspace > Scripts > Utility > CartoRig - Editor'
+Write-Host 'Search, edit objects, animate camera and routes from one authoring window.'
+
+# Remove only CartoRig-owned legacy commands after the new unified menu and
+# support files were successfully installed. Never touch user scripts.
+foreach ($old in @(
+    'CartoRig - Create Map.lua',
+    'CartoRig - Add Country.lua',
+    'CartoRig - Add Route.lua',
+    'CartoRig - Set Camera.lua',
+    'CartoRig Hybrid Test.lua'
+)) {
+    $legacy=Join-Path $utility $old
+    if (Test-Path -LiteralPath $legacy -PathType Leaf) {
+        Remove-Item -LiteralPath $legacy -Force
+    }
+}

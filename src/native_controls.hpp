@@ -10,11 +10,12 @@ struct NativeMapControls {
   std::string countryA, countryB, countryList;
   double highlightStrength=1.0;
   bool customColors=false;
-  Color ocean{13,30,50,255}, land{35,59,82,255}, highlight{40,157,192,220};
+  Color ocean{13,30,50,255}, land{35,59,82,255}, border{90,120,147,255}, highlight{40,157,192,220};
 
   bool routeEnabled=false;
   GeoPoint routeStart{-20,0},routeEnd{20,0};
   double routeCurve=20.0,routeWidth=3.0;
+  bool routeArrowhead=true;
   Color routeColor{255,200,100,255};
   bool routeMarkers=true;
   std::string startLabel,endLabel;

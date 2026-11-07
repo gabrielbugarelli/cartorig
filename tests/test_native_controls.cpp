@@ -96,6 +96,12 @@ int main(){
           "route drawing deterministic");
     check(checksum(paint(route,world,0,0))!=checksum(paint(route,world,0,1)),
           "native RouteProgress 0 to 1 animates only on demand");
+    c.routeArrowhead=false;
+    const auto bareRoute=sceneWithNativeControls(scene,c);
+    check(!bareRoute.routes[0].arrowhead,"route can render without an arrowhead");
+    check(checksum(paint(bareRoute,world,0,1))!=checksum(paint(route,world,0,1)),
+          "route arrowhead switch changes actual rendered pixels");
+    c.routeArrowhead=true;
     c.routeColor={210,40,80,255};
     auto coloredRoute=sceneWithNativeControls(scene,c);
     check(coloredRoute.routes.size()==1&&

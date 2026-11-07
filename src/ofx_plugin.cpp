@@ -52,12 +52,12 @@ struct Instance {
   OfxParamHandle frameOffset=nullptr,timeScale=nullptr,diagnosticMode=nullptr,diagnosticLog=nullptr;
   OfxParamHandle countryA=nullptr,countryB=nullptr,countryList=nullptr,highlightStrength=nullptr,objectLayerOnly=nullptr;
   OfxParamHandle routeEnabled=nullptr,routeStartLon=nullptr,routeStartLat=nullptr;
-  OfxParamHandle routeEndLon=nullptr,routeEndLat=nullptr,routeCurve=nullptr,routeWidth=nullptr;
+  OfxParamHandle routeEndLon=nullptr,routeEndLat=nullptr,routeCurve=nullptr,routeWidth=nullptr,routeArrowhead=nullptr;
   OfxParamHandle routeRed=nullptr,routeGreen=nullptr,routeBlue=nullptr;
   OfxParamHandle showRouteMarkers=nullptr,routeStartLabel=nullptr,routeEndLabel=nullptr;
   OfxParamHandle manualColors=nullptr,oceanR=nullptr,oceanG=nullptr,oceanB=nullptr;
-  OfxParamHandle landR=nullptr,landG=nullptr,landB=nullptr;
-  OfxParamHandle highlightR=nullptr,highlightG=nullptr,highlightB=nullptr;
+  OfxParamHandle landR=nullptr,landG=nullptr,landB=nullptr,borderR=nullptr,borderG=nullptr,borderB=nullptr;
+  OfxParamHandle highlightR=nullptr,highlightG=nullptr,highlightB=nullptr,highlightAlpha=nullptr;
   std::mutex embeddedMutex;
   std::string lastSceneText,lastDatasetText;
   std::shared_ptr<const cartorig::Scene> embeddedScene;
@@ -503,6 +503,7 @@ OfxStatus describeInContext(OfxImageEffectHandle e,bool filter){
  defineDouble(ps,"RouteProgress","Route reveal (animate 0 to 1)",1,-1,1,"RouteControls");
  defineNativeDouble(ps,"NativeRouteCurve","Route curvature",-20,-100,100,"RouteControls");
  defineNativeDouble(ps,"NativeRouteWidth","Route width",3,.5,30,"RouteControls");
+ defineNativeToggle(ps,"NativeRouteArrowhead","Show arrowhead",true,"RouteControls");
  defineNativeDouble(ps,"NativeRouteRed","Route red",255,0,255,"RouteControls");
  defineNativeDouble(ps,"NativeRouteGreen","Route green",200,0,255,"RouteControls");
  defineNativeDouble(ps,"NativeRouteBlue","Route blue",100,0,255,"RouteControls");
@@ -518,9 +519,13 @@ OfxStatus describeInContext(OfxImageEffectHandle e,bool filter){
  defineNativeDouble(ps,"LandR","Land red",35,0,255,"MapColors");
  defineNativeDouble(ps,"LandG","Land green",59,0,255,"MapColors");
  defineNativeDouble(ps,"LandB","Land blue",82,0,255,"MapColors");
+ defineNativeDouble(ps,"BorderR","Border red",90,0,255,"MapColors");
+ defineNativeDouble(ps,"BorderG","Border green",120,0,255,"MapColors");
+ defineNativeDouble(ps,"BorderB","Border blue",147,0,255,"MapColors");
  defineNativeDouble(ps,"HighlightR","Highlight red",40,0,255,"MapColors");
  defineNativeDouble(ps,"HighlightG","Highlight green",157,0,255,"MapColors");
  defineNativeDouble(ps,"HighlightB","Highlight blue",192,0,255,"MapColors");
+ defineNativeDouble(ps,"HighlightAlpha","Highlight alpha",220,0,255,"MapColors");
 
  defineNativeGroup(ps,"AdvancedScene","Advanced: import custom scenes",false);
  defineString(ps,"NaturalEarthVectorGpkg","Vector GeoPackage","AdvancedScene");
@@ -599,13 +604,13 @@ OfxStatus createInstance(OfxImageEffectHandle e,bool filter){auto i=std::make_un
  {"NativeRouteEnabled",&i->routeEnabled},{"RouteStartLongitude",&i->routeStartLon},
  {"RouteStartLatitude",&i->routeStartLat},{"RouteEndLongitude",&i->routeEndLon},
  {"RouteEndLatitude",&i->routeEndLat},{"NativeRouteCurve",&i->routeCurve},
- {"NativeRouteWidth",&i->routeWidth},{"NativeRouteRed",&i->routeRed},
+ {"NativeRouteWidth",&i->routeWidth},{"NativeRouteArrowhead",&i->routeArrowhead},{"NativeRouteRed",&i->routeRed},
  {"NativeRouteGreen",&i->routeGreen},{"NativeRouteBlue",&i->routeBlue},
  {"RouteMarkers",&i->showRouteMarkers},
  {"RouteFromLabel",&i->routeStartLabel},{"RouteToLabel",&i->routeEndLabel},
  {"CustomMapColors",&i->manualColors},{"OceanR",&i->oceanR},{"OceanG",&i->oceanG},
- {"OceanB",&i->oceanB},{"LandR",&i->landR},{"LandG",&i->landG},{"LandB",&i->landB},
- {"HighlightR",&i->highlightR},{"HighlightG",&i->highlightG},{"HighlightB",&i->highlightB},
+ {"OceanB",&i->oceanB},{"LandR",&i->landR},{"LandG",&i->landG},{"LandB",&i->landB},{"BorderR",&i->borderR},{"BorderG",&i->borderG},{"BorderB",&i->borderB},
+ {"HighlightR",&i->highlightR},{"HighlightG",&i->highlightG},{"HighlightB",&i->highlightB},{"HighlightAlpha",&i->highlightAlpha},
  {"DiagnosticMode",&i->diagnosticMode},{"DiagnosticLog",&i->diagnosticLog}})if(param->paramGetHandle(ps,t.first,t.second,nullptr)!=kOfxStatOK)return kOfxStatFailed;
  OfxPropertySetHandle p=nullptr;fx->getPropertySet(e,&p);if(prop->propSetPointer(p,kOfxPropInstanceData,0,i.get())!=kOfxStatOK)return kOfxStatFailed;i.release();return kOfxStatOK;
 }
@@ -760,6 +765,7 @@ OfxStatus render(OfxImageEffectHandle e,OfxPropertySetHandle args){Instance *i=i
  controls.routeEnd.lat=doubleAt(i->routeEndLat,time,0);
  controls.routeCurve=doubleAt(i->routeCurve,time,-20);
  controls.routeWidth=doubleAt(i->routeWidth,time,3);
+ controls.routeArrowhead=intAt(i->routeArrowhead,time,1)!=0;
  controls.routeMarkers=intAt(i->showRouteMarkers,time,1)!=0;
  stringAt(i->routeStartLabel,time,controls.startLabel);
  stringAt(i->routeEndLabel,time,controls.endLabel);
@@ -773,7 +779,8 @@ OfxStatus render(OfxImageEffectHandle e,OfxPropertySetHandle args){Instance *i=i
  if(controls.customColors){
    controls.ocean={byteAt(i->oceanR,13),byteAt(i->oceanG,30),byteAt(i->oceanB,50),255};
    controls.land={byteAt(i->landR,35),byteAt(i->landG,59),byteAt(i->landB,82),255};
-   controls.highlight={byteAt(i->highlightR,40),byteAt(i->highlightG,157),byteAt(i->highlightB,192),220};
+   controls.border={byteAt(i->borderR,90),byteAt(i->borderG,120),byteAt(i->borderB,147),255};
+   controls.highlight={byteAt(i->highlightR,40),byteAt(i->highlightG,157),byteAt(i->highlightB,192),byteAt(i->highlightAlpha,220)};
  }
  auto copy=cartorig::sceneWithNativeControls(*scene,controls);
  ImageLease source;
@@ -825,13 +832,14 @@ OfxStatus render(OfxImageEffectHandle e,OfxPropertySetHandle args){Instance *i=i
      throw std::invalid_argument("Geographic region requires a local Vector GeoPackage");
    const auto selections=cartorig::parseGeographicSelections(savedRegions);
    for(const auto &selection:selections){
+     if(!selection.visible)continue;
      const auto geometries=geographicRegionAt(
          naturalEarthPath,extraLayerPath,selection);
      // Independent RGBA per region, following a stable publisher feature ID.
      // City points stay points; no fabricated administrative polygons.
      const auto regionColor=cartorig::evaluateGeographicRegionColor(selection,sceneFrame);
      cartorig::renderNaturalEarthLayer(
-         *geometries,view,target,regionColor,regionColor,regionColor);
+         *geometries,view,target,regionColor,selection.stroke,regionColor);
    }
  }
  return kOfxStatOK;

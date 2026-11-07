@@ -44,7 +44,7 @@ Scene sceneWithNativeControls(const Scene &original,const NativeMapControls &n) 
     throw std::invalid_argument("native control out of range");
   Scene s=original;
   if(n.customColors){
-    s.style.ocean=n.ocean;s.style.land=n.land;s.style.highlight=n.highlight;
+    s.style.ocean=n.ocean;s.style.land=n.land;s.style.border=n.border;s.style.highlight=n.highlight;
   }
   s.style.highlight.a=static_cast<uint8_t>(
     std::lround(s.style.highlight.a*n.highlightStrength));
@@ -85,7 +85,7 @@ Scene sceneWithNativeControls(const Scene &original,const NativeMapControls &n) 
     s.markers.push_back(std::move(start));
     s.markers.push_back(std::move(end));
     Route route;route.id="__cartorig_native_route__";route.from=fromId;route.to=toId;
-    route.curve=n.routeCurve;route.width=n.routeWidth;route.color=n.routeColor;
+    route.curve=n.routeCurve;route.width=n.routeWidth;route.arrowhead=n.routeArrowhead;route.color=n.routeColor;
     route.start=0;route.end=1;
     s.routes.push_back(std::move(route));
   }
