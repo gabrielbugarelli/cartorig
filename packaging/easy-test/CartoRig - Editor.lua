@@ -325,7 +325,9 @@ end
 function win.On.BaseStyle.Clicked(_)
     action(function()
         local idx=currentIndex(it.BasePart)
-        service.baseStyle(sceneIndex(),({"land","ocean","border"})[idx],chosenColor("Fill"))
+        local part=({"land","ocean","border"})[idx]
+        service.baseStyle(sceneIndex(),part,
+            part=="border" and chosenColor("Stroke") or chosenColor("Fill"))
         return "Base-map layer styled. Explicit object overrides remain intact."
     end)
 end
@@ -348,7 +350,7 @@ end
 function win.On.AddRoute.Clicked(_)
     action(function()
         local opts={
-            color=chosenColor("Fill"),width=tonumber(it.Width.Text),
+            color=chosenColor("Stroke"),width=tonumber(it.Width.Text),
             curve=tonumber(it.Curve.Text),
             opacity=tonumber(it.Opacity.Text),
             arrowhead=(tonumber(it.Arrowhead.CurrentIndex) or 0)==0
