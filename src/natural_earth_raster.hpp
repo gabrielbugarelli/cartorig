@@ -19,6 +19,7 @@ std::vector<NaturalEarthRasterAsset> listNaturalEarthRasterAssets(
 struct NaturalEarthRaster {
   std::filesystem::path directory;
   std::string assetId;
+  bool compressedPng=false; // v2 .png atlas tiles, v1 raw RGBA remains supported
   double west=-180,south=-90,east=180,north=90;
   std::vector<NaturalEarthRasterLevel> levels;
 };
