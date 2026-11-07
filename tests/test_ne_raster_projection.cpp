@@ -45,6 +45,27 @@ void writeTiles(const fs::path &root){
     require(out.good(),"test atlas tile write failed");
   }
 }
+void checkDuplicateAssetIds(const fs::path &root){
+  // Duplicate IDs may be nonadjacent after catalogue sort by source ID.
+  // A neighboring-only comparison once silently accepted this malformed
+  // metadata and let two resources point at the same raster directory.
+  for(const char *name:{"duplicate_atlas","other_atlas"}){
+    fs::create_directories(root/name);
+    std::ofstream(root/name/"index.json")<<"{}";
+  }
+  std::ofstream(root/"validated-raster-assets.json")<<R"JSON({
+    "schema_version":1,
+    "assets":[
+      {"asset_id":"duplicate_atlas","source_id":"a","status":"VALIDATED"},
+      {"asset_id":"other_atlas","source_id":"b","status":"VALIDATED"},
+      {"asset_id":"duplicate_atlas","source_id":"c","status":"VALIDATED"}
+    ]
+  })JSON";
+  bool rejected=false;
+  try{ (void)listNaturalEarthRasterAssets(root); }
+  catch(const std::invalid_argument &){rejected=true;}
+  require(rejected,"duplicate atlas ID from different sources was accepted");
+}
 void fillBackground(std::vector<std::uint8_t> &rgba){
   for(std::size_t i=0;i<rgba.size();i+=4){
     rgba[i]=7;rgba[i+1]=15;rgba[i+2]=27;rgba[i+3]=83;
@@ -98,6 +119,7 @@ int main(){
      ("cartorig_projection_parity_"+std::to_string(id));
   try{
     writeTiles(root);
+    checkDuplicateAssetIds(root);
     NaturalEarthRaster atlas;
     atlas.directory=root;
     atlas.assetId="projection_reference";
