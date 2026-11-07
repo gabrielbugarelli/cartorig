@@ -270,6 +270,17 @@ The complete release is accepted only when:
 9. Public GitHub workflows and assets obey the USD 0 billing policy; no billable product is activated.
 10. PR #3 is promoted only after G0–G7 have links to real evidence and all blocking bugs are closed.
 
+### M1 source-page audit probe on public standard runner
+
+An explicitly tagged commit `[source-probe]` launches the existing
+`source-discovery` job in `.github/workflows/natural-earth.yml`. The job
+fetches the official category/family pages, uploads only the small discovery
+JSON with one-day retention, and performs a small independent 110m archive
+check. This is a **source availability audit**, not an acquisition or
+certification of all 52 raster archives. No giant data pack is stored in
+Actions Artifacts. Compare the actual discovered variants with the 52-variant
+baseline before creating a reviewed source lock.
+
 ## 16. Verified external policies and reference documentation
 
 - Natural Earth downloads: https://www.naturalearthdata.com/downloads/
