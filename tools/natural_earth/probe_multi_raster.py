@@ -9,6 +9,8 @@ Verifies all LOD tile hashes, native C++ pixel hash equality and measured
 Only JSON evidence is published, never the ZIP, TIFF or atlas.
 
 This evidence is NOT full 52/52 source acquisition or a Resolve 20 host test.
+Native performance iteration also benchmarks per-row tile reuse after the
+original reference-projection parity and SHA-verified publisher baselines.
 Standard free public Ubuntu runner is explicitly opt-in via [multi-raster-probe].
 """
 from __future__ import annotations
