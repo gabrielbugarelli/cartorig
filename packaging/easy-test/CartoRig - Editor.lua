@@ -14,7 +14,7 @@ local ui=fusion.UIManager
 local dispatcher=bmd.UIDispatcher(ui)
 local win=dispatcher:AddWindow({
     ID="CartoRigEditor", WindowTitle="CartoRig | Map Editor",
-    Geometry={120,90,930,690}, Spacing=9, Margin=13
+    Geometry={120,90,980,780}, Spacing=9, Margin=13
 },ui:VGroup{
     ID="Root",Spacing=8,
     ui:HGroup{
@@ -60,12 +60,18 @@ local win=dispatcher:AddWindow({
         ui:Button{ID="AnimateRoute",Text="Reveal route"}
     },
     ui:HGroup{
-        ui:Label{Text="Fill  #RRGGBB",Weight=0.18},
-        ui:LineEdit{ID="Fill",Text="#C92A2A",Weight=0.24},
+        ui:Label{Text="Fill",Weight=0.1},
+        ui:ColorPicker{ID="FillPicker",Color={R=201/255,G=42/255,B=42/255,A=1},Weight=0.24},
         ui:Label{Text="Stroke",Weight=0.1},
-        ui:LineEdit{ID="Stroke",Text="#D4AF37",Weight=0.22},
-        ui:Label{Text="Opacity %",Weight=0.13},
-        ui:LineEdit{ID="Opacity",Text="100",Weight=0.13}
+        ui:ColorPicker{ID="StrokePicker",Color={R=212/255,G=175/255,B=55/255,A=1},Weight=0.24},
+        ui:Label{Text="Opacity %",Weight=0.14},
+        ui:LineEdit{ID="Opacity",Text="100",Weight=0.18}
+    },
+    ui:HGroup{
+        ui:Label{Text="Precise Fill HEX (optional)",Weight=0.23},
+        ui:LineEdit{ID="Fill",PlaceholderText="Use color picker or type #RRGGBB",Text="",Weight=0.28},
+        ui:Label{Text="Stroke HEX (optional)",Weight=0.20},
+        ui:LineEdit{ID="Stroke",PlaceholderText="Uses picker if blank",Text="",Weight=0.29}
     },
     ui:HGroup{
         ui:Label{Text="Base-map layer",Weight=0.18},
@@ -106,6 +112,24 @@ local win=dispatcher:AddWindow({
 })
 local it=win:GetItems()
 local scenes,results,objects={}, {}, {}
+local function chosenColor(field)
+    local manual=tostring(it[field].Text or ""):gsub("^%s+",""):gsub("%s+$","")
+    if manual~="" then
+        if not manual:match("^#%x%x%x%x%x%x$") then
+            error("Invalid "..field.." HEX; use #RRGGBB or leave blank",3)
+        end
+        return manual:upper()
+    end
+    local color=it[field.."Picker"].Color
+    local function channel(v)
+        v=tonumber(v)
+        if not v or v~=v then error("Color picker unavailable",3) end
+        return math.min(255,math.max(0,math.floor(v*255+0.5)))
+    end
+    return string.format("#%02X%02X%02X",
+                         channel(color.R),channel(color.G),channel(color.B))
+end
+
 local from,to=nil,nil
 local function setItems(combo,items)
     combo:Clear()
@@ -185,7 +209,7 @@ end
 function win.On.AddRegion.Clicked(_)
     action(function()
         service.addRegion(sceneIndex(),selectedLocation(),
-                          it.Fill.Text,it.Stroke.Text,tonumber(it.Opacity.Text))
+                          chosenColor("Fill"),chosenColor("Stroke"),tonumber(it.Opacity.Text))
         updateObjects()
         return "Region added with its own fill and stroke. Existing regions unchanged."
     end)
@@ -193,7 +217,7 @@ end
 function win.On.AddMarker.Clicked(_)
     action(function()
         local loc=selectedLocation()
-        service.addMarker(sceneIndex(),loc,loc.name,it.Fill.Text)
+        service.addMarker(sceneIndex(),loc,loc.name,chosenColor("Fill"))
         updateObjects()
         return "Georeferenced marker added without any automatic animation."
     end)
@@ -214,8 +238,8 @@ end
 function win.On.RefreshObjects.Clicked(_)action(updateObjects)end
 function win.On.ApplyStyle.Clicked(_)
     action(function()
-        service.style(sceneIndex(),objectIndex(),it.Fill.Text,
-                      it.Stroke.Text,tonumber(it.Opacity.Text))
+        service.style(sceneIndex(),objectIndex(),chosenColor("Fill"),
+                      chosenColor("Stroke"),tonumber(it.Opacity.Text))
         return "Object style updated. Other object styles preserved."
     end)
 end
@@ -235,7 +259,7 @@ end
 function win.On.BaseStyle.Clicked(_)
     action(function()
         local idx=currentIndex(it.BasePart)
-        service.baseStyle(sceneIndex(),({"land","ocean","border"})[idx],it.Fill.Text)
+        service.baseStyle(sceneIndex(),({"land","ocean","border"})[idx],chosenColor("Fill"))
         return "Base-map layer styled. Explicit object overrides remain intact."
     end)
 end
@@ -258,7 +282,7 @@ end
 function win.On.AddRoute.Clicked(_)
     action(function()
         local opts={
-            color=it.Fill.Text,width=tonumber(it.Width.Text),
+            color=chosenColor("Fill"),width=tonumber(it.Width.Text),
             curve=tonumber(it.Curve.Text),
             opacity=tonumber(it.Opacity.Text),
             arrowhead=(tonumber(it.Arrowhead.CurrentIndex) or 0)==0
