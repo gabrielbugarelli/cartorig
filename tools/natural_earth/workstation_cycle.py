@@ -106,7 +106,7 @@ def verify_native(pack:Path,executable:Path,
 
 def run(*,workspace:Path,output:Path,allow_network:bool=False,
         max_downloads:int=12,max_batches:int=10,
-        min_free_gib:float=4,preview:Path|None=None,
+        min_free_gib:float=50,preview:Path|None=None,
         acquire_fn:Callable[...,dict]=acquire_available.acquire,
         build_fn:Callable[...,dict]=build_experimental.produce,
         verify_fn:Callable[...,dict]=verify_release.verify_release,
@@ -140,10 +140,21 @@ def run(*,workspace:Path,output:Path,allow_network:bool=False,
     try:
         if not output.is_dir():
             for index in range(max_batches):
-                available=shutil.disk_usage(workspace).free
-                if available<min_free_gib*1024**3:
-                    raise QAIncomplete(
-                        "persistent workstation disk space below configured floor")
+                # Both publisher ZIPs and expanded PNG atlases need real
+                # persistent SSD headroom; the source inventory's 51 accessible
+                # ZIP HEAD lengths already total ~6.23 GiB before conversion.
+                for folder in (workspace,output.parent):
+                    existing=folder
+                    while not existing.exists():
+                        parent=existing.parent
+                        if parent==existing:
+                            raise QAIncomplete("no usable output storage volume")
+                        existing=parent
+                    available=shutil.disk_usage(existing).free
+                    if available<min_free_gib*1024**3:
+                        raise QAIncomplete(
+                            "free space below configured "+str(min_free_gib)+
+                            " GiB threshold on "+str(existing))
                 acquired=acquire_fn(
                     workspace=workspace,allow_network=allow_network,
                     max_downloads=max_downloads,
@@ -217,7 +228,7 @@ def main():
     p.add_argument("--allow-network",action="store_true")
     p.add_argument("--max-downloads",default=12,type=int)
     p.add_argument("--max-batches",default=10,type=int)
-    p.add_argument("--min-free-gib",default=4,type=float)
+    p.add_argument("--min-free-gib",default=50,type=float)
     p.add_argument("--native-preview",type=Path)
     args=p.parse_args()
     try:
