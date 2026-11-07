@@ -1,0 +1,16 @@
+name: CartoRig greenfield source checks
+on:
+  push:
+    branches: ["rewrite/fusion-first-greenfield-poc"]
+  workflow_dispatch:
+jobs:
+  lua-geometry:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Lua 5.4
+        run: sudo apt-get update && sudo apt-get install -y lua5.4
+      - name: Lua scene runtime and native host mock
+        run: lua5.4 tests/test_runtime.lua .
+      - name: Catalog and naming contracts
+        run: python -m unittest discover -s tests -p 'test_*.py' -v
