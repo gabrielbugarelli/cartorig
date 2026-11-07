@@ -1,6 +1,8 @@
 """Synthetic real-pixel tile atlas -> native C++ raster renderer, offline."""
 from pathlib import Path
 import json
+import struct
+import zlib
 import subprocess
 import sys
 import tempfile
@@ -31,6 +33,37 @@ with tempfile.TemporaryDirectory() as temporary:
     assert launch("../../outside").returncode!=0,"traversal attempt accepted"
     (tiles/"0_0.rgba").write_bytes(b"short")
     assert launch("synthetic_10m").returncode!=0,"corrupt tile accepted"
+    # PNG v2 tile uses only Python stdlib so Windows CTest has no Pillow dependency.
+    # Its lossless RGBA pixels must produce exactly the same native frame hash.
+    def png_rgba(w,h,rgba):
+        def chunk(kind,body):
+            return (struct.pack(">I",len(body))+kind+body+
+                    struct.pack(">I",zlib.crc32(kind+body)&0xFFFFFFFF))
+        scan=b"".join(b"\0"+rgba*w for _ in range(h))
+        return (b"\x89PNG\r\n\x1a\n"+
+                chunk(b"IHDR",struct.pack(">IIBBBBB",w,h,8,6,0,0,0))+
+                chunk(b"IDAT",zlib.compress(scan,6))+chunk(b"IEND",b""))
+    png_atlas=root/"synthetic_png_v2"
+    png_tiles=png_atlas/"tiles"/"0"
+    png_tiles.mkdir(parents=True)
+    (png_tiles/"0_0.png").write_bytes(png_rgba(256,256,bytes([222,12,65,255])))
+    png_meta=dict(metadata,asset_id="synthetic_png_v2",
+                  format="cartorig-png-tiles-v2")
+    (png_atlas/"index.json").write_text(json.dumps(png_meta),encoding="utf-8")
+    compressed=launch("synthetic_png_v2")
+    assert compressed.returncode==0,(compressed.stdout,compressed.stderr)
+    assert compressed.stdout==success.stdout,(
+        "PNG v2 decoded pixels must be bit-exact with legacy v1 RGBA",
+        success.stdout,compressed.stdout)
+    good=(png_tiles/"0_0.png").read_bytes()
+    (png_tiles/"0_0.png").write_bytes(good[:-12]+b"X"+good[-11:])
+    assert launch("synthetic_png_v2").returncode!=0,(
+        "PNG corruption must fail closed on native decoder")
+    (png_tiles/"0_0.png").write_bytes(png_rgba(128,256,bytes([222,12,65,255])))
+    assert launch("synthetic_png_v2").returncode!=0,(
+        "wrong PNG tile dimensions must be rejected")
+    (png_tiles/"0_0.png").write_bytes(good)
+
     # One synthetic level has 65 horizontal tiles, exceeding the new
     # renderer's 64-tile/16MiB RAM budget. An LRU must evict and reopen
     # publisher tiles rather than raising a cache-exhaustion error.
@@ -57,4 +90,4 @@ with tempfile.TemporaryDirectory() as temporary:
     (large_tiles/"32_0.rgba").write_bytes(b"corrupt")
     broken=launch("wide_offline")
     assert broken.returncode!=0,"corrupted mid-pyramid tile was skipped"
-    print("PASS: offline RGBA rendering; 65-tile LRU; determinism; corruption rejection")
+    print("PASS: native PNG v2 equals RGBA v1 pixels; lossless decoding; 65-tile LRU; corruption rejection")
