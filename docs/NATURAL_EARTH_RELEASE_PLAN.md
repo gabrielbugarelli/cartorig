@@ -38,6 +38,43 @@ D:\CartoRigBuild\downloads\source-archives.json. Exit code 2/INCOMPLETE means
 repeat; it is never a release. Network use is explicit: omit --allow-network
 when all publisher archives already exist on disk.
 
+### Mandatory reviewed raster source lock (M1)
+
+The download report is a **local observation**, not a trusted publisher checksum
+reference by itself. The Complete producer now refuses to advance beyond archive
+acquisition until a separate reviewed lock is committed to this repository.
+
+When the 52 raster archives are acquired (the pipeline reports that the review
+lock is absent), create a candidate from the *exact* source audit and the
+verified local archive report, while in the repository root:
+
+    py -m tools.natural_earth.source_lock \
+      --inventory "D:\CartoRigBuild\official_sources.json" \
+      --archives "D:\CartoRigBuild\downloads\source-archives.json" \
+      --out "data\natural-earth\raster_sources.lock.json"
+
+On PowerShell, put those arguments on one line or use PowerShell backtick
+continuations. Review all 52 source IDs, URLs, versions, sizes and SHA256
+digests, then commit the lock to the feature branch. The command refuses to
+overwrite an existing approved lock. Verify before any new build:
+
+    py -m tools.natural_earth.source_lock --verify \
+      --inventory "D:\CartoRigBuild\official_sources.json" \
+      --archives "D:\CartoRigBuild\downloads\source-archives.json" \
+      --out "data\natural-earth\raster_sources.lock.json"
+
+Rerun the producer with --resume after the reviewed lock has been committed.
+A publisher release change requires a new explicit review, not an automatic
+overwrite of the lock. No real raster source lock has been committed yet:
+acquisition of the 52 official source files is still an OPEN gate.
+
+Downloads themselves now support HTTP Range + strong ETag (or Last-Modified)
+safe byte-level resume, with persisted .part/.part.json files. If an official
+server cannot verify a range, the download starts over instead of appending
+unknown data. Wrong redirects, incomplete Content-Range responses and changed
+source identities fail closed; source ZIP symlinks and Windows drive paths are
+rejected. All such recovery checks are exercised with synthetic HTTP fixtures.
+
 After acquiring all official archives, the producer checks the known SHA256
 of the official vector GeoPackage ZIP, imports the 33 publisher-pinned
 supplements, builds the SQLite FTS5 index and converts all raster variants.
