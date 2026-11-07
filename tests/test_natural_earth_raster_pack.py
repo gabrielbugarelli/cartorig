@@ -53,13 +53,64 @@ class OfflineNaturalEarthPackTests(unittest.TestCase):
         self.assertEqual(source["sha256"],
                          hashlib.sha256((root/source["path"]).read_bytes()).hexdigest())
         audit={"complete":True,"vector":{"passed":True},"raster":{"passed":True}}
-        complete=build_pack.build_pack(root,audit)
-        self.assertEqual(complete["status"],"NATURAL_EARTH_COMPLETE")
-        self.assertEqual(complete["pack_id"],build_pack.build_pack(root,audit)["pack_id"])
-        self.assertNotIn("pack.json",{item["path"] for item in complete["files"]})
+        # A forged 'complete': true without the 215 published vector sources,
+        # 52 raster variants and verifiable archive provenance cannot pass.
+        with self.assertRaisesRegex(ValueError,"passing source/coverage gate"):
+            build_pack.build_pack(root,audit)
+        self.assertNotIn("pack.json",{item["path"] for item in incomplete["files"]})
+        self.assertEqual(incomplete["pack_id"],build_pack.build_pack(
+            root,{"complete":False},allow_incomplete=True)["pack_id"])
         (root/"evil-link").symlink_to(root/"vector/catalog.sqlite")
         with self.assertRaisesRegex(ValueError,"symlinks"):
-            build_pack.build_pack(root,audit)
+            build_pack.build_pack(root,audit,allow_incomplete=True)
+
+    def test_windowed_geotiff_builder_uses_bounded_native_tiles(self):
+        try:
+            from PIL import Image
+            import rasterio
+        except ImportError:
+            self.skipTest("release-machine rasterio and Pillow not installed")
+        width,height=1600,1300
+        source=self.root/"publisher-high-resolution.tif"
+        Image.new("RGB",(width,height),(48,107,188)).save(source)
+        dx,dy=360/width,-180/height
+        tfw=f"{dx}\n0\n0\n{dy}\n{-180+dx/2}\n{90+dy/2}\n"
+        output=self.root/"streamed"
+        output.mkdir()
+        atlas=build_rasters.build_asset(source,tfw,output,"world_tiff",{
+            "source_id":"verified-publisher-raster"})
+        self.assertEqual(atlas["raster_builder"],"windowed-rasterio-bilinear")
+        for result,expected in zip(atlas["extent"],(-180,-90,180,90)):
+            self.assertAlmostEqual(result,expected,places=8)
+        self.assertGreater(len(atlas["levels"]),2)
+        self.assertEqual((output/"world_tiff/tiles/0/0_0.rgba").read_bytes()[:4],
+                         bytes([48,107,188,255]))
+        self.assertTrue((output/"world_tiff/tiles.sha256").is_file())
+
+    def test_georeferenced_publisher_image_and_unreferenced_preview(self):
+        from PIL import Image
+        source=self.root/"map.tif"
+        Image.new("RGB",(256,128),(21,52,73)).save(source)
+        preview=self.root/"preview.jpg"
+        Image.new("RGB",(90,60),(1,1,1)).save(preview)
+        folder=self.root/"official"
+        folder.mkdir()
+        zip_path=folder/"publisher.zip"
+        with zipfile.ZipFile(zip_path,"w") as z:
+            z.write(source,"map.tif")
+            z.writestr("map.tfw","1.40625\n0\n0\n-1.40625\n-179.296875\n89.296875\n")
+            z.write(preview,"preview.jpg")
+        record={"resource_id":"ne-50m-raster-a","theme":"raster",
+                "file":"publisher.zip","archive_bytes":zip_path.stat().st_size,
+                "sha256":hashlib.sha256(zip_path.read_bytes()).hexdigest(),
+                "status":"VERIFIED"}
+        report=build_rasters.compile_archives(
+            {"schema_version":1,"resources":[record]},folder,self.root/"converted")
+        self.assertTrue(report["complete"])
+        self.assertEqual(len(report["assets"]),1,
+                         "publisher preview incorrectly counted as geospatial imagery")
+        self.assertEqual(report["non_georeferenced_companions"][0]["files"],
+                         ["preview.jpg"])
 
     def test_verified_raster_zip_to_native_tile_asset(self):
         try:
