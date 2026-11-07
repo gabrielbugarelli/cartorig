@@ -39,6 +39,20 @@ class SourceLockTests(unittest.TestCase):
         self.assertEqual(lock["variants_by_scale"],{"10m":38,"50m":14})
         self.assertRegex(lock["source_rows_sha256"],r"^[0-9a-f]{64}$")
 
+    def test_real_51_publisher_head_source_size_observation_is_not_a_sha_lock(self):
+        root=Path(__file__).resolve().parents[1]/"data/natural-earth"
+        official=json.loads((root/"raster_discovery_v2026-11-07.lock.json")
+                            .read_text(encoding="utf-8"))
+        reported=json.loads((root/"raster_51_head_size_observation_2026-11-07.json")
+                            .read_text(encoding="utf-8"))
+        self.assertEqual(reported["discovery_rows_sha256"],
+                         official["source_rows_sha256"])
+        self.assertEqual(reported["head_size_verified_variants"],51)
+        self.assertEqual(reported["aggregate_advertised_zip_bytes"],6687019474)
+        self.assertEqual(reported["missing_publisher_archives"],1)
+        self.assertEqual(reported["content_sha256_verified_variants_from_this_head_probe"],0)
+        self.assertGreaterEqual(reported["project_workstation_recommended_free_gib"],40)
+
     def test_snapshot_and_verification(self):
         inventory,acquired=self.make_fixtures()
         locked=source_lock.freeze(inventory,acquired,expected=2)
