@@ -24,7 +24,11 @@ int run(const std::vector<std::string>&args){
         // vertices; area focus uses only a visibly-labelled bounding-box center.
         std::cout<<"\t"<<r.sourceRowId<<"\t"<<r.scale;
         if(args.size()==4){
-          const auto geom=cartorig::NaturalEarthCatalog::featureGeometry(args[3],r);
+          cartorig::NaturalEarthGeometry geom;
+          std::vector<cartorig::NaturalEarthGeometry> continent;
+          if(r.kind=="continent"){
+            continent=cartorig::NaturalEarthCatalog::continentGeometries(args[3],r.name,"10m");
+          }else geom=cartorig::NaturalEarthCatalog::featureGeometry(args[3],r);
           double minlon=std::numeric_limits<double>::infinity();
           double maxlon=-minlon, minlat=minlon, maxlat=-minlon;
           const auto scan=[&](cartorig::GeoPoint p){
@@ -32,6 +36,9 @@ int run(const std::vector<std::string>&args){
             minlon=std::min(minlon,p.lon);maxlon=std::max(maxlon,p.lon);
             minlat=std::min(minlat,p.lat);maxlat=std::max(maxlat,p.lat);
           };
+          for(const auto &entry:continent)
+            for(const auto &poly:entry.polygons)
+              for(const auto &ring:poly.rings)for(const auto &p:ring)scan(p);
           for(const auto &p:geom.points)scan(p);
           for(const auto &line:geom.lines)for(const auto &p:line)scan(p);
           for(const auto &poly:geom.polygons)
