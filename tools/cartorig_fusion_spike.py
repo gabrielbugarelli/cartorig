@@ -140,6 +140,9 @@ def add_independent_objects(comp):
         connect(media_out, "Input", m_ven)
         for merge, key_start, key_end in ((m_bra, 0, 12), (m_ven, 24, 36)):
             invoke(merge, "AddModifier", "Blend", "BezierSpline")
+            # Establish a deterministic zero baseline for later-starting objects.
+            # Do not rely on host behavior when sampling before the first key.
+            set_input(merge, "Blend", 0.0, start)
             set_input(merge, "Blend", 0.0, start + key_start)
             set_input(merge, "Blend", 1.0, start + key_end)
         completed = True
