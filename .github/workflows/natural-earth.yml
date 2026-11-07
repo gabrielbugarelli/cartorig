@@ -9,8 +9,15 @@ on:
       - "data/natural-earth/**"
       - ".github/workflows/natural-earth.yml"
   workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: natural-earth-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 jobs:
   offline-data-tests:
+    # Run full Python tests on PR/dispatch; tagged publisher probes use push.
+    if: github.event_name != 'push'
     runs-on: ubuntu-24.04
     strategy:
       matrix:
@@ -37,6 +44,7 @@ jobs:
           PY
 
   source-discovery:
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && contains(github.event.head_commit.message, '[source-probe]'))
     runs-on: ubuntu-24.04
     timeout-minutes: 12
     steps:
