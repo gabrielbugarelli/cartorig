@@ -18,6 +18,8 @@ Completion is a full local-data audit, not a list of download URLs or a JSON
 boolean. Missing sources, invalid TIFF/TFW georeferencing or failed installs
 must prevent certification.
 
+> **Source outage mitigation (NE-SOURCE-02):** The official US_MSR_10M.zip returns HTTP 404 (issue #4). To acquire the remaining publisher ZIPs and optionally construct a QA-only EXPERIMENTAL_INCOMPLETE pack without weakening complete certification, follow [NE-SOURCE-02 — Windows local workflow](NE_SOURCE02_AVAILABLE_WORKFLOW_2026-11-07.md). The standard commands below still require all 52 verified ZIPs for production.
+
 ## Phase A — Full source acquisition (release workstation only)
 
 Use an external disk with ample free space. Raw RGBA raster pyramids may
