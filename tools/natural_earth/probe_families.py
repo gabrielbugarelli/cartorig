@@ -88,7 +88,14 @@ def inspect_zip(path:Path)->dict:
             world=archive.getinfo(item["world_file"])
             if world.file_size>4096:
                 raise ValueError("publisher world file exceeds safe size")
-            values=archive.read(item["world_file"]).decode("ascii").split()
+            raw=archive.read(item["world_file"])
+            try:
+                values=raw.decode("ascii").split()
+            except UnicodeDecodeError as error:
+                raise ValueError(
+                    "World file is not ASCII; filename="+item["world_file"]+
+                    "; bytes="+str(len(raw))+"; prefix_hex="+raw[:160].hex()
+                ) from error
             if len(values)!=6 or not all(len(v)<80 for v in values):
                 raise ValueError("invalid source world-file affine dimensions")
             affine=[float(v) for v in values]
@@ -113,7 +120,8 @@ def candidates_by_family(rows:list[dict],metadata:dict)->dict[str,dict]:
 def run(inventory_report:dict,reviewed_discovery:dict,*,out:Path,
         allow_network:bool=False,fetch_samples:bool=False,
         max_archive_bytes:int=MAX_ARCHIVE,max_total_bytes:int=MAX_TOTAL,
-        opener=urllib.request.urlopen,downloader=inventory.download_and_hash)->dict:
+        opener=urllib.request.urlopen,downloader=inventory.download_and_hash,
+        only_family:str|None=None)->dict:
     if not allow_network:
         raise ValueError("publisher HEAD/download requires --allow-network")
     source_lock.verify_discovery(reviewed_discovery,inventory_report)
@@ -130,9 +138,13 @@ def run(inventory_report:dict,reviewed_discovery:dict,*,out:Path,
     for r in sources:
         measurements[r["resource_id"]]=probe_size(r,opener=opener)
     selected=candidates_by_family(sources,measurements)
+    target_families=sorted(f for f in families if (
+        not only_family or f.rstrip("/").endswith("/"+only_family)))
+    if not target_families:
+        raise ValueError("requested raster family not in reviewed official discovery")
     rows=[]
     acquired_bytes=0
-    for family in sorted(families):
+    for family in target_families:
         row=selected.get(family)
         if not row:
             rows.append({"family":family,"status":"BLOCKED_NO_SIZE_VERIFIED_ZIP"})
@@ -173,8 +185,10 @@ def run(inventory_report:dict,reviewed_discovery:dict,*,out:Path,
             "publisher":"Natural Earth / NACIS",
             "source_count":len(sources),"source_head_verified":head_ready,
             "families_expected":len(families),
+            "families_in_this_probe":len(target_families),
             "family_samples_verified":verified,
-            "complete":fetch_samples and verified==len(families),
+            "scope_complete":fetch_samples and verified==len(target_families),
+            "complete":fetch_samples and only_family is None and verified==len(families),
             "sample_mode":"real-zip" if fetch_samples else "head-only",
             "bytes_acquired_and_discarded":acquired_bytes,
             "max_archive_bytes":max_archive_bytes,
@@ -194,6 +208,8 @@ def main():
     parser.add_argument("--out",type=Path,required=True)
     parser.add_argument("--allow-network",action="store_true")
     parser.add_argument("--fetch-samples",action="store_true")
+    parser.add_argument("--only-family",type=str,
+                        help="Diagnostic scoped to one official raster family slug")
     parser.add_argument("--max-archive-mb",type=int,default=MAX_ARCHIVE//1_000_000)
     parser.add_argument("--max-total-mb",type=int,default=MAX_TOTAL//1_000_000)
     args=parser.parse_args()
@@ -202,12 +218,14 @@ def main():
                out=args.out,allow_network=args.allow_network,
                fetch_samples=args.fetch_samples,
                max_archive_bytes=args.max_archive_mb*1_000_000,
-               max_total_bytes=args.max_total_mb*1_000_000)
+               max_total_bytes=args.max_total_mb*1_000_000,
+               only_family=args.only_family)
     print(json.dumps({k:v for k,v in report.items()
                       if k not in ("measurements","families")},indent=2))
-    if args.fetch_samples and not report["complete"]:
-        raise SystemExit("Not all 16 official raster families could be acquired in the hard budget")
-    if report["source_head_verified"]!=52:
+    if args.fetch_samples and not (
+        report["scope_complete"] if args.only_family else report["complete"]):
+        raise SystemExit("Official raster families could not all be acquired in the hard budget")
+    if not args.only_family and report["source_head_verified"]!=52:
         raise SystemExit("At least one official raster variant lacks verified HEAD metadata")
 
 if __name__=="__main__":main()
