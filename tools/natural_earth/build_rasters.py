@@ -394,9 +394,12 @@ def main():
     ap.add_argument("--out",type=Path,required=True)
     ap.add_argument("--resume",action="store_true",
                     help="Reuse fully validated source-hash-matching tile atlases")
+    ap.add_argument("--tile-format",choices=("rgba","png"),default="rgba",
+                    help="Legacy raw RGBA or portable PNG v2 lossless compressed tiles")
     args=ap.parse_args()
     report=compile_archives(json.loads(args.manifest.read_text(encoding="utf-8")),
-                            args.archives,args.out,resume=args.resume)
+                            args.archives,args.out,resume=args.resume,
+                            tile_format=args.tile_format)
     print(json.dumps({k:v for k,v in report.items() if k!="assets"},indent=2))
     if not report["complete"]:
         raise SystemExit(1)
