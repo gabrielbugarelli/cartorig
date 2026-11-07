@@ -69,6 +69,27 @@ std::vector<GeographicRegionSelection> parseGeographicSelections(
       rgba[index]=static_cast<std::uint8_t>(c[index].number_value());
     }
     r.fill={rgba[0],rgba[1],rgba[2],rgba[3]};
+    // Old persisted selections remain valid; the new stroke initially
+    // follows their previous fill value for pixel-level compatibility.
+    r.stroke=r.fill;
+    if(item["stroke"].is_array()){
+      const auto &sc=item["stroke"].array_items();
+      if(sc.size()!=4)throw std::invalid_argument("invalid region stroke color");
+      std::uint8_t channel[4]{};
+      for(int n=0;n<4;++n){
+        const auto &value=sc[static_cast<std::size_t>(n)];
+        if(!value.is_number()||!std::isfinite(value.number_value())||
+           value.number_value()<0||value.number_value()>255||
+           std::floor(value.number_value())!=value.number_value())
+          throw std::invalid_argument("invalid region stroke channel");
+        channel[n]=static_cast<std::uint8_t>(value.number_value());
+      }
+      r.stroke={channel[0],channel[1],channel[2],channel[3]};
+    }else if(!item["stroke"].is_null())
+      throw std::invalid_argument("region stroke must be RGBA array");
+    if(item["visible"].is_bool())r.visible=item["visible"].bool_value();
+    else if(!item["visible"].is_null())
+      throw std::invalid_argument("region visibility must be boolean");
     if(item["color_keys"].is_array()){
       for(const auto &key:item["color_keys"].array_items()){
         if(!key.is_object()||!key["frame"].is_number())
@@ -125,6 +146,10 @@ std::string saveGeographicSelections(
       {"fill",json11::Json::array{
         static_cast<int>(r.fill.r),static_cast<int>(r.fill.g),
         static_cast<int>(r.fill.b),static_cast<int>(r.fill.a)}},
+      {"stroke",json11::Json::array{
+        static_cast<int>(r.stroke.r),static_cast<int>(r.stroke.g),
+        static_cast<int>(r.stroke.b),static_cast<int>(r.stroke.a)}},
+      {"visible",r.visible},
       {"color_keys",std::move(keys)}
     });
   }
