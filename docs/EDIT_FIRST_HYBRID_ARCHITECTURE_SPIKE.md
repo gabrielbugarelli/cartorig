@@ -15,7 +15,8 @@ A hipótese crítica da arquitetura é que o **mesmo CartoRig Map (Edit) OpenFX 
 - `inspect`: valida Resolve 20 e gera SHA256 do binário OpenFX instalado, sem editar projetos.
 - `prepare`: com consentimento explícito, cria exclusivamente um novo projeto `CartoRig_Fusion_Architecture_QA` e uma timeline 1080p; insere o gerador CartoRig, tenta anexar Fusion e conectar `MediaIn → Merge BRA → Merge VEN → MediaOut`.
 - Cada merge recebe um modificador `BezierSpline` próprio no parâmetro `Blend`: BRA nos frames 0–12, VEN nos frames 24–36.
-- `verify`: recarrega o projeto separado e busca os quatro nós nomeados, consultando Blend no frame 18 (BRA visível, VEN oculto) e no frame 40 (ambos visíveis).
+- `verify`: com consentimento explícito, recarrega o projeto separado e busca os quatro nós nomeados, consultando Blend no frame 18 (BRA visível, VEN oculto) e no frame 40 (ambos visíveis).
+- `render`: com consentimento explícito, configura e executa um job H.264/MP4 de 1920×1080 pelo Deliver, exige saída não vazia e verifica dimensões por ffprobe quando disponível. Não identifica automaticamente os pixels de BRA/VEN.
 - `tests/test_fusion_spike.py`: testes simulados para estrutura, isolamento, nome de projeto, animação independente, incompatibilidades e relatório `BLOCKED`.
 - CI Windows/Ubuntu executa esses contratos. **Testes simulados não são aceitação do Resolve real.**
 
@@ -32,10 +33,11 @@ Executar a partir da raiz da branch exata:
 ```powershell
 python -m tools.cartorig_fusion_spike --mode inspect --report "$env:TEMP\cartorig-hybrid-inspect.json"
 python -m tools.cartorig_fusion_spike --mode prepare --allow-switch-project --report "$env:TEMP\cartorig-hybrid-prepare.json"
-python -m tools.cartorig_fusion_spike --mode verify --report "$env:TEMP\cartorig-hybrid-verify.json"
+python -m tools.cartorig_fusion_spike --mode verify --allow-switch-project --report "$env:TEMP\cartorig-hybrid-verify.json"
+python -m tools.cartorig_fusion_spike --mode render --allow-switch-project --render-dir "$env:TEMP\CartoRigHybridRenders" --report "$env:TEMP\cartorig-hybrid-render.json"
 ```
 
-Se ocorrer `BLOCKED`, preserve o JSON e a versão exata do Resolve. Não tente contornar criando objetos em um projeto de produção. Sempre examinar o Viewer do projeto QA e exportar um pequeno render manual para confirmar se os dois Text+ aparecem sobre o mapa; a API sozinha **não** prova os pixels renderizados.
+Se ocorrer `BLOCKED`, preserve o JSON e a versão exata do Resolve. A pasta escolhida em `--render-dir` deve estar vazia. Não tente contornar criando objetos em um projeto de produção. Sempre examinar o Viewer do projeto QA e exportar um pequeno render manual para confirmar se os dois Text+ aparecem sobre o mapa; a API sozinha **não** prova os pixels renderizados.
 
 ## Matriz de aceitação
 
@@ -45,7 +47,8 @@ Se ocorrer `BLOCKED`, preserve o JSON e a versão exata do Resolve. Não tente c
 | HYB-02 | Inserir OFX em Edit e anexar Fusion no mesmo clipe | Implementado como prova; host real **NOT RUN** |
 | HYB-03 | `MediaIn/MediaOut` existentes e nós conectáveis | Implementado com falha explícita; host real **NOT RUN** |
 | HYB-04 | Objetos com tempos distintos sobrevivem a save/reload | Implementado com validação de valores; host real **NOT RUN** |
-| HYB-05 | Composição correta no Viewer e Deliver | **NOT IMPLEMENTED** no script, requer QA visual |
+| HYB-05 | Job de renderização real em 1080p pelo Deliver | Implementado com verificação de arquivo e status; host real **NOT RUN** |
+| HYB-05B | Pixels corretos do mapa + ambos os Text+ no Viewer e Deliver | **NOT RUN**, exige inspeção visual |
 | HYB-06 | Geocoordenadas de objetos vinculadas à câmera | **NOT IMPLEMENTED** |
 | HYB-07 | Autoria inteiramente pelo Inspector/Edit, sem console | **NOT IMPLEMENTED** |
 | HYB-08 | Empacotamento em instalador final simples e offline | **NOT IMPLEMENTED** neste experimento |
