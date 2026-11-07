@@ -96,6 +96,13 @@ int main(){
           "route drawing deterministic");
     check(checksum(paint(route,world,0,0))!=checksum(paint(route,world,0,1)),
           "native RouteProgress 0 to 1 animates only on demand");
+    c.routeColor={210,40,80,255};
+    auto coloredRoute=sceneWithNativeControls(scene,c);
+    check(coloredRoute.routes.size()==1&&
+          coloredRoute.routes[0].color.r==210&&
+          coloredRoute.routes[0].color.g==40&&
+          coloredRoute.routes[0].color.b==80,
+          "Fusion route object has independent custom RGB");
     c.routeMarkers=true;c.startLabel="START";c.endLabel="END";
     auto markers=sceneWithNativeControls(scene,c);
     check(markers.markers[0].visible&&markers.markers[1].visible&&
