@@ -18,6 +18,7 @@
 #include <cmath>
 #include <cstring>
 #include <cstdlib>
+#include <cctype>
 #include <filesystem>
 #include <iostream>
 #include <memory>
@@ -42,6 +43,7 @@ struct Instance {
   OfxParamHandle sceneFile=nullptr,datasetFile=nullptr,sceneInline=nullptr,datasetInline=nullptr;
   OfxParamHandle naturalEarthGpkg=nullptr,naturalEarthDetail=nullptr,naturalEarthLayer=nullptr,naturalEarthLayerFile=nullptr,naturalEarthRasterRoot=nullptr,naturalEarthRasterAsset=nullptr;
   OfxParamHandle useInstalledNaturalEarth=nullptr;
+  OfxParamHandle rasterSearch=nullptr,rasterChoice=nullptr,rasterApply=nullptr,rasterInfo=nullptr;
   OfxParamHandle regionCatalog=nullptr,regionKind=nullptr,regionQuery=nullptr,regionMatch=nullptr;
   OfxParamHandle regionRed=nullptr,regionGreen=nullptr,regionBlue=nullptr,regionAlpha=nullptr;
   OfxParamHandle regionAdd=nullptr,regionRemove=nullptr,regionSaved=nullptr,regionStatus=nullptr;
@@ -525,6 +527,33 @@ OfxStatus describeInContext(OfxImageEffectHandle e,bool filter){
                "Use installed offline Natural Earth data pack",false,"AdvancedScene");
  defineString(ps,"NaturalEarthRasterRoot","Raster tiles directory (offline)","AdvancedScene");
  defineNativeText(ps,"NaturalEarthRasterAsset","Raster asset ID (blank: disabled)","AdvancedScene");
+ defineNativeText(ps,"NaturalEarthRasterSearch","Search offline raster","AdvancedScene");
+ OfxPropertySetHandle rasterOptions=nullptr;
+ if(param->paramDefine(ps,kOfxParamTypeChoice,"NaturalEarthRasterChoice",&rasterOptions)!=kOfxStatOK)
+   throw std::runtime_error("offline raster picker is unavailable");
+ prop->propSetString(rasterOptions,kOfxPropLabel,0,"Offline raster results");
+ prop->propSetString(rasterOptions,kOfxParamPropParent,0,"AdvancedScene");
+ prop->propSetInt(rasterOptions,kOfxParamPropDefault,0,0);
+ prop->propSetInt(rasterOptions,kOfxParamPropAnimates,0,0);
+ prop->propSetString(rasterOptions,kOfxParamPropChoiceOption,0,"No raster selected");
+ for(int idx=1;idx<=10;++idx){
+   const auto label="No raster result "+std::to_string(idx);
+   prop->propSetString(rasterOptions,kOfxParamPropChoiceOption,idx,label.c_str());
+ }
+ OfxPropertySetHandle rasterAction=nullptr;
+ if(param->paramDefine(ps,kOfxParamTypePushButton,"NaturalEarthRasterApply",&rasterAction)!=kOfxStatOK)
+   throw std::runtime_error("offline raster apply action is unavailable");
+ prop->propSetString(rasterAction,kOfxPropLabel,0,"Use selected offline raster");
+ prop->propSetString(rasterAction,kOfxParamPropParent,0,"AdvancedScene");
+ OfxPropertySetHandle rasterStatus=nullptr;
+ if(param->paramDefine(ps,kOfxParamTypeString,"NaturalEarthRasterInfo",&rasterStatus)!=kOfxStatOK)
+   throw std::runtime_error("offline raster catalog status unavailable");
+ prop->propSetString(rasterStatus,kOfxPropLabel,0,"Raster search status");
+ prop->propSetString(rasterStatus,kOfxParamPropParent,0,"AdvancedScene");
+ prop->propSetString(rasterStatus,kOfxParamPropStringMode,0,kOfxParamStringIsLabel);
+ prop->propSetString(rasterStatus,kOfxParamPropDefault,0,
+                     "Select a local raster catalog or enable installed offline data");
+ prop->propSetInt(rasterStatus,kOfxParamPropAnimates,0,0);
  defineString(ps,"SceneFile","Scene .json (blank: empty map)","AdvancedScene");
  defineString(ps,"CatalogFile","GeoJSON (blank: offline countries)","AdvancedScene");
  defineMultiline(ps,"EmbeddedSceneJSON","Embedded scene JSON (portable)","AdvancedScene");
@@ -543,6 +572,10 @@ OfxStatus createInstance(OfxImageEffectHandle e,bool filter){auto i=std::make_un
  {"NaturalEarthRasterRoot",&i->naturalEarthRasterRoot},
  {"NaturalEarthRasterAsset",&i->naturalEarthRasterAsset},
  {"UseInstalledNaturalEarth",&i->useInstalledNaturalEarth},
+ {"NaturalEarthRasterSearch",&i->rasterSearch},
+ {"NaturalEarthRasterChoice",&i->rasterChoice},
+ {"NaturalEarthRasterApply",&i->rasterApply},
+ {"NaturalEarthRasterInfo",&i->rasterInfo},
  {"GeographicCatalog",&i->regionCatalog},
  {"GeographicRegionKind",&i->regionKind},{"GeographicRegionQuery",&i->regionQuery},
  {"GeographicRegionMatch",&i->regionMatch},{"GeographicRegionStatus",&i->regionStatus},
@@ -968,6 +1001,72 @@ OfxStatus onGeographicRegionChanged(OfxImageEffectHandle effect,
   }
   return kOfxStatReplyDefault;
 }
+OfxStatus onOfflineRasterChanged(OfxImageEffectHandle effect,
+                                 OfxPropertySetHandle args,
+                                 const std::string &changed){
+  auto *i=instance(effect);
+  if(!i||!param->paramSetValue)return kOfxStatReplyDefault;
+  double time=0;
+  if(args)prop->propGetDouble(args,kOfxPropTime,0,&time);
+  std::string root,search;
+  stringAt(i->naturalEarthRasterRoot,time,root);
+  stringAt(i->rasterSearch,time,search);
+  const bool useInstalled=intAt(i->useInstalledNaturalEarth,time,0)!=0;
+  if(root.empty()&&useInstalled)
+    root=installedNaturalEarthAsset(
+      "raster/validated-raster-assets.json").parent_path().string();
+  const auto status=[&](const std::string &value){
+    (void)param->paramSetValue(i->rasterInfo,value.c_str());
+  };
+  if(root.empty()){
+    if(changed=="NaturalEarthRasterApply")
+      throw std::invalid_argument("Set offline raster tiles directory first");
+    status("Set Raster tiles directory or enable installed Natural Earth pack");
+    return kOfxStatReplyDefault;
+  }
+  auto assets=cartorig::listNaturalEarthRasterAssets(root);
+  const auto fold=[](std::string value){
+    std::transform(value.begin(),value.end(),value.begin(),[](unsigned char ch){
+      return static_cast<char>(std::tolower(ch));});
+    return value;
+  };
+  const auto query=fold(search);
+  std::vector<cartorig::NaturalEarthRasterAsset> matches;
+  matches.reserve(10);
+  for(const auto &asset:assets){
+    if(!query.empty()&&fold(asset.sourceId).find(query)==std::string::npos&&
+       fold(asset.assetId).find(query)==std::string::npos)
+      continue;
+    if(matches.size()<10)matches.push_back(asset);
+  }
+  OfxPropertySetHandle opts=nullptr;
+  if(param->paramGetPropertySet(i->rasterChoice,&opts)==kOfxStatOK && opts){
+    for(int option=1;option<=10;++option){
+      std::string label="No raster result "+std::to_string(option);
+      if(option<=static_cast<int>(matches.size())){
+        const auto &asset=matches[static_cast<std::size_t>(option-1)];
+        label=asset.sourceId+" / "+asset.assetId;
+        if(label.size()>120)label.resize(120);
+      }
+      (void)prop->propSetString(opts,kOfxParamPropChoiceOption,
+                                option,label.c_str());
+    }
+  }
+  if(changed=="NaturalEarthRasterApply"){
+    const int selected=intAt(i->rasterChoice,time,0);
+    if(selected<0||selected>static_cast<int>(matches.size()))
+      throw std::invalid_argument("Select one of the available offline raster results");
+    const auto id=selected==0?std::string():
+                          matches[static_cast<std::size_t>(selected-1)].assetId;
+    if(param->paramSetValue(i->naturalEarthRasterAsset,id.c_str())!=kOfxStatOK)
+      throw std::runtime_error("OFX host rejected the chosen raster asset ID");
+    status(id.empty()?"Raster disabled":"Selected offline raster: "+id);
+    return kOfxStatOK;
+  }
+  status(std::to_string(matches.size())+" raster matches (first 10) from "+
+         std::to_string(assets.size())+" installed atlas assets");
+  return kOfxStatReplyDefault;
+}
 OfxStatus entry(const char *action,const void *handle,OfxPropertySetHandle args,OfxPropertySetHandle out,bool filter){try {
  if(!std::strcmp(action,kOfxActionLoad))return onLoad();
  if(!std::strcmp(action,kOfxActionUnload)){std::lock_guard<std::mutex> lock(cacheMutex);cache.clear();vectorLayerCache.clear();rasterCache.clear();regionGeometryCache.clear();return kOfxStatOK;}
@@ -979,6 +1078,9 @@ OfxStatus entry(const char *action,const void *handle,OfxPropertySetHandle args,
    if(args&&prop->propGetString(args,kOfxPropName,0,&changed)==kOfxStatOK&&
       changed&&!std::strcmp(changed,"DiagnosticLog"))
      writeDiagnostics("INSPECTOR DiagnosticLog changed; render may not have started yet");
+   if(changed&&(!std::strncmp(changed,"NaturalEarthRaster",18)||
+                  !std::strcmp(changed,"UseInstalledNaturalEarth")))
+     return onOfflineRasterChanged((OfxImageEffectHandle)handle,args,changed);
    if(changed&&std::strncmp(changed,"GeographicRegion",16)==0)
      return onGeographicRegionChanged((OfxImageEffectHandle)handle,args,changed);
    return kOfxStatReplyDefault;
