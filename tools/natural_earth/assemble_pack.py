@@ -36,7 +36,10 @@ def assemble(*,vector:Path,supplement:Path,sources:Path,
         raise ValueError("publisher source archives are not fully SHA256/CRC verified")
     # Persistent same-volume staging permits bounded, resumable 50+ GB builds.
     root=out.with_name("."+out.name+".assembling")
-    checkpoint=root/".cartorig-build-inputs.json"
+    # Resume proof lives OUTSIDE the future data pack. A hard kill during
+    # final SHA256 hashing or the atomic rename must not destroy recovery.
+    checkpoint=root.with_name(root.name+".resume.json")
+    legacy_checkpoint=root/".cartorig-build-inputs.json"
     provenance_inputs={
         "schema_version":1,
         "vector_pin_sha256":build_pack.digest(vector_pin),
@@ -51,10 +54,19 @@ def assemble(*,vector:Path,supplement:Path,sources:Path,
             raise FileExistsError(
                 "partial producer build found; use --resume after checking source manifests: "+
                 str(root))
-        if root.is_symlink() or not checkpoint.is_file() or json.loads(
-                checkpoint.read_text(encoding="utf-8"))!=provenance_inputs:
+        if root.is_symlink() or (not checkpoint.is_file() and not legacy_checkpoint.is_file()):
+            raise ValueError("partial build provenance missing; refusing unsafe resume")
+        # Migrate an older in-tree checkpoint, but only when its pins agree.
+        verified_checkpoint=checkpoint if checkpoint.is_file() else legacy_checkpoint
+        if json.loads(verified_checkpoint.read_text(encoding="utf-8"))!=provenance_inputs:
             raise ValueError("partial build provenance differs; refusing unsafe resume")
+        if legacy_checkpoint.is_file():
+            checkpoint.write_text(json.dumps(provenance_inputs,indent=2)+"\n",
+                                  encoding="utf-8")
+            legacy_checkpoint.unlink()
     else:
+        if checkpoint.exists():
+            raise ValueError("orphaned producer checkpoint exists; refuse unsafe new stage")
         root.mkdir(parents=True)
         checkpoint.write_text(json.dumps(provenance_inputs,indent=2)+"\n",
                               encoding="utf-8")
@@ -104,15 +116,12 @@ def assemble(*,vector:Path,supplement:Path,sources:Path,
         raise ValueError("Natural Earth Complete audit failed: "+
                          json.dumps({k:v.get("passed") for k,v in audit.items()
                                      if isinstance(v,dict)}))
-    checkpoint.unlink(missing_ok=True)
-    try:
-        manifest=build_pack.build_pack(
-            root,audit,allow_incomplete=allow_incomplete)
-    except Exception:
-        checkpoint.write_text(json.dumps(provenance_inputs,indent=2)+"\n",
-                              encoding="utf-8")
-        raise
+    # Keep the checkpoint through final hashing and atomic promotion. If the
+    # process dies here, the complete staging tree can still be resumed.
+    manifest=build_pack.build_pack(
+        root,audit,allow_incomplete=allow_incomplete)
     root.replace(out)
+    checkpoint.unlink(missing_ok=True)
     return {"pack_id":manifest["pack_id"],"complete":manifest["complete"],
             "raster_sources":raster["sources_converted"],
             "reused_raster_assets":raster.get("reused_assets",0),
