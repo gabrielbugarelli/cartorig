@@ -30,7 +30,7 @@ local function main()
     createdProject = assert_ok(projectManager:CreateProject(projectName),
                                "Create new isolated " .. projectName)
     local pool = assert_ok(createdProject:GetMediaPool(), "Get media pool")
-    createdTimeline = assert_ok(pool:CreateEmptyTimeline("CartoRig Hybrid Test"),
+    createdTimeline = assert_ok(pool:CreateEmptyTimeline("CartoRig Fusion Container Test"),
                                 "Create test timeline")
     assert_ok(createdProject:SetCurrentTimeline(createdTimeline), "Select QA timeline")
     -- Resolve 20 may refuse to change an existing timeline's resolution
@@ -49,19 +49,40 @@ local function main()
         print("[CartoRig Hybrid Test] Using Resolve default timeline resolution.")
     end
 
-    local clip = assert_ok(createdTimeline:InsertOFXGeneratorIntoTimeline("CartoRig Map (Edit)"),
-                           "Insert CartoRig Map (Edit) OFX generator")
-    assert_ok(tonumber(clip:GetFusionCompCount()) == 0, "QA clip already has a Fusion comp")
-    local comp = assert_ok(clip:AddFusionComp(),
-                           "Attach Fusion composition to CartoRig OpenFX generator")
-    if type(comp) == "boolean" then
-        comp = assert_ok(clip:GetFusionCompByIndex(1), "Read attached Fusion composition")
+    -- The OFX Generator cannot accept AddFusionComp in Resolve Studio 20.
+    -- Instead, place a Fusion Composition on Edit, and add CartoRig Overlay
+    -- inside it as a Fusion OpenFX tool (experimental, host verification required).
+    local clip = assert_ok(createdTimeline:InsertFusionCompositionIntoTimeline(),
+                           "Insert Fusion Composition on Edit")
+    local count = tonumber(clip:GetFusionCompCount() or 0)
+    local comp
+    if count > 0 then
+        comp = assert_ok(clip:GetFusionCompByIndex(1), "Read Fusion Composition")
+    else
+        comp = assert_ok(clip:AddFusionComp(), "Initialize Fusion Composition")
+        if type(comp) == "boolean" then
+            comp = assert_ok(clip:GetFusionCompByIndex(1), "Read initialized Fusion Composition")
+        end
     end
-
-    local mediaIn = comp:FindTool("MediaIn1") or comp:FindToolByID("MediaIn")
     local mediaOut = comp:FindTool("MediaOut1") or comp:FindToolByID("MediaOut")
-    assert_ok(mediaIn, "Expected MediaIn on generator Fusion comp")
-    assert_ok(mediaOut, "Expected MediaOut on generator Fusion comp")
+    if not mediaOut then
+        mediaOut = assert_ok(comp:AddTool("MediaOut", 4, 1), "Create MediaOut")
+    end
+    local bg = assert_ok(comp:AddTool("Background", -5, 1), "Create map source")
+    set_input(bg, "TopLeftAlpha", 1)
+    local map = assert_ok(comp:AddTool("ofx.com.cartorig.native.overlay", -3, 1),
+                          "Add CartoRig Overlay as Fusion OFX tool")
+    rename(map, "CR_Spike_Map_Overlay")
+    local linked = false
+    for _, socket in ipairs({"Source", "Input", "Image"}) do
+        local ok, reply = pcall(function() return map:ConnectInput(socket, bg) end)
+        if ok and reply ~= false then
+            linked = true
+            break
+        end
+    end
+    assert_ok(linked, "Connect Fusion background to CartoRig Overlay")
+    local mediaIn = map
 
     local start = 0
     local attrs = comp:GetAttrs()
@@ -112,7 +133,7 @@ end
 
 local ok, message = pcall(main)
 local output = ok and
-    "CREATED: Check the Edit timeline and viewer at frames 18 and 40." or
+    "CREATED: Fusion Composition with CartoRig Overlay and two Text+ objects; inspect the Viewer." or
     ("BLOCKED: " .. tostring(message))
 print("[CartoRig Hybrid Test] " .. output)
 if not ok and createdTimeline and type(createdTimeline.AddMarker) == "function" then
