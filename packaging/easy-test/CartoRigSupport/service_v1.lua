@@ -524,7 +524,7 @@ function M.style(sceneIndex,objectIndex,hex,stroke,opacity)
                 set(entry.node,"HighlightStrength",alpha(opacity)/255)
             end
         elseif m.type=="Route" then
-            local r,g,b=rgb(hex)
+            local r,g,b=rgb(m.stroke)
             set(entry.node,"NativeRouteRed",r)
             set(entry.node,"NativeRouteGreen",g)
             set(entry.node,"NativeRouteBlue",b)
