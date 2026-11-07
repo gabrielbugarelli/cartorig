@@ -63,7 +63,7 @@ class OfflineReleaseVerifierTests(unittest.TestCase):
             tile.write_bytes(b"test-tile-"+ident.encode())
             checksum=hashlib.sha256(tile.read_bytes()).hexdigest()
             (location/"tiles.sha256").write_text(
-                checksum+"  tiles/0/0_0.png\\n",encoding="ascii")
+                checksum+"  tiles/0/0_0.png\n",encoding="ascii")
             (location/"index.json").write_text(json.dumps({
                 "asset_id":asset_id,"format":"cartorig-png-tiles-v2",
                 "provenance":{"source_id":ident,
