@@ -7,7 +7,12 @@ local function assert_ok(v, label)
     return v
 end
 local function set_input(tool, id, value, frame)
-    local result = tool:SetInput(id, value, frame)
+    local result
+    if frame == nil then
+        result = tool:SetInput(id, value)
+    else
+        result = tool:SetInput(id, value, frame)
+    end
     assert_ok(result ~= false, "Fusion SetInput " .. id)
 end
 local function connect(tool, id, upstream)
