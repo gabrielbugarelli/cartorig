@@ -12,6 +12,8 @@ NOT a DaVinci Resolve 20 host test. Full Natural Earth certification remains
 blocked by the original 52nd publisher source.
 The Windows kit deliberately ships no publisher data; the release workstation
 must obtain the real source bytes and record its own SHA256 evidence.
+Default local disk headroom gate is 50 GiB per relevant volume, not a claim
+that the publisher atlas footprint has been fully measured.
 """
 from __future__ import annotations
 import argparse
