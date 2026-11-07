@@ -10,6 +10,7 @@ publisher variants fail closed rather than counting as covered.
 from __future__ import annotations
 import argparse
 import hashlib
+import hmac
 import json
 from pathlib import Path, PurePosixPath
 import re
@@ -43,6 +44,54 @@ def georeference(worldfile: str, width: int, height: int) -> list[float]:
         raise ValueError("raster georeference is outside EPSG:4326 world bounds")
     return extent
 
+def _write_windowed_tiff(
+        image_path: Path, stage: Path,
+        sizes: list[tuple[int,int]], width: int, height: int) -> None:
+    """Stream one TIFF tile at a time using rasterio on release machines.
+
+    Large Natural Earth TIFF images can exceed 230 million pixels; building
+    complete RGBA images in Pillow would require many gigabytes of RAM.
+    rasterio/numpy/GDAL are build-time only, never installed inside Resolve.
+    """
+    try:
+        import numpy as np
+        import rasterio
+        from rasterio.enums import Resampling
+        from rasterio.windows import Window
+    except ImportError as exc:
+        raise RuntimeError(
+            "Large publisher TIFF requires release-only rasterio and numpy "
+            "(pip install rasterio numpy); no dependency is needed in Resolve"
+        ) from exc
+    with rasterio.open(image_path) as src:
+        if (src.width, src.height) != (width, height) or src.count not in (1,2,3,4):
+            raise ValueError("TIFF dimensions or channel count is unsupported")
+        if any(dtype!="uint8" for dtype in src.dtypes):
+            raise ValueError("TIFF requires 8-bit channels; normalize explicitly")
+        for z, (zw,zh) in enumerate(sizes):
+            level=stage/"tiles"/str(z)
+            level.mkdir(parents=True)
+            for ty in range((zh+TILE-1)//TILE):
+                for tx in range((zw+TILE-1)//TILE):
+                    start_x,start_y=tx*TILE,ty*TILE
+                    tw,th=min(TILE,zw-start_x),min(TILE,zh-start_y)
+                    fx=width/zw
+                    fy=height/zh
+                    window=Window(start_x*fx,start_y*fy,tw*fx,th*fy)
+                    channels=src.read(
+                        window=window,out_shape=(src.count,th,tw),
+                        resampling=Resampling.bilinear)
+                    tile=np.zeros((TILE,TILE,4),dtype=np.uint8)
+                    if src.count in (1,2):
+                        tile[:th,:tw,0]=channels[0]
+                        tile[:th,:tw,1]=channels[0]
+                        tile[:th,:tw,2]=channels[0]
+                        tile[:th,:tw,3]=channels[1] if src.count==2 else 255
+                    else:
+                        tile[:th,:tw,:3]=np.moveaxis(channels[:3],0,2)
+                        tile[:th,:tw,3]=channels[3] if src.count==4 else 255
+                    (level/f"{tx}_{ty}.rgba").write_bytes(tile.tobytes())
+
 def build_asset(image_path: Path, world_text: str, root: Path,
                 asset_id: str, provenance: dict) -> dict:
     try:
@@ -57,8 +106,6 @@ def build_asset(image_path: Path, world_text: str, root: Path,
         if w<1 or h<1 or w*h>MAX_PIXELS:
             raise ValueError("publisher raster exceeds configured pixel budget")
         extent = georeference(world_text, w, h)
-        # Work from the original pixels; each lower-resolution level is a
-        # deterministic LANCZOS reduction. No upsampling or invented detail.
         sizes = [(w,h)]
         while max(sizes[-1]) > TILE:
             prev = sizes[-1]
@@ -70,30 +117,48 @@ def build_asset(image_path: Path, world_text: str, root: Path,
         with tempfile.TemporaryDirectory(prefix=".raster.",dir=root) as temporary:
             stage = Path(temporary) / asset_id
             stage.mkdir()
-            levels = []
-            for z,(zw,zh) in enumerate(sizes):
-                level = stage / "tiles" / str(z)
-                level.mkdir(parents=True)
-                image = original.convert("RGBA") if (zw,zh)==(w,h) else original.resize(
-                    (zw,zh), Image.Resampling.LANCZOS).convert("RGBA")
-                tiles_x=(zw+TILE-1)//TILE
-                tiles_y=(zh+TILE-1)//TILE
-                for ty in range(tiles_y):
-                    for tx in range(tiles_x):
-                        tile = Image.new("RGBA",(TILE,TILE))
-                        region = image.crop((tx*TILE,ty*TILE,
-                                             min((tx+1)*TILE,zw),
-                                             min((ty+1)*TILE,zh)))
-                        tile.paste(region,(0,0))
-                        (level / f"{tx}_{ty}.rgba").write_bytes(tile.tobytes())
-                image.close()
-                levels.append({"z":z,"width":zw,"height":zh,
-                               "tiles_x":tiles_x,"tiles_y":tiles_y})
+            levels = [{"z":z,"width":zw,"height":zh,
+                       "tiles_x":(zw+TILE-1)//TILE,
+                       "tiles_y":(zh+TILE-1)//TILE}
+                      for z,(zw,zh) in enumerate(sizes)]
+            use_windows=(image_path.suffix.lower() in (".tif", ".tiff") and
+                         w*h>2_000_000)
+            if use_windows:
+                _write_windowed_tiff(image_path,stage,sizes,w,h)
+            else:
+                if w*h>25_000_000:
+                    raise RuntimeError(
+                        "Large non-TIFF image cannot be safely resized in memory; "
+                        "convert it to a georeferenced TIFF first")
+                for z,(zw,zh) in enumerate(sizes):
+                    level=stage/"tiles"/str(z)
+                    level.mkdir(parents=True)
+                    image=(original.convert("RGBA") if (zw,zh)==(w,h) else
+                           original.resize((zw,zh),Image.Resampling.LANCZOS).convert("RGBA"))
+                    for ty in range(levels[z]["tiles_y"]):
+                        for tx in range(levels[z]["tiles_x"]):
+                            tile=Image.new("RGBA",(TILE,TILE))
+                            region=image.crop((tx*TILE,ty*TILE,
+                                               min((tx+1)*TILE,zw),
+                                               min((ty+1)*TILE,zh)))
+                            tile.paste(region,(0,0))
+                            (level/f"{tx}_{ty}.rgba").write_bytes(tile.tobytes())
+                    image.close()
+            checksums=[]
+            for z,level in enumerate(levels):
+                for ty in range(level["tiles_y"]):
+                    for tx in range(level["tiles_x"]):
+                        name=f"tiles/{z}/{tx}_{ty}.rgba"
+                        checksums.append(sha256(stage/name)+"  "+name)
+            (stage/"tiles.sha256").write_text("\n".join(checksums)+"\n",
+                                               encoding="ascii")
             metadata = {
                 "schema_version":1,"format":"cartorig-rgba-tiles-v1",
                 "asset_id":asset_id,"tile_size":TILE,
                 "extent":extent,"original_width":w,"original_height":h,
                 "levels":levels,"provenance":provenance,
+                "raster_builder":"windowed-rasterio-bilinear" if use_windows else
+                                 "pillow-lanczos",
             }
             (stage/"index.json").write_text(
                 json.dumps(metadata,indent=2,sort_keys=True)+"\n",encoding="utf-8")
