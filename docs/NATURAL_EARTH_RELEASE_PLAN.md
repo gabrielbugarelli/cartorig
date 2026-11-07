@@ -21,15 +21,15 @@ Use an external disk with ample free space. Raw RGBA raster pyramids may
 consume tens of gigabytes. Python/rasterio/Pillow are build-time dependencies
 only; the installed OpenFX runtime remains native C++ and entirely offline.
 
-Install release-only dependencies:
+Install release-only dependencies (and install **ImageMagick 7** so `magick` is on PATH for official layered PSD raster archives):
 
     py -m pip install -r tools/natural_earth/requirements-release.txt
 
 Run the producer, repeating the identical command as necessary:
 
-    py -m tools.natural_earth.release_pipeline --workspace "D:\CartoRigBuild" --output "D:\CartoRigNaturalEarth" --allow-network --max-downloads 12 --resume
+    py -m tools.natural_earth.release_pipeline --workspace "D:\CartoRigBuild" --output "D:\CartoRigNaturalEarth" --allow-network --max-downloads 100 --resume
 
-Each invocation acquires at most 12 *new* publisher archives. It rehashes
+The producer downloads only the independently needed raster archive variants. The 215 pinned vector sources are verified through the official aggregate GeoPackage (182 layers) and independently SHA-pinned supplements (33 layers), not through redundant individual vector download links. With `--max-downloads 100`, one acquisition invocation may fetch all 52 raster variants if official hosts remain accessible. The per-source checkpoint allows safe continuation after interruption. It rehashes
 and reuses earlier verified archives from the atomic checkpoint in
 D:\CartoRigBuild\downloads\source-archives.json. Exit code 2/INCOMPLETE means
 repeat; it is never a release. Network use is explicit: omit --allow-network
@@ -44,6 +44,18 @@ files and independently verified tile checksums.
 Conversion happens in a same-volume persistent staging directory named
 .CartoRigNaturalEarth.assembling. A failed conversion can resume from
 fully rehashed tiles; changed publisher source hashes invalidate the stage.
+The 52 publisher raster variants are distinct source archives, not 52 unique
+styles. TIFF, JPG and PNG can be read in windows; official layered PSD raster
+composites require release-machine ImageMagick 7 and are converted to TIFF
+before the same bounded tile preparation. The installed plugin requires none
+of these release dependencies.
+
+For a PowerShell end-to-end entrypoint on the release workstation, use:
+
+    ./packaging/Build-NaturalEarth.ps1 -Workspace "D:\CartoRigBuild" -Output "D:\CartoRigNaturalEarth" -AllowNetwork -MaxDownloads 100 -SetupDependencies
+
+This command verifies the final pack identity before permitting distribution.
+Its product is a large local data directory, not a GitHub Actions ZIP artifact.
 Only a passing full coverage report is promoted to D:\CartoRigNaturalEarth
 with status NATURAL_EARTH_COMPLETE in pack.json.
 
