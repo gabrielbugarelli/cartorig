@@ -19,7 +19,7 @@ import sqlite3
 import zipfile
 
 from tools.natural_earth import (
-    assemble_pack, inventory, materialize, supplements, verify_pack
+    assemble_pack, inventory, materialize, source_lock, supplements, verify_pack
 )
 
 OFFICIAL_VECTOR_ZIP="https://naciscdn.org/naturalearth/packages/natural_earth_vector.gpkg.zip"
@@ -155,6 +155,18 @@ def produce(*,workspace:Path,output:Path,allow_network:bool=False,
             "/"+str(acquired["summary"]["expected"])+
             " publisher archives. Rerun the same command to resume, "
             "or inspect downloads/source-archives.json")
+    # Acquisition SHA256 alone cannot approve a production release; it needs
+    # a separately reviewed and committed publisher source lock.
+    reviewed_lock=root/"data/natural-earth/raster_sources.lock.json"
+    if not reviewed_lock.is_file():
+        raise ReleaseNotReady(
+            "All raster downloads acquired but the reviewed SHA256 lock is absent. "
+            "Run tools.natural_earth.source_lock --inventory <inventory> "
+            "--archives <downloads/source-archives.json> "
+            "--out data/natural-earth/raster_sources.lock.json, then review/commit "
+            "it before building a release")
+    source_lock.verify(json.loads(reviewed_lock.read_text(encoding="utf-8")),
+                       sources,acquired)
     vector=_extract_pinned_vector(workspace,allow_network)
     supplement_manifest=json.loads(supplement_pin.read_text(encoding="utf-8"))
     supplement=_make_supplements(workspace,supplement_manifest,allow_network)
