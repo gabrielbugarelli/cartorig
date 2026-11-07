@@ -56,7 +56,7 @@ struct Instance {
   OfxParamHandle routeRed=nullptr,routeGreen=nullptr,routeBlue=nullptr;
   OfxParamHandle showRouteMarkers=nullptr,routeStartLabel=nullptr,routeEndLabel=nullptr;
   OfxParamHandle manualColors=nullptr,oceanR=nullptr,oceanG=nullptr,oceanB=nullptr;
-  OfxParamHandle landR=nullptr,landG=nullptr,landB=nullptr;
+  OfxParamHandle landR=nullptr,landG=nullptr,landB=nullptr,borderR=nullptr,borderG=nullptr,borderB=nullptr;
   OfxParamHandle highlightR=nullptr,highlightG=nullptr,highlightB=nullptr;
   std::mutex embeddedMutex;
   std::string lastSceneText,lastDatasetText;
@@ -519,6 +519,9 @@ OfxStatus describeInContext(OfxImageEffectHandle e,bool filter){
  defineNativeDouble(ps,"LandR","Land red",35,0,255,"MapColors");
  defineNativeDouble(ps,"LandG","Land green",59,0,255,"MapColors");
  defineNativeDouble(ps,"LandB","Land blue",82,0,255,"MapColors");
+ defineNativeDouble(ps,"BorderR","Border red",90,0,255,"MapColors");
+ defineNativeDouble(ps,"BorderG","Border green",120,0,255,"MapColors");
+ defineNativeDouble(ps,"BorderB","Border blue",147,0,255,"MapColors");
  defineNativeDouble(ps,"HighlightR","Highlight red",40,0,255,"MapColors");
  defineNativeDouble(ps,"HighlightG","Highlight green",157,0,255,"MapColors");
  defineNativeDouble(ps,"HighlightB","Highlight blue",192,0,255,"MapColors");
@@ -605,7 +608,7 @@ OfxStatus createInstance(OfxImageEffectHandle e,bool filter){auto i=std::make_un
  {"RouteMarkers",&i->showRouteMarkers},
  {"RouteFromLabel",&i->routeStartLabel},{"RouteToLabel",&i->routeEndLabel},
  {"CustomMapColors",&i->manualColors},{"OceanR",&i->oceanR},{"OceanG",&i->oceanG},
- {"OceanB",&i->oceanB},{"LandR",&i->landR},{"LandG",&i->landG},{"LandB",&i->landB},
+ {"OceanB",&i->oceanB},{"LandR",&i->landR},{"LandG",&i->landG},{"LandB",&i->landB},{"BorderR",&i->borderR},{"BorderG",&i->borderG},{"BorderB",&i->borderB},
  {"HighlightR",&i->highlightR},{"HighlightG",&i->highlightG},{"HighlightB",&i->highlightB},
  {"DiagnosticMode",&i->diagnosticMode},{"DiagnosticLog",&i->diagnosticLog}})if(param->paramGetHandle(ps,t.first,t.second,nullptr)!=kOfxStatOK)return kOfxStatFailed;
  OfxPropertySetHandle p=nullptr;fx->getPropertySet(e,&p);if(prop->propSetPointer(p,kOfxPropInstanceData,0,i.get())!=kOfxStatOK)return kOfxStatFailed;i.release();return kOfxStatOK;
@@ -775,6 +778,7 @@ OfxStatus render(OfxImageEffectHandle e,OfxPropertySetHandle args){Instance *i=i
  if(controls.customColors){
    controls.ocean={byteAt(i->oceanR,13),byteAt(i->oceanG,30),byteAt(i->oceanB,50),255};
    controls.land={byteAt(i->landR,35),byteAt(i->landG,59),byteAt(i->landB,82),255};
+   controls.border={byteAt(i->borderR,90),byteAt(i->borderG,120),byteAt(i->borderB,147),255};
    controls.highlight={byteAt(i->highlightR,40),byteAt(i->highlightG,157),byteAt(i->highlightB,192),220};
  }
  auto copy=cartorig::sceneWithNativeControls(*scene,controls);
