@@ -17,6 +17,7 @@ import hashlib
 import json
 from pathlib import Path
 import re
+from tools.natural_earth.build_rasters import reusable_asset
 
 REQUIRED = (
     "vector/natural_earth_vector.gpkg",
@@ -90,6 +91,38 @@ def build_pack(root: Path,coverage:dict,*,allow_incomplete:bool=False)->dict:
             encoding="utf-8"))
         if len(verified_sources.get("resources",[]))!=archives["source_links"]:
             raise ValueError("archive manifest differs from certified audit")
+        # A claimed raster source counts only if its exact publisher SHA256
+        # matches real atlas metadata and EVERY generated tile rehashes.
+        archive_hashes={r.get("resource_id"):r.get("sha256")
+                        for r in verified_sources.get("resources",[])
+                        if r.get("theme")=="raster"}
+        if len(archive_hashes)!=source_count:
+            raise ValueError("certified raster archive set is incomplete")
+        assets=raster.get("assets",[])
+        if not isinstance(assets,list) or len(assets)<source_count:
+            raise ValueError("validated raster asset set is incomplete")
+        seen_assets=set();seen_sources=set()
+        for asset in assets:
+            ident=asset.get("asset_id")
+            source_id=asset.get("source_id")
+            if (not isinstance(ident,str) or ident in seen_assets or
+                source_id not in archive_hashes or asset.get("status")!="VALIDATED"):
+                raise ValueError("invalid, duplicate or unproven raster atlas")
+            seen_assets.add(ident)
+            index=root/"raster"/ident/"index.json"
+            if not index.is_file() or index.is_symlink():
+                raise ValueError("raster atlas metadata missing: "+ident)
+            metadata=json.loads(index.read_text(encoding="utf-8"))
+            provenance=metadata.get("provenance",{})
+            if (provenance.get("source_id")!=source_id or
+                provenance.get("source_sha256")!=archive_hashes[source_id] or
+                not reusable_asset(root/"raster",ident,archive_hashes[source_id],
+                                   provenance.get("publisher_image"),
+                                   provenance.get("publisher_world_file"))):
+                raise ValueError("raster atlas source/tile proof is invalid: "+ident)
+            seen_sources.add(source_id)
+        if seen_sources!=set(archive_hashes):
+            raise ValueError("not all raster sources have verified atlas content")
     if not certified and not allow_incomplete:
         raise ValueError("Natural Earth Complete requires a passing source/coverage gate")
     entries=[]
