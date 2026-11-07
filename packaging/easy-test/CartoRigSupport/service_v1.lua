@@ -12,7 +12,9 @@ local function requireHost(x,name)
     return x
 end
 local function set(tool,name,value,frame)
-    local ok=frame and tool:SetInput(name,value,frame) or tool:SetInput(name,value)
+    local ok
+    if frame~=nil then ok=tool:SetInput(name,value,frame)
+    else ok=tool:SetInput(name,value) end
     if ok==false then error("Unable to write '"..name.."' to the CartoRig render node",3) end
 end
 local function escape(s)
@@ -225,7 +227,9 @@ local function findOfficial(query,kind)
     for _,gpkg in ipairs({primary,secondary}) do
         local f=io.open(gpkg,"rb")
         if f then f:close()
-            local output=os.tmpname()
+            local output=(os.getenv("TEMP") or os.getenv("TMP") or ".")..
+                       "\\CartoRigSearch_"..tostring(os.time()).."_"..
+                       tostring(math.random(1000000))..".txt"
             local cmd='cmd /D /S /C ""'..exe..'" "'..index..'" "'..
                       kind..'" "'..query..'" "'..gpkg..'" > "'..
                       output..'" 2>NUL"'
@@ -328,6 +332,8 @@ function M.addRegion(sceneIndex,location,color,stroke,opacity)
             set(tool,"CustomMapColors",1)
             set(tool,"HighlightR",r);set(tool,"HighlightG",g)
             set(tool,"HighlightB",b)
+            local sr,sg,sb=rgb(meta.stroke)
+            set(tool,"BorderR",sr);set(tool,"BorderG",sg);set(tool,"BorderB",sb)
             set(tool,"HighlightStrength",alpha(meta.opacity)/255)
         end
     end)
@@ -463,6 +469,9 @@ function M.style(sceneIndex,objectIndex,hex,stroke,opacity)
                 set(entry.node,"HighlightR",r)
                 set(entry.node,"HighlightG",g)
                 set(entry.node,"HighlightB",b)
+                local sr,sg,sb=rgb(m.stroke)
+                set(entry.node,"BorderR",sr);set(entry.node,"BorderG",sg)
+                set(entry.node,"BorderB",sb)
                 set(entry.node,"HighlightStrength",alpha(opacity)/255)
             end
         elseif m.type=="Route" then
