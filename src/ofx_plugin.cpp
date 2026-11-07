@@ -50,7 +50,7 @@ struct Instance {
   OfxParamHandle regionEdit=nullptr,regionCaptureKey=nullptr,regionRemoveSaved=nullptr,regionEase=nullptr;
   OfxParamHandle useSceneKeys=nullptr,lon=nullptr,lat=nullptr,zoom=nullptr,bearing=nullptr,route=nullptr,opacity=nullptr;
   OfxParamHandle frameOffset=nullptr,timeScale=nullptr,diagnosticMode=nullptr,diagnosticLog=nullptr;
-  OfxParamHandle countryA=nullptr,countryB=nullptr,countryList=nullptr,highlightStrength=nullptr;
+  OfxParamHandle countryA=nullptr,countryB=nullptr,countryList=nullptr,highlightStrength=nullptr,objectLayerOnly=nullptr;
   OfxParamHandle routeEnabled=nullptr,routeStartLon=nullptr,routeStartLat=nullptr;
   OfxParamHandle routeEndLon=nullptr,routeEndLat=nullptr,routeCurve=nullptr,routeWidth=nullptr;
   OfxParamHandle showRouteMarkers=nullptr,routeStartLabel=nullptr,routeEndLabel=nullptr;
@@ -490,6 +490,7 @@ OfxStatus describeInContext(OfxImageEffectHandle e,bool filter){
  defineNativeText(ps,"CountryB","Country 2 (ISO3, e.g. VEN)","CountryControls");
  defineNativeText(ps,"CountryList","More countries (ISO3 list)","CountryControls");
  defineNativeDouble(ps,"HighlightStrength","Highlight opacity",1,0,1,"CountryControls");
+ defineNativeToggle(ps,"ObjectLayerOnly","Fusion: draw objects only (no map base)",false,"CountryControls");
 
  defineGeographicRegionUI(ps);
  defineNativeGroup(ps,"RouteControls","Manual geographic route",true);
@@ -590,7 +591,7 @@ OfxStatus createInstance(OfxImageEffectHandle e,bool filter){auto i=std::make_un
  {"SceneTimeOffset",&i->frameOffset},{"SceneTimeScale",&i->timeScale},
  {"UseSceneCamera",&i->useSceneKeys},{"Longitude",&i->lon},{"Latitude",&i->lat},{"Zoom",&i->zoom},
  {"Bearing",&i->bearing},{"RouteProgress",&i->route},{"Opacity",&i->opacity},
- {"CountryA",&i->countryA},{"CountryB",&i->countryB},{"CountryList",&i->countryList},{"HighlightStrength",&i->highlightStrength},
+ {"CountryA",&i->countryA},{"CountryB",&i->countryB},{"CountryList",&i->countryList},{"HighlightStrength",&i->highlightStrength},{"ObjectLayerOnly",&i->objectLayerOnly},
  {"NativeRouteEnabled",&i->routeEnabled},{"RouteStartLongitude",&i->routeStartLon},
  {"RouteStartLatitude",&i->routeStartLat},{"RouteEndLongitude",&i->routeEndLon},
  {"RouteEndLatitude",&i->routeEndLat},{"NativeRouteCurve",&i->routeCurve},
@@ -740,6 +741,7 @@ OfxStatus render(OfxImageEffectHandle e,OfxPropertySetHandle args){Instance *i=i
  view.opacity=std::clamp(doubleAt(i->opacity,time,1),0.0,1.0);
  if(!intAt(i->useSceneKeys,time,0)){view.camera.lon=doubleAt(i->lon,time,view.camera.lon);view.camera.lat=doubleAt(i->lat,time,view.camera.lat);view.camera.zoom=doubleAt(i->zoom,time,view.camera.zoom);view.camera.bearing=doubleAt(i->bearing,time,view.camera.bearing);}
  view.routeProgress=doubleAt(i->route,time,1);
+ view.objectsOnly=i->overlay && intAt(i->objectLayerOnly,time,0)!=0;
  cartorig::NativeMapControls controls;
  stringAt(i->countryA,time,controls.countryA);
  stringAt(i->countryB,time,controls.countryB);
@@ -784,7 +786,7 @@ OfxStatus render(OfxImageEffectHandle e,OfxPropertySetHandle args){Instance *i=i
  if(useInstalled && rasterRoot.empty() && !rasterAsset.empty())
    rasterRoot=installedNaturalEarthAsset(
        "raster/validated-raster-assets.json").parent_path().string();
- if(!rasterAsset.empty()){
+ if(!view.objectsOnly && !rasterAsset.empty()){
    if(rasterRoot.empty())
      throw std::invalid_argument("Natural Earth raster asset requires offline tile directory");
    const auto atlas=naturalEarthRasterAt(rasterRoot,rasterAsset);
@@ -795,7 +797,7 @@ OfxStatus render(OfxImageEffectHandle e,OfxPropertySetHandle args){Instance *i=i
  stringAt(i->naturalEarthLayerFile,time,extraLayerPath);
  if(useInstalled && extraLayerPath.empty())
    extraLayerPath=installedNaturalEarthAsset("vector/supplements.gpkg").string();
- if(!extraLayer.empty()){
+ if(!view.objectsOnly && !extraLayer.empty()){
    const auto &source=extraLayerPath.empty()?naturalEarthPath:extraLayerPath;
    if(source.empty())
      throw std::invalid_argument("Additional vector layer requires a local GeoPackage");
