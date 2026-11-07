@@ -122,3 +122,27 @@ Studio 20. The 51-archive persistent workstation acquisition and the host
 acceptance have NOT been performed remotely by this PR. The 52nd publisher
 archive US_MSR_10M.zip is still unavailable (issue #4), so the experimental
 data pack MUST NOT be labeled NATURAL_EARTH_COMPLETE. The PR remains draft.
+
+## 5. Release-gate hardening after code audit (2026-11-07)
+
+The 51/215 EXPERIMENTAL_INCOMPLETE pack verifier now cross-checks source
+identities against the 52-item discovery, 51 publisher SHA256 records, one
+reviewed KNOWN_UNAVAILABLE source, the coverage report, every atlas index,
+and the SHA256 of all tile paths listed in each atlas checksum manifest.
+This protects against self-consistent but misleading pack.json source counts.
+It does not authenticate a previously untrusted upstream source by itself.
+
+The native catalogue rejects a duplicate asset ID even if its two entries
+belong to nonadjacent source groups after sorting. Python and native C++
+regressions cover both cases.
+
+Re-running Run-NaturalEarth-QA.ps1 with -InstallExperimentalPack now requests
+a verified in-place upgrade of an existing experimental installation. Resolve
+must still be closed; the installer continues to independently verify the
+source, staged copy, capacity, pack identity and rollback.
+
+**Acceptance rule:** Only the source-backed workstation build and actual
+Resolve 20 host evidence can close the outstanding dataset and Edit gates.
+A successful Actions test run or Windows OpenFX compilation is not evidence
+that the 51 publisher archives were persistently acquired or that Overlay,
+Inspector, timeline persistence and Deliver passed inside Resolve Studio.
