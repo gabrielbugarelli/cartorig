@@ -74,7 +74,10 @@ def inspect_zip(path:Path)->dict:
     verification=verify_pack.verify_zip(path,max_items=1500,
                                       max_uncompressed=10_000_000_000)
     with zipfile.ZipFile(path) as archive:
-        names=[i.filename for i in archive.infolist() if not i.is_dir()]
+        all_members=[i.filename for i in archive.infolist() if not i.is_dir()]
+        ignored_metadata=[n for n in all_members
+                          if not build_rasters.is_payload_member(n)]
+        names=[n for n in all_members if build_rasters.is_payload_member(n)]
         images=[n for n in names if PurePosixPath(n).suffix.lower()
                 in build_rasters.IMAGE_EXTENSIONS]
         paired=[{"image":n,"world_file":world}
@@ -102,6 +105,7 @@ def inspect_zip(path:Path)->dict:
             if not (affine[0]>0 and affine[3]<0):
                 raise ValueError("unsupported source world-file affine")
     return {"zip_members":verification["members"],
+            "ignored_macos_metadata_members":len(ignored_metadata),
             "zip_uncompressed_bytes":verification["uncompressed_bytes"],
             "georeferenced_images":paired,
             "nongeoreferenced_images":nongeoreferenced}
