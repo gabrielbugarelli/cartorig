@@ -5,6 +5,7 @@
 #include <cmath>
 #include <fstream>
 #include <limits>
+#include <list>
 #include <stdexcept>
 #include <unordered_map>
 
@@ -108,7 +109,39 @@ void renderNaturalEarthRaster(const NaturalEarthRaster &raster,
         raster.levels[z].width<targetPixels)++z;
   const auto &level=raster.levels[z];
   const std::string tileFolder=std::to_string(level.z);
-  std::unordered_map<std::uint64_t,std::vector<std::uint8_t>> tiles;
+  // Keep a strict per-render CPU tile budget, including when a 4K/8K frame
+  // spans thousands of publisher tiles. A hard "1024 tiles" exception could
+  // previously fail otherwise valid footage at wide viewports.
+  // This LRU owns only per-render mutable state, so OFX tile requests can
+  // execute on separate threads with no global locks or stale tiles.
+  constexpr std::size_t maxResidentTiles=64; // 16 MiB RGBA upper bound
+  struct CacheTile {
+    std::vector<std::uint8_t> rgba;
+    std::list<std::uint64_t>::iterator recent;
+  };
+  std::unordered_map<std::uint64_t,CacheTile> tiles;
+  std::list<std::uint64_t> recent;
+  auto sampleTile=[&](int tx,int ty)->const std::vector<std::uint8_t>&{
+    const auto key=(static_cast<std::uint64_t>(ty)<<32)|
+                    static_cast<std::uint32_t>(tx);
+    auto existing=tiles.find(key);
+    if(existing!=tiles.end()){
+      recent.splice(recent.begin(),recent,existing->second.recent);
+      return existing->second.rgba;
+    }
+    // Verify the next tile *before* evicting the last valid entry.
+    const auto file=raster.directory/"tiles"/tileFolder/
+                    (std::to_string(tx)+"_"+std::to_string(ty)+".rgba");
+    auto rgba=readTile(file);
+    if(tiles.size()==maxResidentTiles){
+      const auto victim=recent.back();
+      tiles.erase(victim);
+      recent.pop_back();
+    }
+    recent.push_front(key);
+    auto it=tiles.emplace(key,CacheTile{std::move(rgba),recent.begin()}).first;
+    return it->second.rgba;
+  };
   for(int hostY=target.y1;hostY<target.y2;++hostY){
     const int screenY=view.height-1-hostY;
     for(int hostX=target.x1;hostX<target.x2;++hostX){
@@ -122,17 +155,7 @@ void renderNaturalEarthRaster(const NaturalEarthRaster &raster,
       const int px=std::clamp(static_cast<int>(fx*level.width),0,level.width-1);
       const int py=std::clamp(static_cast<int>(fy*level.height),0,level.height-1);
       const int tx=px/tileSize,ty=py/tileSize;
-      const std::uint64_t key=
-          (static_cast<std::uint64_t>(ty)<<32)|static_cast<std::uint32_t>(tx);
-      auto it=tiles.find(key);
-      if(it==tiles.end()){
-        if(tiles.size()>=1024)
-          throw std::runtime_error("Natural Earth raster tile cache budget exceeded");
-        const auto file=raster.directory/"tiles"/tileFolder/
-                        (std::to_string(tx)+"_"+std::to_string(ty)+".rgba");
-        it=tiles.emplace(key,readTile(file)).first;
-      }
-      const auto &tile=it->second;
+      const auto &tile=sampleTile(tx,ty);
       const std::size_t offset=(static_cast<std::size_t>(py%tileSize)*tileSize+
                                 static_cast<std::size_t>(px%tileSize))*4;
       const Color pixel{tile[offset],tile[offset+1],tile[offset+2],tile[offset+3]};
