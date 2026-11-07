@@ -281,3 +281,36 @@ jobs:
           path: build/natural-earth/multi-family-proof/multi-raster-proof.json
           retention-days: 1
           if-no-files-found: warn
+
+
+  # Deliberately tagged official publisher sample; never claim Resolve host QA.
+  # On free standard runners: 17.98 MB publisher ZIP, temporary atlases,
+  # exactly one JSON proof (1-day retention), all big bytes deleted.
+  real-resolution-matrix-probe:
+    if: github.event_name == 'push' && contains(github.event.head_commit.message, '[real-4k-probe]')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install release-builder-only TIFF reader
+        run: python -m pip install -r tools/natural_earth/requirements-release.txt
+      - name: Compile real native C++ map raster renderer
+        run: |
+          cmake -S . -B build/4k-qa-native -DCMAKE_BUILD_TYPE=Release
+          cmake --build build/4k-qa-native --target cartorig_ne_raster_preview -j2
+      - name: Audit SHA-pinned official source and render exact 720p 1440p 4K PNG/RGBA pixels
+        run: |
+          python -m tools.natural_earth.probe_4k_raster \
+            --out build/natural-earth/native-resolution-matrix \
+            --preview build/4k-qa-native/cartorig_ne_raster_preview
+      - name: Preserve only JSON native renderer proof
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: CartoRig-Real-Raster-Native-720p-1440p-4K
+          path: build/natural-earth/native-resolution-matrix/native-4k-qa.json
+          retention-days: 1
+          if-no-files-found: warn
