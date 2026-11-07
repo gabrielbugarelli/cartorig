@@ -9,6 +9,7 @@
 #include <list>
 #include <stdexcept>
 #include <unordered_map>
+#include <unordered_set>
 
 namespace cartorig {
 namespace {
@@ -85,6 +86,9 @@ std::vector<NaturalEarthRasterAsset> listNaturalEarthRasterAssets(
     throw std::invalid_argument("offline Natural Earth raster catalogue is empty or too large");
   std::vector<NaturalEarthRasterAsset> assets;
   assets.reserve(records.size());
+  // IDs must be unique across all source groups. Sorting by sourceId first
+  // does not place duplicate asset IDs next to each other.
+  std::unordered_set<std::string> seenAssetIds;
   for(const auto &item:records){
     if(!item.is_object()||item["status"].string_value()!="VALIDATED")
       throw std::invalid_argument("unvalidated raster catalogue asset");
@@ -94,15 +98,14 @@ std::vector<NaturalEarthRasterAsset> listNaturalEarthRasterAssets(
       throw std::invalid_argument("invalid raster asset provenance in offline catalogue");
     if(!std::filesystem::is_regular_file(root/id/"index.json"))
       throw std::invalid_argument("raster atlas missing from offline catalogue");
+    if(!seenAssetIds.insert(id).second)
+      throw std::invalid_argument("duplicate raster asset ID in offline catalogue");
     assets.push_back({id,sourceId});
   }
   std::sort(assets.begin(),assets.end(),[](const auto &left,const auto &right){
     if(left.sourceId!=right.sourceId)return left.sourceId<right.sourceId;
     return left.assetId<right.assetId;
   });
-  for(std::size_t i=1;i<assets.size();++i)
-    if(assets[i-1].assetId==assets[i].assetId)
-      throw std::invalid_argument("duplicate raster asset ID in offline catalogue");
   return assets;
 }
 
