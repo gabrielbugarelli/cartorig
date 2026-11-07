@@ -15,6 +15,7 @@ struct NativeMapControls {
   bool routeEnabled=false;
   GeoPoint routeStart{-20,0},routeEnd{20,0};
   double routeCurve=20.0,routeWidth=3.0;
+  bool routeArrowhead=true;
   Color routeColor{255,200,100,255};
   bool routeMarkers=true;
   std::string startLabel,endLabel;
