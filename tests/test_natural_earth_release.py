@@ -76,6 +76,33 @@ class ProducerTests(unittest.TestCase):
                 release_pipeline._load_verified_inventory(workspace,False)
         self.assertFalse((workspace/"official_sources.json").exists())
 
+    def test_release_downloads_only_distinct_raster_archives(self):
+        # The 215 official vector layers are certified from GeoPackage
+        # content, not duplicated per-layer CDN ZIP downloads.
+        workspace=self.root/"release-rasters"
+        workspace.mkdir()
+        sample={
+            "schema_version":1,
+            "pages":[{"status":"INDEXED","url":"https://www.naturalearthdata.com/downloads/"}],
+            "resources":[
+                {"resource_id":"ne-10m-cultural-example","theme":"cultural",
+                 "url":"https://naciscdn.org/naturalearth/10m/cultural/demo.zip"},
+                {"resource_id":"ne-50m-raster-example","theme":"raster",
+                 "url":"https://naturalearth.s3.amazonaws.com/50m_raster/demo.zip"},
+            ]}
+        checkpoint={}
+        def capture(inventory,folder,**kwargs):
+            checkpoint["resource_ids"]=[r["resource_id"] for r in inventory["resources"]]
+            return {"summary":{"expected":1,"verified":0,"complete":False}}
+        with patch.object(release_pipeline,"_load_verified_inventory",
+                          return_value=sample),patch.object(
+                              release_pipeline.materialize,"materialize",side_effect=capture):
+            with self.assertRaisesRegex(release_pipeline.ReleaseNotReady,
+                                        "PARTIAL_DOWNLOAD"):
+                release_pipeline.produce(
+                    workspace=workspace,output=self.root/"unbuilt",allow_network=False)
+        self.assertEqual(checkpoint["resource_ids"],["ne-50m-raster-example"])
+
     def test_official_vector_archive_fails_closed_on_sha_mismatch(self):
         folder=self.root/"publisher"
         folder.mkdir()
