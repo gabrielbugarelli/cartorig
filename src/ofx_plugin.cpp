@@ -53,6 +53,7 @@ struct Instance {
   OfxParamHandle countryA=nullptr,countryB=nullptr,countryList=nullptr,highlightStrength=nullptr,objectLayerOnly=nullptr;
   OfxParamHandle routeEnabled=nullptr,routeStartLon=nullptr,routeStartLat=nullptr;
   OfxParamHandle routeEndLon=nullptr,routeEndLat=nullptr,routeCurve=nullptr,routeWidth=nullptr;
+  OfxParamHandle routeRed=nullptr,routeGreen=nullptr,routeBlue=nullptr;
   OfxParamHandle showRouteMarkers=nullptr,routeStartLabel=nullptr,routeEndLabel=nullptr;
   OfxParamHandle manualColors=nullptr,oceanR=nullptr,oceanG=nullptr,oceanB=nullptr;
   OfxParamHandle landR=nullptr,landG=nullptr,landB=nullptr;
