@@ -209,3 +209,40 @@ jobs:
           path: build/natural-earth/real-raster-probe/real-raster-proof.json
           retention-days: 1
           if-no-files-found: warn
+
+  # NE-FETCH-01: explicitly tagged, bounded publisher probe.
+  # Uses ONLY public standard Ubuntu runner and uploads JSON, not raster data.
+  # [family-head] interrogates HEAD metadata; [family-samples] downloads
+  # one bounded ZIP per family then deletes the raw archive.
+  raster-family-probe:
+    if: github.event_name == 'push' && (contains(github.event.head_commit.message, '[family-head]') || contains(github.event.head_commit.message, '[family-samples]'))
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Audit live Natural Earth download links against frozen inventory
+        run: |
+          mkdir -p build/natural-earth/family-probe
+          python -m tools.natural_earth.inventory --output build/natural-earth/family-probe/official_sources.json
+      - name: Probe every raster URL and acquire budgeted family samples
+        shell: bash
+        run: |
+          ARGUMENTS=(--inventory build/natural-earth/family-probe/official_sources.json
+                     --discovery-lock data/natural-earth/raster_discovery_v2026-11-07.lock.json
+                     --out build/natural-earth/family-probe --allow-network
+                     --max-archive-mb 250 --max-total-mb 1200)
+          if [[ "${{ contains(github.event.head_commit.message, '[family-samples]') }}" == "true" ]]; then
+            ARGUMENTS+=(--fetch-samples)
+          fi
+          python -m tools.natural_earth.probe_families "${ARGUMENTS[@]}"
+      - name: Upload JSON-only raster family source evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: NaturalEarth-16-Families-Report
+          path: build/natural-earth/family-probe/family-probe.json
+          retention-days: 1
+          if-no-files-found: warn
