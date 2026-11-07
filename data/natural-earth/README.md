@@ -7,3 +7,14 @@ The `vector_layers_v5.1.2.json` file covers **215 shape layers**, across 10m / 5
 **Never call this dataset a 100% Natural Earth data pack until the archive verification and coverage gates pass.** Raster assets are significant in size and must be shipped in a separate offline data pack, not placed into the OFX DLL.
 
 Natural Earth data is in the public domain: https://www.naturalearthdata.com/about/terms-of-use/ .
+
+## Publisher raster SHA256 lock — release gate
+
+`data/natural-earth/raster_sources.lock.json` is intentionally absent until
+all 52 official raster archives have been acquired and SHA256-verified by the
+release workstation. Generate it with `python -m tools.natural_earth.source_lock`
+from the actual publisher inventory and acquisition manifest, inspect the
+SHA256 values, and commit the reviewed result. `release_pipeline.py` now
+rejects a Complete pack build if the lock is absent or disagrees with the
+publisher archive SHA256 values. This avoids publishing fictional source
+integrity claims based solely on locally generated download summaries.
