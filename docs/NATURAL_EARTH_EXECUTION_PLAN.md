@@ -285,6 +285,14 @@ A feature, status or source count is marked PASS only with reproducible evidence
 - M1/M2 and the Complete pack must **not** be marked PASSED based on this
   sample evidence alone. The 52-source content SHA lock is still missing.
 
+### M1/M2 implementation update — reviewed upstream publisher gap (2026-11-07)
+
+- NE-SOURCE-02 added a 52-row checked-in publisher-outage exception for the 10m US manual-shaded-relief 404 only. It is pinned to the existing discovery fingerprint and does **not** reduce required source coverage.
+- All other publisher archives can be SHA256-verified in resumable batches on a persistent local workstation without waiting for the missing ZIP. A dedicated acquisition CLI and PowerShell wrapper report verified, pending and KNOWN_UNAVAILABLE sources.
+- After 51 verified official raster ZIPs are actually acquired, a separately opt-in, offline, nonproduction experimental pack can be built with real vectors and rasters for Resolve tests; it retains the full 52-source audit and is deliberately rejected by the production verifier.
+- Code and synthetic regression tests are implemented. **No full 51-archive workstation download or full actual raster conversion is claimed.** G1/G2 still require publisher-content evidence, and all G0–G7 complete release gates remain intact.
+- Practical workflow: [NE-SOURCE-02 Available-source acquisition](NE_SOURCE02_AVAILABLE_WORKFLOW_2026-11-07.md).
+
 ## 15. Definition of Done — Natural Earth Complete
 
 The complete release is accepted only when:
