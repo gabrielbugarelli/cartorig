@@ -50,9 +50,10 @@ struct Instance {
   OfxParamHandle regionEdit=nullptr,regionCaptureKey=nullptr,regionRemoveSaved=nullptr,regionEase=nullptr;
   OfxParamHandle useSceneKeys=nullptr,lon=nullptr,lat=nullptr,zoom=nullptr,bearing=nullptr,route=nullptr,opacity=nullptr;
   OfxParamHandle frameOffset=nullptr,timeScale=nullptr,diagnosticMode=nullptr,diagnosticLog=nullptr;
-  OfxParamHandle countryA=nullptr,countryB=nullptr,countryList=nullptr,highlightStrength=nullptr;
+  OfxParamHandle countryA=nullptr,countryB=nullptr,countryList=nullptr,highlightStrength=nullptr,objectLayerOnly=nullptr;
   OfxParamHandle routeEnabled=nullptr,routeStartLon=nullptr,routeStartLat=nullptr;
   OfxParamHandle routeEndLon=nullptr,routeEndLat=nullptr,routeCurve=nullptr,routeWidth=nullptr;
+  OfxParamHandle routeRed=nullptr,routeGreen=nullptr,routeBlue=nullptr;
   OfxParamHandle showRouteMarkers=nullptr,routeStartLabel=nullptr,routeEndLabel=nullptr;
   OfxParamHandle manualColors=nullptr,oceanR=nullptr,oceanG=nullptr,oceanB=nullptr;
   OfxParamHandle landR=nullptr,landG=nullptr,landB=nullptr;
@@ -490,6 +491,7 @@ OfxStatus describeInContext(OfxImageEffectHandle e,bool filter){
  defineNativeText(ps,"CountryB","Country 2 (ISO3, e.g. VEN)","CountryControls");
  defineNativeText(ps,"CountryList","More countries (ISO3 list)","CountryControls");
  defineNativeDouble(ps,"HighlightStrength","Highlight opacity",1,0,1,"CountryControls");
+ defineNativeToggle(ps,"ObjectLayerOnly","Fusion: draw objects only (no map base)",false,"CountryControls");
 
  defineGeographicRegionUI(ps);
  defineNativeGroup(ps,"RouteControls","Manual geographic route",true);
@@ -501,6 +503,9 @@ OfxStatus describeInContext(OfxImageEffectHandle e,bool filter){
  defineDouble(ps,"RouteProgress","Route reveal (animate 0 to 1)",1,-1,1,"RouteControls");
  defineNativeDouble(ps,"NativeRouteCurve","Route curvature",-20,-100,100,"RouteControls");
  defineNativeDouble(ps,"NativeRouteWidth","Route width",3,.5,30,"RouteControls");
+ defineNativeDouble(ps,"NativeRouteRed","Route red",255,0,255,"RouteControls");
+ defineNativeDouble(ps,"NativeRouteGreen","Route green",200,0,255,"RouteControls");
+ defineNativeDouble(ps,"NativeRouteBlue","Route blue",100,0,255,"RouteControls");
  defineNativeToggle(ps,"RouteMarkers","Show route endpoints",true,"RouteControls");
  defineNativeText(ps,"RouteFromLabel","Origin label","RouteControls");
  defineNativeText(ps,"RouteToLabel","Destination label","RouteControls");
@@ -590,11 +595,13 @@ OfxStatus createInstance(OfxImageEffectHandle e,bool filter){auto i=std::make_un
  {"SceneTimeOffset",&i->frameOffset},{"SceneTimeScale",&i->timeScale},
  {"UseSceneCamera",&i->useSceneKeys},{"Longitude",&i->lon},{"Latitude",&i->lat},{"Zoom",&i->zoom},
  {"Bearing",&i->bearing},{"RouteProgress",&i->route},{"Opacity",&i->opacity},
- {"CountryA",&i->countryA},{"CountryB",&i->countryB},{"CountryList",&i->countryList},{"HighlightStrength",&i->highlightStrength},
+ {"CountryA",&i->countryA},{"CountryB",&i->countryB},{"CountryList",&i->countryList},{"HighlightStrength",&i->highlightStrength},{"ObjectLayerOnly",&i->objectLayerOnly},
  {"NativeRouteEnabled",&i->routeEnabled},{"RouteStartLongitude",&i->routeStartLon},
  {"RouteStartLatitude",&i->routeStartLat},{"RouteEndLongitude",&i->routeEndLon},
  {"RouteEndLatitude",&i->routeEndLat},{"NativeRouteCurve",&i->routeCurve},
- {"NativeRouteWidth",&i->routeWidth},{"RouteMarkers",&i->showRouteMarkers},
+ {"NativeRouteWidth",&i->routeWidth},{"NativeRouteRed",&i->routeRed},
+ {"NativeRouteGreen",&i->routeGreen},{"NativeRouteBlue",&i->routeBlue},
+ {"RouteMarkers",&i->showRouteMarkers},
  {"RouteFromLabel",&i->routeStartLabel},{"RouteToLabel",&i->routeEndLabel},
  {"CustomMapColors",&i->manualColors},{"OceanR",&i->oceanR},{"OceanG",&i->oceanG},
  {"OceanB",&i->oceanB},{"LandR",&i->landR},{"LandG",&i->landG},{"LandB",&i->landB},
@@ -740,6 +747,7 @@ OfxStatus render(OfxImageEffectHandle e,OfxPropertySetHandle args){Instance *i=i
  view.opacity=std::clamp(doubleAt(i->opacity,time,1),0.0,1.0);
  if(!intAt(i->useSceneKeys,time,0)){view.camera.lon=doubleAt(i->lon,time,view.camera.lon);view.camera.lat=doubleAt(i->lat,time,view.camera.lat);view.camera.zoom=doubleAt(i->zoom,time,view.camera.zoom);view.camera.bearing=doubleAt(i->bearing,time,view.camera.bearing);}
  view.routeProgress=doubleAt(i->route,time,1);
+ view.objectsOnly=i->overlay && intAt(i->objectLayerOnly,time,0)!=0;
  cartorig::NativeMapControls controls;
  stringAt(i->countryA,time,controls.countryA);
  stringAt(i->countryB,time,controls.countryB);
@@ -760,6 +768,8 @@ OfxStatus render(OfxImageEffectHandle e,OfxPropertySetHandle args){Instance *i=i
    return static_cast<uint8_t>(std::lround(
      std::clamp(doubleAt(h,time,fallback),0.0,255.0)));
  };
+ controls.routeColor={byteAt(i->routeRed,255),byteAt(i->routeGreen,200),
+                      byteAt(i->routeBlue,100),255};
  if(controls.customColors){
    controls.ocean={byteAt(i->oceanR,13),byteAt(i->oceanG,30),byteAt(i->oceanB,50),255};
    controls.land={byteAt(i->landR,35),byteAt(i->landG,59),byteAt(i->landB,82),255};
@@ -784,7 +794,7 @@ OfxStatus render(OfxImageEffectHandle e,OfxPropertySetHandle args){Instance *i=i
  if(useInstalled && rasterRoot.empty() && !rasterAsset.empty())
    rasterRoot=installedNaturalEarthAsset(
        "raster/validated-raster-assets.json").parent_path().string();
- if(!rasterAsset.empty()){
+ if(!view.objectsOnly && !rasterAsset.empty()){
    if(rasterRoot.empty())
      throw std::invalid_argument("Natural Earth raster asset requires offline tile directory");
    const auto atlas=naturalEarthRasterAt(rasterRoot,rasterAsset);
@@ -795,7 +805,7 @@ OfxStatus render(OfxImageEffectHandle e,OfxPropertySetHandle args){Instance *i=i
  stringAt(i->naturalEarthLayerFile,time,extraLayerPath);
  if(useInstalled && extraLayerPath.empty())
    extraLayerPath=installedNaturalEarthAsset("vector/supplements.gpkg").string();
- if(!extraLayer.empty()){
+ if(!view.objectsOnly && !extraLayer.empty()){
    const auto &source=extraLayerPath.empty()?naturalEarthPath:extraLayerPath;
    if(source.empty())
      throw std::invalid_argument("Additional vector layer requires a local GeoPackage");

@@ -96,6 +96,13 @@ int main(){
           "route drawing deterministic");
     check(checksum(paint(route,world,0,0))!=checksum(paint(route,world,0,1)),
           "native RouteProgress 0 to 1 animates only on demand");
+    c.routeColor={210,40,80,255};
+    auto coloredRoute=sceneWithNativeControls(scene,c);
+    check(coloredRoute.routes.size()==1&&
+          coloredRoute.routes[0].color.r==210&&
+          coloredRoute.routes[0].color.g==40&&
+          coloredRoute.routes[0].color.b==80,
+          "Fusion route object has independent custom RGB");
     c.routeMarkers=true;c.startLabel="START";c.endLabel="END";
     auto markers=sceneWithNativeControls(scene,c);
     check(markers.markers[0].visible&&markers.markers[1].visible&&
@@ -117,6 +124,46 @@ int main(){
     auto restoredPalette=sceneWithNativeControls(scene,c);
     check(restoredPalette.style.ocean.b==scene.style.ocean.b,
           "palette override disabled preserves imported scene colors");
+
+    // Fusion-first: selected geographic objects are composited over the
+    // previously rendered frame, without re-painting every world country.
+    const auto objectsOnly=[&](const Scene &subject, std::vector<uint8_t> input,
+                                double opacity=1.0) {
+      constexpr int w=640,h=360;
+      Surface output{input.data(),0,0,w,h,w*4,PixelFormat::ByteRGBA};
+      View view;view.width=w;view.height=h;view.frame=0;
+      view.camera={-58,-14,3.2,0};view.routeProgress=1;
+      view.preserveBackground=true;view.objectsOnly=true;
+      view.opacity=opacity;
+      render(subject,world,view,output);
+      return input;
+    };
+    std::vector<uint8_t> background(640*360*4);
+    for(size_t j=0;j<background.size();j+=4){
+      background[j]=11;background[j+1]=22;
+      background[j+2]=33;background[j+3]=255;
+    }
+    check(objectsOnly(scene,background)==background,
+          "objects-only empty selection preserves background pixels");
+    NativeMapControls isolated;
+    isolated.countryA="BRA";isolated.customColors=true;
+    isolated.highlight={250,35,30,255};
+    const auto redLayer=sceneWithNativeControls(scene,isolated);
+    const auto afterRed=objectsOnly(redLayer,background);
+    check(afterRed!=background,
+          "objects-only BRA country paints isolated territory");
+    isolated.highlight={30,245,35,255};
+    const auto afterGreen=objectsOnly(sceneWithNativeControls(scene,isolated),background);
+    check(afterRed!=afterGreen,
+          "independent per-object RGB colors change render without a new map base");
+    check(objectsOnly(redLayer,background,0)==background,
+          "objects-only fade at opacity zero leaves all background bytes unchanged");
+    isolated.countryA="VEN";isolated.highlight={35,95,245,255};
+    const auto venLayer=sceneWithNativeControls(scene,isolated);
+    check(objectsOnly(venLayer,afterRed)!=afterRed,
+          "sequential Fusion territory overlays keep previously rendered country");
+    check(objectsOnly(scene,afterRed)==afterRed,
+          "adding a neutral overlay does not repaint or erase previous countries");
 
     c.routeEnabled=false;c.highlightStrength=1.5;
     rejects([&]{(void)sceneWithNativeControls(scene,c);},

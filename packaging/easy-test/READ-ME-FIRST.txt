@@ -1,27 +1,38 @@
-CARTORIG - EASY HYBRID TEST FOR DAVINCI RESOLVE STUDIO 20 / WINDOWS
+CARTORIG EDIT-FIRST PREVIEW — WINDOWS / DAVINCI RESOLVE STUDIO 20
 ===================================================================
 
-1. CLOSE DaVinci Resolve.
-2. Double-click "Install-CartoRig.cmd" (approve the Windows UAC prompt).
-3. Start Resolve Studio 20 and go to:
-   Workspace > Scripts > Utility > CartoRig Hybrid Test
+INSTALL (NO TERMINAL / PYTHON / COMPILER)
+1. Close DaVinci Resolve.
+2. Extract this package. Double-click Install-CartoRig.cmd and accept Windows UAC.
+3. Reopen Resolve Studio 20 and open any existing project and Edit timeline.
 
-The script creates a NEW disposable QA project (does not change existing clips).
-Save your current work before running it. In the Edit timeline, inspect frames
-18 and 40 for BRA/VEN text over the real CartoRig map. The script does not
-claim geographic anchoring or final user-facing functionality.
+CREATE AN ANIMATED CARTOGRAPHIC CLIP
+1. Workspace > Scripts > Utility > CartoRig - Create Map
+   Inserts a Fusion Composition containing the CartoRig C++ map engine.
+2. Place the timeline playhead inside that new map clip, then use:
+   - CartoRig - Add Country  (search country name or ISO3; independent color/reveal)
+   - CartoRig - Add Route    (select 2 countries; independent animated line)
+   - CartoRig - Set Camera  (move to an approximate country focus)
+3. Play, save and export using DaVinci Resolve as normal.
+   For more advanced work, open Fusion and edit the generated nodes/keyframes.
 
-If the architecture is not supported by your Resolve installation, the new
-QA timeline will have a RED marker ("CartoRig Hybrid Test BLOCKED").
-A status file will also be written to:
-  %TEMP%\CartoRig-Hybrid-Test-Result.txt
+The interface and script dialogs are English-only.
+Countries are searched OFFLINE from the bundled small geo database.
+No 51-source Natural Earth pack is required. The full raster library and
+city/state search are NOT yet included in this preview.
 
-No Python, CMake, ImageMagick, Natural Earth bulk data downloads, network
-access at runtime, or PowerShell commands from the end user are required.
-The installer uses Windows PowerShell internally and installs the prebuilt
-OFX plugin + one Lua script in the Resolve Scripts menu.
+REAL HOST CERTIFICATION
+The previous architecture test established that the CartoRig Overlay can
+run inside a Fusion Composition, and a basic camera animation survived
+save/reopen/Deliver in a real Resolve 20 test. These NEW country/route
+authoring actions, the independent layer camera expressions and this exact
+compiled package have NOT YET been accepted on the real Resolve host.
+The PR remains draft pending that evidence.
 
-IMPORTANT: This is an EXPERIMENTAL architecture test, not certified software.
-Only obtain it from the official gabrielbugarelli/cartorig GitHub repository.
-The downloaded .CMD/.PS1 are unsigned; Windows may display security prompts.
-Do not use real projects for the experiment.
+If an action fails, no other project is overwritten. For an error report:
+  %TEMP%\CartoRig-Editor-Result.txt
+A new Fusion Composition may remain on the timeline if map creation failed.
+The older "CartoRig Hybrid Test" script remains available for diagnostics.
+
+CartoRig remains a developer preview, not a finished 1.0 release.
+Source: https://github.com/gabrielbugarelli/cartorig

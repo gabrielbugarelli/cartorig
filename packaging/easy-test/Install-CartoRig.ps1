@@ -5,9 +5,19 @@ param([switch]$Elevated)
 $ErrorActionPreference='Stop'
 $root=Split-Path -Parent $PSCommandPath
 $bundle=Join-Path $root 'CartoRigNative.ofx.bundle'
-$script=Join-Path $root 'CartoRig Hybrid Test.lua'
+$utilityScripts=@(
+  'CartoRig - Create Map.lua',
+  'CartoRig - Add Country.lua',
+  'CartoRig - Add Route.lua',
+  'CartoRig - Set Camera.lua',
+  'CartoRig Hybrid Test.lua'
+)
+$libraryScripts=@('core.lua','countries.lua')
 $nativeInstaller=Join-Path $root 'Install-CartoRigNative.ps1'
-foreach ($file in @($script,$nativeInstaller,(Join-Path $bundle 'Contents\Win64\CartoRigNative.ofx'))) {
+$allFiles=@($nativeInstaller,(Join-Path $bundle 'Contents\Win64\CartoRigNative.ofx'))
+$allFiles+=@($utilityScripts | ForEach-Object {Join-Path $root $_})
+$allFiles+=@($libraryScripts | ForEach-Object {Join-Path (Join-Path $root 'CartoRigSupport') $_})
+foreach ($file in $allFiles) {
   if (-not (Test-Path -LiteralPath $file -PathType Leaf)) {
     throw "Incomplete CartoRig package. Missing: $file"
   }
@@ -32,25 +42,43 @@ if (-not $?) {throw 'OpenFX installation failed.'}
 # System-wide Scripts/Utility is a documented Resolve script-menu location.
 $utility=Join-Path $env:ProgramData 'Blackmagic Design\DaVinci Resolve\Fusion\Scripts\Utility'
 New-Item -ItemType Directory -Path $utility -Force | Out-Null
-$target=Join-Path $utility 'CartoRig Hybrid Test.lua'
-$stage=Join-Path $utility ('.CartoRig-Hybrid-Test.'+[guid]::NewGuid().ToString('N')+'.tmp')
-try {
-  Copy-Item -LiteralPath $script -Destination $stage -Force
-  if (-not (Test-Path -LiteralPath $stage -PathType Leaf)) {
-    throw 'Could not stage CartoRig test script.'
+# Install all scripts with per-file SHA256 verification. The runtime only
+# needs the prebuilt OFX bundle and Lua embedded in Resolve.
+$support=Join-Path $utility 'CartoRigSupport'
+New-Item -ItemType Directory -Path $support -Force | Out-Null
+foreach ($filename in $utilityScripts) {
+  $origin=Join-Path $root $filename
+  $destination=Join-Path $utility $filename
+  $staged=Join-Path $utility ('.CartoRig-stage-'+[guid]::NewGuid().ToString('N'))
+  try {
+    Copy-Item -LiteralPath $origin -Destination $staged -Force
+    if ((Get-FileHash -LiteralPath $origin -Algorithm SHA256).Hash -ne
+        (Get-FileHash -LiteralPath $staged -Algorithm SHA256).Hash) {
+      throw "Script copy failed integrity verification: $filename"
+    }
+    Move-Item -LiteralPath $staged -Destination $destination -Force
+  } finally {
+    if (Test-Path -LiteralPath $staged) {Remove-Item -LiteralPath $staged -Force}
   }
-  Move-Item -LiteralPath $stage -Destination $target -Force
 }
-finally {
-  if (Test-Path -LiteralPath $stage) {Remove-Item -LiteralPath $stage -Force}
+foreach ($filename in $libraryScripts) {
+  $origin=Join-Path (Join-Path $root 'CartoRigSupport') $filename
+  $destination=Join-Path $support $filename
+  $staged=Join-Path $support ('.CartoRig-stage-'+[guid]::NewGuid().ToString('N'))
+  try {
+    Copy-Item -LiteralPath $origin -Destination $staged -Force
+    if ((Get-FileHash -LiteralPath $origin -Algorithm SHA256).Hash -ne
+        (Get-FileHash -LiteralPath $staged -Algorithm SHA256).Hash) {
+      throw "Library copy failed integrity verification: $filename"
+    }
+    Move-Item -LiteralPath $staged -Destination $destination -Force
+  } finally {
+    if (Test-Path -LiteralPath $staged) {Remove-Item -LiteralPath $staged -Force}
+  }
 }
-if ((Get-FileHash -LiteralPath $script -Algorithm SHA256).Hash -ne
-    (Get-FileHash -LiteralPath $target -Algorithm SHA256).Hash) {
-  throw 'CartoRig script did not pass SHA256 verification after installation.'
-}
+
 Write-Host ''
-Write-Host 'CartoRig installed successfully.'
-Write-Host '1. Open DaVinci Resolve Studio 20.'
-Write-Host '2. Choose Workspace > Scripts > Utility > CartoRig Hybrid Test.'
-Write-Host '3. The script creates only a new disposable CartoRig Fusion QA project.'
-Write-Host 'Save any current Resolve work before running the test.'
+Write-Host 'CartoRig Edit-first authoring installed successfully.'
+Write-Host 'Open Resolve 20, select a timeline, then:'
+Write-Host 'Workspace > Scripts > Utility > CartoRig - Create Map'
+Write-Host 'Add Country, Add Route and Set Camera commands become available for the map clip.'

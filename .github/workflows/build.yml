@@ -23,6 +23,18 @@ jobs:
         run: python tools/traceability.py --check
       - name: Test Edit-first Fusion + OpenFX architectural spike (mock host)
         run: python -m unittest discover -s tests -p "test_fusion_spike.py" -v
+      - name: Verify bundled offline country catalog matches the source dataset
+        run: python -m unittest discover -s tests -p "test_edit_first_authoring.py" -v
+      - name: Syntax-check installed Lua commands
+        if: runner.os == 'Linux'
+        run: |
+          if ! command -v luac5.4 >/dev/null 2>&1; then
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq lua5.4
+          fi
+          find packaging/easy-test -type f -name '*.lua' -print0 | xargs -0 -n1 luac5.4 -p
+          luac5.4 -p tests/test_cartorig_authoring.lua
+          lua5.4 tests/test_cartorig_authoring.lua
       - name: Configure
         run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCARTORIG_BUILD_TESTS=ON -DCARTORIG_SOURCE_SHA=${{ github.event.pull_request.head.sha || github.sha }}
       - name: Compile
@@ -105,24 +117,29 @@ jobs:
             throw 'Lua architecture test missing.'
           }
       - name: Stage easy installer for manual Resolve 20 host test
-        if: runner.os == 'Windows' && github.event_name == 'pull_request' && github.event.pull_request.head.ref == 'feat/edit-first-hybrid-poc'
+        if: runner.os == 'Windows' && github.event_name == 'pull_request' && (github.event.pull_request.head.ref == 'feat/edit-first-hybrid-poc' || github.event.pull_request.head.ref == 'feat/cartorig-edit-first-mvp')
         shell: pwsh
         run: |
           $root='dist/CartoRig-Click-Install'
           New-Item -ItemType Directory -Path $root -Force | Out-Null
           Copy-Item -LiteralPath 'build/CartoRigNative.ofx.bundle' -Destination (Join-Path $root 'CartoRigNative.ofx.bundle') -Recurse -Force
           Copy-Item -LiteralPath './packaging/Install.ps1' -Destination (Join-Path $root 'Install-CartoRigNative.ps1')
-          foreach ($item in @('Install-CartoRig.ps1', 'Install-CartoRig.cmd', 'CartoRig Hybrid Test.lua', 'READ-ME-FIRST.txt')) {
+          foreach ($item in @(
+            'Install-CartoRig.ps1','Install-CartoRig.cmd','CartoRig Hybrid Test.lua',
+            'CartoRig - Create Map.lua','CartoRig - Add Country.lua',
+            'CartoRig - Add Route.lua','CartoRig - Set Camera.lua',
+            'READ-ME-FIRST.txt')) {
             Copy-Item -LiteralPath (Join-Path 'packaging/easy-test' $item) -Destination (Join-Path $root $item)
           }
+          Copy-Item -LiteralPath 'packaging/easy-test/CartoRigSupport' -Destination (Join-Path $root 'CartoRigSupport') -Recurse -Force
           if (-not (Test-Path (Join-Path $root 'CartoRigNative.ofx.bundle/Contents/Win64/CartoRigNative.ofx'))) {
             throw 'Missing actual compiled OpenFX binary in easy-install package.'
           }
       - name: Upload CartoRig click-to-install Windows kit
-        if: runner.os == 'Windows' && github.event_name == 'pull_request' && github.event.pull_request.head.ref == 'feat/edit-first-hybrid-poc'
+        if: runner.os == 'Windows' && github.event_name == 'pull_request' && (github.event.pull_request.head.ref == 'feat/edit-first-hybrid-poc' || github.event.pull_request.head.ref == 'feat/cartorig-edit-first-mvp')
         uses: actions/upload-artifact@v4
         with:
-          name: CartoRig-Click-Install-Windows
+          name: CartoRig-Edit-First-Preview-Windows
           path: dist/CartoRig-Click-Install/
           retention-days: 1
           if-no-files-found: error
