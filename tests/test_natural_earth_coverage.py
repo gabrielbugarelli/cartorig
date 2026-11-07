@@ -111,6 +111,42 @@ class CompletenessTests(unittest.TestCase):
         self.assertEqual(report["resources"][0]["url"],url)
         self.assertEqual(report["resources"][0]["acquisition_url"],urls[-1])
 
+    def test_resumable_acquisition_reuses_verified_archives_and_rejects_stale_source(self):
+        from unittest.mock import patch
+        root=self.root/"release"
+        a="https://naturalearth.s3.amazonaws.com/50m_raster/A.zip"
+        b="https://naturalearth.s3.amazonaws.com/50m_raster/B.zip"
+        inventory={"schema_version":1,"resources":[
+            {"resource_id":ident,"theme":"raster","scale":"50m","url":url,
+             "status":"DISCOVERED_UNVERIFIED"}
+            for ident,url in (("ne-50m-raster-a",a),("ne-50m-raster-b",b))]}
+        sample=self.root/"publisher.zip"
+        with zipfile.ZipFile(sample,"w") as z:z.writestr("world.tfw",b"source")
+        data=sample.read_bytes()
+        calls=[]
+        def fake(url,path):
+            calls.append(url)
+            path.parent.mkdir(parents=True,exist_ok=True)
+            path.write_bytes(data)
+            return len(data),hashlib.sha256(data).hexdigest()
+        with patch.object(materialize,"download_and_hash",side_effect=fake):
+            one=materialize.materialize(inventory,root,allow_network=True,max_downloads=1)
+            self.assertEqual(one["summary"]["verified"],1)
+            two=materialize.materialize(inventory,root,allow_network=True,max_downloads=1)
+            self.assertTrue(two["summary"]["complete"])
+            self.assertEqual(calls,[a,b])
+            self.assertTrue(materialize.materialize(inventory,root)["summary"]["complete"])
+            self.assertEqual(calls,[a,b])
+            (root/"archives/ne-50m-raster-a.zip").write_bytes(b"damaged")
+            self.assertTrue(materialize.materialize(
+                inventory,root,allow_network=True,max_downloads=1)["summary"]["complete"])
+            self.assertEqual(calls,[a,b,a])
+            changed={"schema_version":1,"resources":[
+                dict(x,url="https://naturalearth.s3.amazonaws.com/50m_raster/C.zip")
+                if x["resource_id"]=="ne-50m-raster-a" else x
+                for x in inventory["resources"]]}
+            self.assertFalse(materialize.materialize(changed,root)["summary"]["complete"])
+
     def test_materializer_is_offline_without_flag(self):
         manifest={"schema_version":1,"resources":[
             {"resource_id":"ne-10m-countries","url":"https://naciscdn.org/naturalearth/10m/cultural/a.zip",
