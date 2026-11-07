@@ -16,6 +16,8 @@ struct GeographicRegionSelection {
   std::string featureKey,kind,name,parent,sourceLayer,scale;
   std::int64_t sourceRowId=0;
   Color fill{40,157,192,220};
+  Color stroke{40,157,192,220};
+  bool visible=true;
   std::vector<GeographicRegionColorKey> colorKeys;
 };
 std::vector<GeographicRegionSelection> parseGeographicSelections(
