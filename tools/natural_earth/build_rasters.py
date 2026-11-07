@@ -61,7 +61,8 @@ def georeference(worldfile: str, width: int, height: int) -> list[float]:
 
 def _write_windowed_tiff(
         image_path: Path, stage: Path,
-        sizes: list[tuple[int,int]], width: int, height: int) -> None:
+        sizes: list[tuple[int,int]], width: int, height: int,
+        tile_format: str="rgba") -> None:
     """Stream one TIFF tile at a time using rasterio on release machines.
 
     Large Natural Earth TIFF images can exceed 230 million pixels; building
@@ -71,6 +72,7 @@ def _write_windowed_tiff(
     try:
         import numpy as np
         import rasterio
+        from PIL import Image
         from rasterio.enums import Resampling
         from rasterio.windows import Window
     except ImportError as exc:
@@ -105,7 +107,11 @@ def _write_windowed_tiff(
                     else:
                         tile[:th,:tw,:3]=np.moveaxis(channels[:3],0,2)
                         tile[:th,:tw,3]=channels[3] if src.count==4 else 255
-                    (level/f"{tx}_{ty}.rgba").write_bytes(tile.tobytes())
+                    if tile_format=="png":
+                        Image.fromarray(tile).save(
+                            level/f"{tx}_{ty}.png",format="PNG",compress_level=6)
+                    else:
+                        (level/f"{tx}_{ty}.rgba").write_bytes(tile.tobytes())
 
 def psd_composite_to_tiff(psd: Path, output_tif: Path) -> Path:
     """Flatten official layered PSDs only on the release workstation.
@@ -131,13 +137,15 @@ def psd_composite_to_tiff(psd: Path, output_tif: Path) -> Path:
     return output_tif
 
 def build_asset(image_path: Path, world_text: str, root: Path,
-                asset_id: str, provenance: dict) -> dict:
+                asset_id: str, provenance: dict, *, tile_format: str="rgba") -> dict:
     try:
         from PIL import Image
     except ImportError as exc:
         raise RuntimeError("release builder requires Pillow (pip install Pillow)") from exc
     if not SLUG.fullmatch(asset_id):
         raise ValueError("unsafe raster asset identifier")
+    if tile_format not in ("rgba","png"):
+        raise ValueError("unsupported raster atlas tile format")
     Image.MAX_IMAGE_PIXELS = MAX_PIXELS
     with Image.open(image_path) as original:
         w,h = original.size
@@ -168,7 +176,7 @@ def build_asset(image_path: Path, world_text: str, root: Path,
                 prepared=(psd_composite_to_tiff(
                               image_path,Path(temporary)/"psd-composite.tif")
                           if is_psd else image_path)
-                _write_windowed_tiff(prepared,stage,sizes,w,h)
+                _write_windowed_tiff(prepared,stage,sizes,w,h,tile_format)
             else:
                 if w*h>25_000_000:
                     raise RuntimeError("Raster exceeds bounded Pillow pixel budget")
@@ -184,18 +192,24 @@ def build_asset(image_path: Path, world_text: str, root: Path,
                                                min((tx+1)*TILE,zw),
                                                min((ty+1)*TILE,zh)))
                             tile.paste(region,(0,0))
-                            (level/f"{tx}_{ty}.rgba").write_bytes(tile.tobytes())
+                            if tile_format=="png":
+                                tile.save(level/f"{tx}_{ty}.png",
+                                          format="PNG",compress_level=6)
+                            else:
+                                (level/f"{tx}_{ty}.rgba").write_bytes(tile.tobytes())
                     image.close()
             checksums=[]
             for z,level in enumerate(levels):
                 for ty in range(level["tiles_y"]):
                     for tx in range(level["tiles_x"]):
-                        name=f"tiles/{z}/{tx}_{ty}.rgba"
+                        name=f"tiles/{z}/{tx}_{ty}.{tile_format}"
                         checksums.append(sha256(stage/name)+"  "+name)
             (stage/"tiles.sha256").write_text("\n".join(checksums)+"\n",
                                                encoding="ascii")
             metadata = {
-                "schema_version":1,"format":"cartorig-rgba-tiles-v1",
+                "schema_version":1,
+                "format":("cartorig-png-tiles-v2" if tile_format=="png" else
+                          "cartorig-rgba-tiles-v1"),
                 "asset_id":asset_id,"tile_size":TILE,
                 "extent":extent,"original_width":w,"original_height":h,
                 "levels":levels,"provenance":provenance,
@@ -218,7 +232,8 @@ def find_world_file(names: list[str], image_name: str) -> str | None:
     return None
 
 def reusable_asset(output: Path, asset_id: str, source_sha: str,
-                   publisher_image: str, world_file: str) -> bool:
+                   publisher_image: str, world_file: str,
+                   tile_format: str="auto") -> bool:
     """Rehash every generated tile before reusing an interrupted producer job."""
     directory=output/asset_id
     path=directory/"index.json"
@@ -227,8 +242,12 @@ def reusable_asset(output: Path, asset_id: str, source_sha: str,
     try:
         metadata=json.loads(path.read_text(encoding="utf-8"))
         provenance=metadata.get("provenance",{})
-        if (metadata.get("schema_version")!=1 or
-            metadata.get("format")!="cartorig-rgba-tiles-v1" or
+        fmt=metadata.get("format")
+        actual_tile_format={"cartorig-rgba-tiles-v1":"rgba",
+                            "cartorig-png-tiles-v2":"png"}.get(fmt)
+        if (not actual_tile_format or
+            tile_format not in ("auto",actual_tile_format) or
+            metadata.get("schema_version")!=1 or
             metadata.get("asset_id")!=asset_id or
             provenance.get("source_sha256")!=source_sha or
             provenance.get("publisher_image")!=publisher_image or
@@ -261,18 +280,24 @@ def reusable_asset(output: Path, asset_id: str, source_sha: str,
                 return False
             for ty in range(ny):
                 for tx in range(nx):
-                    tile=directory/"tiles"/str(index)/f"{tx}_{ty}.rgba"
+                    tile=directory/"tiles"/str(index)/f"{tx}_{ty}.{actual_tile_format}"
                     if (tile.is_symlink() or not tile.is_file() or
-                        tile.stat().st_size!=TILE*TILE*4 or
+                        (actual_tile_format=="rgba" and
+                         tile.stat().st_size!=TILE*TILE*4) or
+                        (actual_tile_format=="png" and
+                         not 0<tile.stat().st_size<=1_048_576) or
                         not hmac.compare_digest(
-                            sha256(tile),expected.get(f"tiles/{index}/{tx}_{ty}.rgba",""))):
+                            sha256(tile),expected.get(
+                                f"tiles/{index}/{tx}_{ty}.{actual_tile_format}",""))):
                         return False
         return True
     except (ValueError,KeyError,TypeError,OSError):
         return False
 
 def compile_archives(manifest: dict, archive_root: Path, output: Path,
-                     *, resume: bool=False) -> dict:
+                     *, resume: bool=False, tile_format: str="rgba") -> dict:
+    if tile_format not in ("rgba","png"):
+        raise ValueError("unsupported raster atlas tile format")
     from tools.natural_earth.verify_pack import verify_manifest
     resources=[r for r in manifest.get("resources",[]) if r.get("theme")=="raster"]
     if not resources:
@@ -282,7 +307,8 @@ def compile_archives(manifest: dict, archive_root: Path, output: Path,
         raise ValueError("official raster archives not fully verified: "+
                          json.dumps(verified["failed"][:6]))
     output.mkdir(parents=True,exist_ok=True)
-    report={"schema_version":1,"complete":False,"sources_expected":len(resources),
+    report={"schema_version":1,"tile_format":tile_format,
+            "complete":False,"sources_expected":len(resources),
             "sources_converted":0,"assets":[],"failures":[],"reused_assets":0}
     def checkpoint()->None:
         path=output/"validated-raster-assets.json"
@@ -315,7 +341,8 @@ def compile_archives(manifest: dict, archive_root: Path, output: Path,
                     asset_id=re.sub(r"[^a-zA-Z0-9_-]","_",
                                     key+"_"+str(index))
                     if resume and reusable_asset(
-                            output,asset_id,r["sha256"],img,world):
+                            output,asset_id,r["sha256"],img,world,
+                            tile_format=tile_format):
                         metadata=json.loads((output/asset_id/"index.json").read_text(
                             encoding="utf-8"))
                         report["reused_assets"]+=1
@@ -341,7 +368,7 @@ def compile_archives(manifest: dict, archive_root: Path, output: Path,
                                     "source_id":key,"publisher_image":img,
                                     "publisher_world_file":world,
                                     "source_sha256":r["sha256"],
-                                })
+                                },tile_format=tile_format)
                     report["assets"].append({
                         "source_id":key,"asset_id":asset_id,
                         "status":"VALIDATED",
