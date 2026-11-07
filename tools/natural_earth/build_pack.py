@@ -16,7 +16,7 @@ import argparse
 import hashlib
 import json
 from pathlib import Path
-import stat
+import re
 
 REQUIRED = (
     "vector/natural_earth_vector.gpkg",
@@ -25,6 +25,9 @@ REQUIRED = (
     "raster/validated-raster-assets.json",
 )
 MAX_FILES = 1_000_000
+MIN_PINNED_VECTOR_SOURCES = 215
+MIN_PUBLISHER_RASTER_VARIANTS = 52
+PACK_PATH = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_./-]{0,255}$")
 
 def digest(path: Path) -> str:
     h=hashlib.sha256()
@@ -46,9 +49,47 @@ def build_pack(root: Path,coverage:dict,*,allow_incomplete:bool=False)->dict:
                raster.get("sources_expected",0)>=1 and
                raster.get("sources_converted")==raster.get("sources_expected") and
                not raster.get("failures"))
+    vector=coverage.get("vector",{})
+    raster_gate=coverage.get("raster",{})
+    pages=coverage.get("pages",{})
+    archives=coverage.get("archives",{})
+    source_count=raster.get("sources_expected",0)
+    # Full publisher coverage is not implied by a pair of true booleans.
     certified=(coverage.get("complete") is True and raster_ok and
-               coverage.get("vector",{}).get("passed") is True and
-               coverage.get("raster",{}).get("passed") is True)
+               vector.get("passed") is True and
+               vector.get("expected")==MIN_PINNED_VECTOR_SOURCES and
+               vector.get("indexed")==MIN_PINNED_VECTOR_SOURCES and
+               vector.get("supplemental_verified")==33 and
+               raster_gate.get("passed") is True and
+               raster_gate.get("source_variants")==source_count and
+               raster_gate.get("source_variants",0)>=MIN_PUBLISHER_RASTER_VARIANTS and
+               raster_gate.get("validated_derivatives",0)>=source_count and
+               pages.get("passed") is True and
+               archives.get("pack_verified") is True and
+               archives.get("source_links",0)>=MIN_PINNED_VECTOR_SOURCES+source_count)
+    if certified:
+        required_provenance=(
+            "provenance/coverage-report.json",
+            "provenance/official_sources.json",
+            "provenance/source-archives.json",
+            "provenance/vector_layers.json",
+            "provenance/supplement_pin.json",
+        )
+        for name in required_provenance:
+            if not (root/name).is_file():
+                raise ValueError("certified release is missing provenance: "+name)
+        stored=json.loads((root/"provenance/coverage-report.json").read_text(
+            encoding="utf-8"))
+        if stored!=coverage:
+            raise ValueError("release audit report differs from pack certification")
+        source=json.loads((root/"provenance/official_sources.json").read_text(
+            encoding="utf-8"))
+        if len([r for r in source.get("resources",[]) if r.get("theme")=="raster"])!=source_count:
+            raise ValueError("published raster manifest differs from certified audit")
+        verified_sources=json.loads((root/"provenance/source-archives.json").read_text(
+            encoding="utf-8"))
+        if len(verified_sources.get("resources",[]))!=archives["source_links"]:
+            raise ValueError("archive manifest differs from certified audit")
     if not certified and not allow_incomplete:
         raise ValueError("Natural Earth Complete requires a passing source/coverage gate")
     entries=[]
@@ -58,6 +99,8 @@ def build_pack(root: Path,coverage:dict,*,allow_incomplete:bool=False)->dict:
         if not path.is_file():continue
         relative=path.relative_to(root).as_posix()
         if relative=="pack.json":continue
+        if not PACK_PATH.fullmatch(relative) or ".." in Path(relative).parts:
+            raise ValueError("unsafe or nonportable pack file path: "+relative)
         if len(entries)>=MAX_FILES:
             raise ValueError("data pack file count exceeds safe limit")
         if not path.resolve().is_relative_to(root):
@@ -76,6 +119,7 @@ def build_pack(root: Path,coverage:dict,*,allow_incomplete:bool=False)->dict:
         "pack_id":pack_id,"complete":certified,
         "status":"NATURAL_EARTH_COMPLETE" if certified else "EXPERIMENTAL_INCOMPLETE",
         "raster_sources":raster.get("sources_converted",0),
+        "vector_sources":vector.get("indexed",0),
         "files":entries,
     }
     (root/"pack.json").write_text(
