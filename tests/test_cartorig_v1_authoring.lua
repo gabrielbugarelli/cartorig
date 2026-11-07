@@ -157,7 +157,22 @@ check(route.node.frames.RouteProgress[0]==0 and
       "route reveal uses native spline at host time")
 srv.baseStyle(1,"land","#243547")
 check(map:GetInput("LandR")==36,"base style can change independently")
-srv.delete(1,2)
-check(#srv.objects(1)==2,"delete affects selected object only")
+srv.editRoute(1,3,nil,nil,{curve=-40,width=6,arrowhead=true})
+check(route.node:GetInput("NativeRouteCurve")==-40 and
+      route.node:GetInput("NativeRouteWidth")==6,"route edited without reconstruction")
+check(route.node.frames.RouteProgress[12]==1,
+      "editing route preserves existing animation keys")
+srv.moveObject(1,3,-1)
+check(srv.objects(1)[2].meta.type=="Route" and
+      srv.objects(1)[3].meta.name=="Rio de Janeiro",
+      "object z-order rewire preserves typed identity")
+srv.renameObject(1,3,"Rio state highlighted")
+check(srv.objects(1)[3].meta.name=="Rio state highlighted",
+      "object display name changes without geographic key changes")
+srv.duplicateObject(1,1)
+check(#srv.objects(1)==4 and srv.objects(1)[4].meta.type=="Region",
+      "object duplicates into separate layer and metadata")
+srv.delete(1,3)
+check(#srv.objects(1)==3,"delete affects selected object only")
 check(#srv.scenes()==1,"no extra host scene created by object operations")
 print("PASS: v1 single-scene, typed search, independent styles, camera, routes, safety")
