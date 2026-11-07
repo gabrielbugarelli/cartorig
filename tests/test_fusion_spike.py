@@ -242,7 +242,7 @@ class HybridProbeTests(unittest.TestCase):
     def test_corrupt_keyframes_or_missing_node_fail_closed(self):
         probe.prepare(self.app, self.project, allow_project_switch=True)
         comp = self.app.manager.projects[self.project].timelines[0].clips[0].comps[0]
-        comp.FindTool(probe.NODES["ven_merge"]).keys["Blend"][24] = 1.0
+        comp.FindTool(probe.NODES["ven_merge"]).keys["Blend"][0] = 1.0
         with self.assertRaisesRegex(probe.ProbeError, "not persisted"):
             probe.verify(self.app, self.project)
         comp.tools = [tool for tool in comp.tools
