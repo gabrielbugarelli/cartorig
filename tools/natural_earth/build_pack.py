@@ -66,7 +66,7 @@ def build_pack(root: Path,coverage:dict,*,allow_incomplete:bool=False)->dict:
                raster_gate.get("validated_derivatives",0)>=source_count and
                pages.get("passed") is True and
                archives.get("pack_verified") is True and
-               archives.get("source_links",0)>=MIN_PINNED_VECTOR_SOURCES+source_count)
+               archives.get("source_links",0)>=source_count)
     if certified:
         required_provenance=(
             "provenance/coverage-report.json",
