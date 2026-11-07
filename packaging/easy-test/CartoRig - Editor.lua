@@ -14,7 +14,7 @@ local ui=fusion.UIManager
 local dispatcher=bmd.UIDispatcher(ui)
 local win=dispatcher:AddWindow({
     ID="CartoRigEditor", WindowTitle="CartoRig | Map Editor",
-    Geometry={120,90,980,780}, Spacing=9, Margin=13
+    Geometry={120,75,1040,855}, Spacing=9, Margin=13
 },ui:VGroup{
     ID="Root",Spacing=8,
     ui:HGroup{
@@ -56,8 +56,16 @@ local win=dispatcher:AddWindow({
         ui:Button{ID="ApplyStyle",Text="Apply style"},
         ui:Button{ID="Hide",Text="Hide"},
         ui:Button{ID="Show",Text="Show"},
-        ui:Button{ID="RemoveObject",Text="Delete object"},
-        ui:Button{ID="AnimateRoute",Text="Reveal route"}
+        ui:Button{ID="DuplicateObject",Text="Duplicate"},
+        ui:Button{ID="MoveUp",Text="Move up"},
+        ui:Button{ID="MoveDown",Text="Move down"},
+        ui:Button{ID="RemoveObject",Text="Delete"}
+    },
+    ui:HGroup{
+        ui:Label{Text="Rename selected object",Weight=0.23},
+        ui:LineEdit{ID="ObjectName",PlaceholderText="New name",Weight=0.45},
+        ui:Button{ID="RenameObject",Text="Rename",Weight=0.16},
+        ui:Button{ID="AnimateRoute",Text="Reveal route",Weight=0.16}
     },
     ui:HGroup{
         ui:Label{Text="Fill",Weight=0.1},
@@ -101,7 +109,8 @@ local win=dispatcher:AddWindow({
         ui:Label{Text="Width (px)",Weight=0.13},
         ui:LineEdit{ID="Width",Text="4",Weight=0.12},
         ui:ComboBox{ID="Arrowhead",Weight=0.18},
-        ui:Button{ID="AddRoute",Text="+ Add route",Weight=0.22}
+        ui:Button{ID="AddRoute",Text="+ Add route",Weight=0.15},
+        ui:Button{ID="EditRoute",Text="Edit selected",Weight=0.15}
     },
     ui:VGap(6),
     ui:Label{ID="Status",Text="Ready. Select or create a scene; search locally.",WordWrap=true},
@@ -249,6 +258,32 @@ end
 function win.On.Show.Clicked(_)
     action(function()service.hide(sceneIndex(),objectIndex(),false);return updateObjects()end)
 end
+function win.On.RenameObject.Clicked(_)
+    action(function()
+        service.renameObject(sceneIndex(),objectIndex(),it.ObjectName.Text)
+        return updateObjects()
+    end)
+end
+function win.On.DuplicateObject.Clicked(_)
+    action(function()
+        service.duplicateObject(sceneIndex(),objectIndex())
+        updateObjects()
+        return "Duplicated geography and static style into an independent object. "..
+               "Animation keys are not duplicated in this preview."
+    end)
+end
+function win.On.MoveUp.Clicked(_)
+    action(function()
+        service.moveObject(sceneIndex(),objectIndex(),-1)
+        return updateObjects()
+    end)
+end
+function win.On.MoveDown.Clicked(_)
+    action(function()
+        service.moveObject(sceneIndex(),objectIndex(),1)
+        return updateObjects()
+    end)
+end
 function win.On.RemoveObject.Clicked(_)
     action(function()
         service.delete(sceneIndex(),objectIndex())
@@ -298,6 +333,29 @@ function win.On.AddRoute.Clicked(_)
         service.addRoute(sceneIndex(),from,to,opts)
         updateObjects()
         return "Route added. Press Reveal route only if you want keyframes."
+    end)
+end
+function win.On.EditRoute.Clicked(_)
+    action(function()
+        if not objects[objectIndex()] or
+           not objects[objectIndex()].meta or
+           objects[objectIndex()].meta.type~="Route" then
+            error("Select a Route in the Objects list")
+        end
+        local opts={
+            curve=tonumber(it.Curve.Text),
+            width=tonumber(it.Width.Text),
+            arrowhead=(tonumber(it.Arrowhead.CurrentIndex) or 0)==0
+        }
+        if from and from.kind~="city" then
+            opts.fromPoint={lon=tonumber(it.FromLon.Text),lat=tonumber(it.FromLat.Text)}
+        end
+        if to and to.kind~="city" then
+            opts.toPoint={lon=tonumber(it.ToLon.Text),lat=tonumber(it.ToLat.Text)}
+        end
+        service.editRoute(sceneIndex(),objectIndex(),from,to,opts)
+        updateObjects()
+        return "Existing route edited; native Reveal animation remains untouched."
     end)
 end
 function win.On.AnimateRoute.Clicked(_)
