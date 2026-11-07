@@ -6,6 +6,8 @@ Only runs with explicit --allow-network in a release/probe machine.
 one smallest real publisher ZIP
 per each of the 16 family pages is acquired and checked, where within budget.
 The report is JSON-only: NO publisher binaries uploaded to GitHub artifacts.
+Known publisher issue: 10m manual-shaded-relief US_MSR_10M.zip answered
+404 on both official acquisition hosts in the initial 52-URL HEAD probe.
 This is family sample evidence, NEVER a lock of the 52 full archive hashes.
 """
 from __future__ import annotations
