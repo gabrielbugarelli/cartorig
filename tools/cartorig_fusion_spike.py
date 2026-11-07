@@ -71,8 +71,11 @@ def validate_name(name):
 
 
 def node(comp, name):
-    tool = invoke(comp, "FindTool", name)
-    require(tool is not None, "Fusion node missing: " + name)
+    fn = getattr(comp, "FindTool", None)
+    require(callable(fn), "Fusion FindTool API missing")
+    tool = fn(name)
+    require(tool is not None and tool is not False,
+            "Fusion node missing: " + name)
     return tool
 
 
@@ -91,7 +94,11 @@ def connect(tool, input_name, source):
 
 
 def name_tool(tool, name):
-    invoke(tool, "SetAttrs", {"TOOLS_Name": name})
+    # Fusion actions can return None even when they change the tool;
+    # always independently read back the requested name.
+    fn = getattr(tool, "SetAttrs", None)
+    require(callable(fn) and fn({"TOOLS_Name": name}) is not False,
+            "Fusion rejected node rename: " + name)
     attrs = invoke(tool, "GetAttrs")
     require(str(attrs.get("TOOLS_Name")) == name,
             "Fusion node name did not persist: " + name)
@@ -139,7 +146,10 @@ def add_independent_objects(comp):
         connect(m_ven, "Foreground", ven)
         connect(media_out, "Input", m_ven)
         for merge, key_start, key_end in ((m_bra, 0, 12), (m_ven, 24, 36)):
-            invoke(merge, "AddModifier", "Blend", "BezierSpline")
+            add_modifier = getattr(merge, "AddModifier", None)
+            require(callable(add_modifier) and
+                    add_modifier("Blend", "BezierSpline") is not False,
+                    "Fusion rejected independent Blend modifier")
             # Establish a deterministic zero baseline for later-starting objects.
             # Do not rely on host behavior when sampling before the first key.
             set_input(merge, "Blend", 0.0, start)
