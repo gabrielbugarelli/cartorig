@@ -56,7 +56,7 @@ def produce(*,workspace:Path,output:Path,allow_network:bool=False,
         archive_root=workspace/"downloads",
         vector_pin=vector_pin,supplement_pin=supplement_pin,
         out=output,resume=True,allow_incomplete=True,
-        reviewed_unavailable=exceptions)
+        reviewed_unavailable=exceptions,raster_tile_format="png")
     if built["complete"]:
         raise ValueError("unexpected certification: an experimental pack MUST NOT be complete")
     audited=verify_release.verify_release(output,allow_incomplete=True)
