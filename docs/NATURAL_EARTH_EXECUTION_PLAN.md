@@ -247,7 +247,7 @@ Tests must not define success as a mock summary reporting 215 or 52. At least on
 | G0 CI/Windows validation | Source tests and Windows checks exist; post-public-host run still requires confirmation | OPEN |
 | G1 locked source inventory | Official 24/24-page discovery pin and 52-source fingerprint; 15 real family source SHA256 observations committed; 52-source reviewed content lock remains unavailable, including one official 10m 404 | PARTIAL |
 | G2 source acquisition | Byte-range resume and archive security tests passed; 51/52 official source URLs returned HEAD metadata; 15/16 families sampled from genuine ZIPs, 654,444,735 acquired bytes; US_MSR_10M.zip 404 upstream; 52-source acquisition still blocked | PARTIAL |
-| G3 raster derivative parity | Real 50m Manual Shaded Relief converted and rendered in RGBA v1 and PNG v2 with identical native frame pixels; PNG v2 cut one atlas by 90%; 51 remaining raster variants unconverted | PARTIAL |
+| G3 raster derivative parity | Four distinct official 50m raster families now independently converted/painted by native C++, including three additional real source baselines; PNG v2 stored 94.50% fewer bytes than raw in those three samples (5.65%–10.96% slower per-runner 720p full-frame medians). Other 48 of 52 source variants still have no demonstrated end-to-end render, and 51/52 persistent acquisition is open. | PARTIAL |
 | G4 all vector-layer rendering | 215/215 source inventory and primary polygons; not all types rendered | OPEN |
 | G5 pack/installer | fail-closed builder and installer source; real full pack absent | OPEN |
 | G6 Resolve Studio 20 host | original Generator test exists; full data Inspector/Overlay not certified | OPEN |
@@ -292,6 +292,8 @@ A feature, status or source count is marked PASS only with reproducible evidence
 - After 51 verified official raster ZIPs are actually acquired, a separately opt-in, offline, nonproduction experimental pack can be built with real vectors and rasters for Resolve tests; it retains the full 52-source audit and is deliberately rejected by the production verifier.
 - Code and synthetic regression tests are implemented. **No full 51-archive workstation download or full actual raster conversion is claimed.** G1/G2 still require publisher-content evidence, and all G0–G7 complete release gates remain intact.
 - Practical workflow: [NE-SOURCE-02 Available-source acquisition](NE_SOURCE02_AVAILABLE_WORKFLOW_2026-11-07.md).
+
+New [multi-family publisher raster and native performance evidence](NE_M3_MULTIFAMILY_REAL_RASTER_2026-11-07.md) confirms Gray Earth, PRISMA Shaded Relief and Shaded Relief with exact frame hash equivalence between PNG v2 and raw v1; their atlas sizes were 1,387,528,192 vs 76,332,260 bytes. Native renderer medians at 720p are measured on an Ubuntu standard runner and do not replace Windows Resolve host QA.
 
 ### M3 native raster PNG v2 evidence — 2026-11-07
 
