@@ -1,5 +1,7 @@
 """End-to-end offline test: synthetic GeoPackage -> SQLite index -> C++ runtime."""
 from pathlib import Path
+import os
+import shutil
 import sqlite3
 import struct
 import subprocess
@@ -127,9 +129,19 @@ with tempfile.TemporaryDirectory() as directory:
     assert not (target/"missing.sqlite").exists(),"runtime cannot create DB files"
     # Real C++ simulated host exercises the Inspector Add/Update/Remove
     # push-button actions and then compares actual RGBA output pixels.
+    # Simulate an installed offline pack exactly where the one-click Inspector
+    # toggle resolves it. The test never downloads or fetches external data.
+    installed=target/"installed-natural-earth"
+    (installed/"vector").mkdir(parents=True)
+    (installed/"raster").mkdir(parents=True)
+    shutil.copy2(gpkg,installed/"vector/natural_earth_vector.gpkg")
+    shutil.copy2(gpkg,installed/"vector/supplements.gpkg")
+    shutil.copy2(catalog,installed/"vector/catalog.sqlite")
+    (installed/"pack.json").write_text('{"schema_version":1}',encoding="utf-8")
+    env=dict(os.environ,CARTORIG_NATURAL_EARTH_PACK=str(installed))
     simulated=subprocess.run(
         [str(host_simulator),str(ofx_bundle),str(catalog),str(gpkg)],
-        capture_output=True,text=True,encoding="utf-8",timeout=35)
+        capture_output=True,text=True,encoding="utf-8",timeout=35,env=env)
     assert simulated.returncode==0,(
         "OFX typed Geographic region action failure",
         simulated.stdout,simulated.stderr)
