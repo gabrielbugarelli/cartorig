@@ -62,6 +62,12 @@ with tempfile.TemporaryDirectory() as temporary:
     (png_tiles/"0_0.png").write_bytes(png_rgba(128,256,bytes([222,12,65,255])))
     assert launch("synthetic_png_v2").returncode!=0,(
         "wrong PNG tile dimensions must be rejected")
+    # Maliciously huge IHDR dimensions must fail before allocating pixels.
+    huge=bytearray(good)
+    huge[16:20]=struct.pack(">I",0x7fffffff)
+    (png_tiles/"0_0.png").write_bytes(huge)
+    assert launch("synthetic_png_v2").returncode!=0,(
+        "enormous PNG IHDR width must fail before native allocation")
     (png_tiles/"0_0.png").write_bytes(good)
 
     # One synthetic level has 65 horizontal tiles, exceeding the new
