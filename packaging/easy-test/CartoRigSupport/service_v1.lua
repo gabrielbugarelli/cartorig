@@ -37,7 +37,7 @@ end
 local function alpha(v)
     return math.floor(bounded(v or 100,0,100,"opacity")*2.55+0.5)
 end
-local function regionJson(meta)
+local function regionJson(meta,preservedKeys)
     local r,g,b=rgb(meta.fill)
     local sr,sg,sb=rgb(meta.stroke or meta.fill)
     return '[{"feature_key":'..escape(meta.key)..',"kind":'..escape(meta.kind)..
@@ -46,7 +46,15 @@ local function regionJson(meta)
         escape(meta.scale or "10m")..',"rowid":'..tostring(meta.rowid)..
         ',"fill":['..r..','..g..','..b..','..alpha(meta.opacity)..']'..
         ',"stroke":['..sr..','..sg..','..sb..',255]'..
-        ',"visible":'..tostring(meta.visible~=false)..',"color_keys":[]}]'
+        ',"visible":'..tostring(meta.visible~=false)..',"color_keys":'..
+        (preservedKeys or "[]")..'}]'
+end
+local function currentRegionKeys(tool)
+    -- Preserve user-authored native RGBA keyframes when changing static style.
+    -- Lua balanced-pattern matching handles nested [rgba] arrays.
+    local existing=tostring(tool:GetInput("GeographicRegionSaved") or "")
+    local keys=existing:match('"color_keys"%s*:%s*(%b[])')
+    return keys or "[]"
 end
 local function serializeMarker(meta)
     local r,g,b=rgb(meta.fill)
@@ -359,6 +367,12 @@ local function focusAt(sceneIndex,location,zoom,duration)
     zoom=bounded(zoom or 4.2,0,18,"camera zoom")
     duration=bounded(duration or 0,0,10000,"animation duration")
     local when=tonumber(comp.CurrentTime) or 0
+    if duration==0 and (base:GetData("CartoRig.V1Animated.Longitude") or
+        base:GetData("CartoRig.V1Animated.Latitude") or
+        base:GetData("CartoRig.V1Animated.Zoom")) then
+        error("Camera already has animation. Use Animate at the playhead; "..
+              "Focus cannot silently overwrite an animated track",2)
+    end
     return atomic(comp,duration>0 and "CartoRig: Animate camera" or
                   "CartoRig: Focus camera",function()
         for _,property in ipairs({
@@ -462,7 +476,8 @@ function M.style(sceneIndex,objectIndex,hex,stroke,opacity)
         m.fill=hex;m.stroke=stroke or hex;m.opacity=opacity
         if m.type=="Region" then
             if m.sourceLayer then
-                set(entry.node,"GeographicRegionSaved",regionJson(m))
+                set(entry.node,"GeographicRegionSaved",
+                    regionJson(m,currentRegionKeys(entry.node)))
             else
                 local r,g,b=rgb(hex)
                 set(entry.node,"CustomMapColors",1)
