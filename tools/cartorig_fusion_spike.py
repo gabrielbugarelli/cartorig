@@ -326,7 +326,7 @@ def run_cli(mode, report, project, *, app=None, binary=None,
         "utc": datetime.now(timezone.utc).isoformat(),
         "mode": mode, "status": "NOT_RUN",
         "full_cartorig_product_accepted": False,
-        "real_host_viewer_or_deliver_verified": False,
+        "real_host_deliver_job_completed": False,
     }
     report.parent.mkdir(parents=True, exist_ok=True)
     try:
@@ -340,6 +340,8 @@ def run_cli(mode, report, project, *, app=None, binary=None,
                                        allow_project_switch=allow_project_switch)
             result["status"] = result["action"]["status"]
         elif mode == "verify":
+            require(allow_project_switch,
+                    "Save your current work and pass --allow-switch-project")
             result["action"] = verify(app, project)
             result["status"] = result["action"]["status"]
         elif mode == "render":
@@ -348,7 +350,7 @@ def run_cli(mode, report, project, *, app=None, binary=None,
             result["keyframe_precheck"] = verify(app, project)
             result["action"] = render(app, project, render_dir)
             result["status"] = result["action"]["status"]
-            result["real_host_viewer_or_deliver_verified"] = True
+            result["real_host_deliver_job_completed"] = True
         else:
             raise ProbeError("Unsupported mode: " + str(mode))
         return result
