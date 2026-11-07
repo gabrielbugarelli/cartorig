@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Freeze/review raster publisher digests before any Complete data-pack release.
 
+The initial release-source audit runs only via the explicit [source-probe] tag;
+this job stores a small JSON report, never the full 52-archive raster corpus.
 The first SHA256 digest is calculated from authentic publisher content and
 committed after independent review. This lock then prevents silent upstream
 changes, stale checkpoints, and self-declared download-manifest hashes from
