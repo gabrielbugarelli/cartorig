@@ -14,13 +14,15 @@ add_library(cartorig_core STATIC
   src/cartorig.cpp
   src/raster.cpp
   src/natural_earth_raster.cpp
+  third_party/lodepng/lodepng.cpp
   src/natural_earth_regions.cpp
   src/compositing.cpp
   src/native_controls.cpp
   third_party/json11/json11.cpp)
 target_include_directories(cartorig_core PUBLIC
   ${CMAKE_CURRENT_SOURCE_DIR}/src
-  ${CMAKE_CURRENT_SOURCE_DIR}/third_party/json11)
+  ${CMAKE_CURRENT_SOURCE_DIR}/third_party/json11
+  ${CMAKE_CURRENT_SOURCE_DIR}/third_party/lodepng)
 set_target_properties(cartorig_core PROPERTIES POSITION_INDEPENDENT_CODE ON)
 if(MSVC)
   target_compile_options(cartorig_core PRIVATE /W4 /EHsc)
