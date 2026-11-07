@@ -15,7 +15,7 @@ from urllib.parse import urlsplit
 from urllib.request import Request, urlopen
 
 BLOCK = 1 << 20
-RANGE = re.compile(r"^bytes (\\d+)-(\\d+)/(\\d+)$")
+RANGE = re.compile(r"^bytes (\d+)-(\d+)/(\d+)$")
 USER_AGENT = "CartoRigNaturalEarthBuild/0.2"
 
 def _atomic_json(path: Path, payload: dict) -> None:
