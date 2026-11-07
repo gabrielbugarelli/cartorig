@@ -1,5 +1,7 @@
 # CartoRig Native — Edit-first OpenFX developer preview
 
+**Real raster rendering and storage:** [PNG v2 lossless atlas engineering evidence](docs/NE_RASTER_PNG_V2_2026-11-07.md) — one official 50m raster was converted and rendered by native C++ with pixel-identical output and 90% less tile storage than the original RGBA atlas. Full 51/52 source acquisition and real Resolve host acceptance remain open.
+
 **Current source acquisition:** [NE-SOURCE-02 — available-source acquisition and experimental offline QA](docs/NE_SOURCE02_AVAILABLE_WORKFLOW_2026-11-07.md) documents the reviewed upstream outage, resilient local acquisition and opt-in non-certified Resolve test pack. The original 52-source production release gate remains mandatory.
 
 ## Natural Earth complete execution plan (zero-cost GitHub policy)
