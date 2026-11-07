@@ -13,9 +13,13 @@ int main(){
     brazil.sourceLayer="ne_10m_admin_0_countries";
     brazil.scale="10m";brazil.sourceRowId=15;
     brazil.fill={10,20,30,180};
+    brazil.stroke={80,90,100,255};
+    brazil.visible=false;
     const auto base=upsertGeographicSelection("",brazil);
     const auto initial=parseGeographicSelections(base);
     require(initial.size()==1 && initial[0].fill.a==180,"one RGBA country");
+    require(!initial[0].visible&&initial[0].stroke.g==90,
+            "region visibility and independent border color survive serialization");
     auto updated=brazil;updated.fill={200,10,60,200};
     const auto same=upsertGeographicSelection(base,updated);
     require(parseGeographicSelections(same).size()==1,
