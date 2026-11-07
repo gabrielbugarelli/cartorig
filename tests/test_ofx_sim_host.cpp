@@ -309,6 +309,34 @@ int main(int argc,char**argv){
          "one-click installed pack can add a region with no paths entered");
    check(render(generator,installed,W,H,0)==kOfxStatOK,
          "one-click installed pack draws selected country");
+   const auto selectedCountry=installed.clips.at("Output")->pixels;
+   overrideParam(installed,"NaturalEarthRasterSearch",std::string("relief"));
+   Bag rasterAction;
+   setS(bh(rasterAction),kOfxPropName,0,"NaturalEarthRasterSearch");
+   check(call(generator,kOfxActionInstanceChanged,installed,&rasterAction)==kOfxStatReplyDefault,
+         "native raster picker searches verified offline atlas list");
+   char *rasterLabel=nullptr;
+   check(getS(bh(installed.params.params.at("NaturalEarthRasterChoice")->properties),
+              kOfxParamPropChoiceOption,1,&rasterLabel)==kOfxStatOK&&
+         rasterLabel&&std::strstr(rasterLabel,"manual-shaded-relief")!=nullptr,
+         "offline raster dropdown displays real publisher source identifier");
+   overrideParam(installed,"NaturalEarthRasterChoice",1);
+   setS(bh(rasterAction),kOfxPropName,0,"NaturalEarthRasterApply");
+   check(call(generator,kOfxActionInstanceChanged,installed,&rasterAction)==kOfxStatOK,
+         "native raster picker applies validated offline atlas ID");
+   const auto &selectedRaster=installed.params.params.at("NaturalEarthRasterAsset")->val;
+   check(std::holds_alternative<std::string>(selectedRaster)&&
+         std::get<std::string>(selectedRaster)=="synthetic_relief_0",
+         "raster picker persists the chosen atlas ID in the clip");
+   check(render(generator,installed,W,H,0)==kOfxStatOK&&
+         installed.clips.at("Output")->pixels!=selectedCountry,
+         "chosen raster paints pixels over selected country");
+   overrideParam(installed,"NaturalEarthRasterChoice",0);
+   check(call(generator,kOfxActionInstanceChanged,installed,&rasterAction)==kOfxStatOK,
+         "raster picker disables imagery without clearing geographic regions");
+   check(render(generator,installed,W,H,0)==kOfxStatOK&&
+         installed.clips.at("Output")->pixels==selectedCountry,
+         "disabling raster preserves selected region cartography");
    check(call(generator,kOfxActionDestroyInstance,installed)==kOfxStatOK,
          "destroy auto-detected offline data pack instance");
 
