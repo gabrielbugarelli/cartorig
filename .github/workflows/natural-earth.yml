@@ -314,3 +314,45 @@ jobs:
           path: build/natural-earth/native-resolution-matrix/native-4k-qa.json
           retention-days: 1
           if-no-files-found: warn
+
+
+  # Explicit one-off public Windows QA kit: built OFX + complete source scripts.
+  # Do not upload Natural Earth publisher archives or experimental data packs.
+  windows-resolve-qa-kit:
+    if: github.event_name == 'push' && contains(github.event.head_commit.message, '[windows-qa-kit]')
+    runs-on: windows-2022
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure CartoRig OpenFX native Windows release
+        run: cmake -S . -B build/qa-windows -DCMAKE_BUILD_TYPE=Release -DCARTORIG_BUILD_TESTS=ON
+      - name: Build real Win64 OFX bundle and native pixel QA executable
+        run: cmake --build build/qa-windows --config Release --parallel 2
+      - name: Verify Windows native C++ / OFX tests
+        run: ctest --test-dir build/qa-windows -C Release --output-on-failure
+      - name: Package one-day native QA kit without Natural Earth data files
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $bundle='build/qa-windows/CartoRigNative.ofx.bundle'
+          if (-not (Test-Path "$bundle/Contents/Win64/CartoRigNative.ofx")) {
+            throw 'Built OFX DLL missing from native Windows bundle'
+          }
+          $stage='build/qa-kit'
+          New-Item -Force -ItemType Directory $stage | Out-Null
+          git archive --format=zip --output="$stage/CartoRigNative-Source.zip" HEAD
+          if ($LASTEXITCODE -ne 0) {throw 'Source snapshot failed'}
+          Copy-Item $bundle "$stage/CartoRigNative.ofx.bundle" -Recurse -Force
+          Copy-Item 'packaging/Install.ps1' "$stage/Install-CartoRigNative.ps1" -Force
+          Copy-Item 'packaging/Uninstall.ps1' "$stage/Uninstall-CartoRigNative.ps1" -Force
+          Copy-Item 'packaging/Install-DataPack.ps1' "$stage/Install-CartoRigNaturalEarth-DataPack.ps1" -Force
+          Copy-Item 'build/qa-windows/Release/cartorig_ne_raster_preview.exe' "$stage/cartorig_ne_raster_preview.exe" -Force
+          Copy-Item 'docs/NE_WINDOWS_END_TO_END_QA_2026-11-07.md' "$stage/READ-ME-FIRST.md" -Force
+          Write-Host 'Packaged verified Windows OpenFX QA kit. NO raster archives in artifact.'
+      - name: Upload bounded, one-day Windows Resolve 20 QA kit
+        uses: actions/upload-artifact@v4
+        with:
+          name: CartoRig-Resolve20-Windows-QA-Kit
+          path: build/qa-kit/
+          retention-days: 1
+          if-no-files-found: error
