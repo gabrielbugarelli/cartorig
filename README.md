@@ -1,6 +1,6 @@
 # CartoRig Native — Edit-first OpenFX developer preview
 
-**Real raster rendering and storage:** [PNG v2 lossless atlas engineering evidence](docs/NE_RASTER_PNG_V2_2026-11-07.md) — one official 50m raster was converted and rendered by native C++ with pixel-identical output and 90% less tile storage than the original RGBA atlas. Full 51/52 source acquisition and real Resolve host acceptance remain open.
+**Real raster rendering and performance:** [Three additional 50m families, native PNG/RGBA parity and measured 720p benchmarks](docs/NE_M3_MULTIFAMILY_REAL_RASTER_2026-11-07.md) expand the real conversion coverage to **four families**. Across the new three samples, PNG v2 saves **94.50% of atlas storage** with bit-identical native frame hashes; full-frame 720p medians were 5.65%–10.96% slower than raw RGBA on the public runner. See the [original PNG v2 baseline](docs/NE_RASTER_PNG_V2_2026-11-07.md). All 51 currently available source variants are **not yet downloaded persistently**; Windows Resolve 20 host acceptance and the 52/52 complete release remain open.
 
 **Current source acquisition:** [NE-SOURCE-02 — available-source acquisition and experimental offline QA](docs/NE_SOURCE02_AVAILABLE_WORKFLOW_2026-11-07.md) documents the reviewed upstream outage, resilient local acquisition and opt-in non-certified Resolve test pack. The original 52-source production release gate remains mandatory.
 
