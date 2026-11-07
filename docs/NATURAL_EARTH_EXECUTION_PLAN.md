@@ -245,8 +245,8 @@ Tests must not define success as a mock summary reporting 215 or 52. At least on
 | Gate | Current evidence | Status |
 | --- | --- | --- |
 | G0 CI/Windows validation | Source tests and Windows checks exist; post-public-host run still requires confirmation | OPEN |
-| G1 locked source inventory | 215 vector pin exists; `source_lock.py` and adversarial tests implemented; real 52-source SHA lock still absent | OPEN |
-| G2 source acquisition | HTTP Range/ETag byte-resume and corruption tests implemented; 52 actual sources not acquired here | OPEN |
+| G1 locked source inventory | Official audit 24/24 pages, 52 distinct raster ZIP variants (38 at 10m, 14 at 50m); immutable discovery fingerprint `dbd0bb7a...` committed; independent 52-archive content-SHA lock pending | PARTIAL |
+| G2 source acquisition | HTTP Range/ETag byte-resume, redirect checks and ZIP symlink safeguards tested; live source-page probe succeeded, 52 actual archives still pending | PARTIAL |
 | G3 raster derivative parity | builder + synthetic TIFF/PSD fixtures tested; actual 52/52 unknown | OPEN |
 | G4 all vector-layer rendering | 215/215 source inventory and primary polygons; not all types rendered | OPEN |
 | G5 pack/installer | fail-closed builder and installer source; real full pack absent | OPEN |
@@ -254,6 +254,24 @@ Tests must not define success as a mock summary reporting 215 or 52. At least on
 | G7 zero-cost public release | public MIT repo exists; full dataset release not published | OPEN |
 
 A feature, status or source count is marked PASS only with reproducible evidence: exact source tag, pack_id, test log, real publisher data proof, CI URL or actual Resolve recording. Missing evidence means OPEN/BLOCKED, never assumed PASS.
+
+### Publisher source discovery evidence — 2026-11-07 UTC
+
+- A real official-source audit ran on free GitHub-hosted Ubuntu Actions:
+  https://github.com/gabrielbugarelli/cartorig/actions/runs/42336954400
+- 24 indexed official pages, 0 inaccessible pages, 269 discovered links.
+- Exactly **52 unique official raster ZIP URLs**: **38 at 10m** and **14 at 50m**, from 16 raster-family pages. No source-archive SHA256 was claimed.
+- Audited canonical source rows are fingerprinted in
+  `data/natural-earth/raster_discovery_v2026-11-07.lock.json`, digest
+  `dbd0bb7a3323b764570c3305e0c778aaa73143cf15d941d2a84c1dba9cd2b0b0`.
+- This is **M1 discovery scope frozen**, not M1 final content provenance.
+  The 52 physical ZIPs and approved `raster_sources.lock.json` are still absent.
+- M2 tests include byte-range resume after interrupted transfers, servers
+  ignoring Range, changes to ETag, malformed 206, foreign HTTPS redirects,
+  excessive Content-Length, ZIP symlinks/drive paths and tampered source
+  manifests. Real WAN full-corpus acquisition remains outstanding.
+- Staging resume evidence is now stored OUTSIDE the future pack tree, surviving
+  interrupted final SHA256 hashing and atomic directory rename.
 
 ## 15. Definition of Done — Natural Earth Complete
 
