@@ -98,8 +98,8 @@ an unavailable source still blocks a complete release.
 
 Production and experimental builders now use lossless PNG v2 offline atlas
 tiles. One actual MSR_50M publisher source showed 90% less atlas storage
-and identical native C++ output to raw RGBA v1.
-See [PNG v2 real-source evidence](NE_RASTER_PNG_V2_2026-11-07.md).
+and identical native C++ output to raw RGBA v1. Three more real publisher 50m families independently reduced combined atlas bytes by 94.50%, with 5.65%–10.96% higher per-runner native 720p full-frame medians for PNG v2.
+See [PNG v2 real-source evidence](NE_RASTER_PNG_V2_2026-11-07.md) and [three-family benchmark results](NE_M3_MULTIFAMILY_REAL_RASTER_2026-11-07.md).
 The total 51-archive footprint has not been measured.
 
 ## Evidence and remaining blockers
