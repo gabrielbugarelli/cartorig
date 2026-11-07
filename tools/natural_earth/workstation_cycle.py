@@ -10,6 +10,8 @@ completely verified EXPERIMENTAL_INCOMPLETE 51/52 pack, and test genuine
 installed raster assets at native 720p/1440p/4K. A native C++ preview is
 NOT a DaVinci Resolve 20 host test. Full Natural Earth certification remains
 blocked by the original 52nd publisher source.
+The Windows kit deliberately ships no publisher data; the release workstation
+must obtain the real source bytes and record its own SHA256 evidence.
 """
 from __future__ import annotations
 import argparse
