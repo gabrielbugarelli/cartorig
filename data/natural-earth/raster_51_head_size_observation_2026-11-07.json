@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "format": "cartorig-ne-51-official-head-size-observation-v1",
+  "observed_utc": "2026-11-07",
+  "source": "Natural Earth publisher S3 archive HEAD metadata",
+  "discovery_rows_sha256": "dbd0bb7a3323b764570c3305e0c778aaa73143cf15d941d2a84c1dba9cd2b0b0",
+  "evidence_run": "https://github.com/gabrielbugarelli/cartorig/actions/runs/42338726085",
+  "expected_official_raster_variants": 52,
+  "head_size_verified_variants": 51,
+  "missing_publisher_archives": 1,
+  "missing_archive_resource_id": "ne-10m-raster-ae87770d641091765473",
+  "missing_original_filename": "US_MSR_10M.zip",
+  "content_sha256_verified_variants_from_this_head_probe": 0,
+  "aggregate_advertised_zip_bytes": 6687019474,
+  "aggregate_advertised_zip_gib": 6.228,
+  "largest_advertised_zip_bytes": 404291730,
+  "project_workstation_recommended_free_gib": 50,
+  "warning": "HEAD metadata is only an upstream transfer size snapshot. It is not a content download, no publisher binary was saved, 51 ZIPs still require SHA256+CRC on the persistent build machine, and final atlas expansion may exceed the suggested free space."
+}
