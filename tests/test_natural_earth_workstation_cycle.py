@@ -133,6 +133,23 @@ class CycleTests(unittest.TestCase):
         for row in bad:
             with self.subTest(value=row[-80:]),self.assertRaises(cycle.QAIncomplete):
                 cycle.parse_native_matrix(row)
+    def test_both_storage_volumes_require_capacity_before_network(self):
+        from types import SimpleNamespace
+        from unittest.mock import patch
+        made=[]
+        def fake_usage(path):
+            made.append(str(path))
+            return SimpleNamespace(free=20*1024**3)
+        with patch.object(cycle.shutil,"disk_usage",side_effect=fake_usage):
+            with self.assertRaisesRegex(cycle.QAIncomplete,"50 GiB threshold"):
+                cycle.run(
+                    workspace=self.workspace,output=self.output,
+                    allow_network=True,max_downloads=12,
+                    acquire_fn=lambda **_:self.fail("must not acquire without space"),
+                    build_fn=lambda **_:self.fail("must not build without space"),
+                    verify_fn=verified)
+        self.assertTrue(made)
+
     def test_nested_workspaces_and_invalid_limits_fail_without_writes(self):
         with self.assertRaisesRegex(ValueError,"separate"):
             cycle.run(workspace=self.workspace,output=self.workspace/"pack")
