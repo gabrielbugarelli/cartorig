@@ -30,13 +30,24 @@ local function main()
     createdProject = assert_ok(projectManager:CreateProject(projectName),
                                "Create new isolated " .. projectName)
     local pool = assert_ok(createdProject:GetMediaPool(), "Get media pool")
-    createdTimeline = assert_ok(pool:CreateEmptyTimeline("CartoRig Hybrid Test 1080p"),
+    createdTimeline = assert_ok(pool:CreateEmptyTimeline("CartoRig Hybrid Test"),
                                 "Create test timeline")
     assert_ok(createdProject:SetCurrentTimeline(createdTimeline), "Select QA timeline")
-    assert_ok(createdTimeline:SetSetting("timelineResolutionWidth", "1920"),
-              "Set 1920 width")
-    assert_ok(createdTimeline:SetSetting("timelineResolutionHeight", "1080"),
-              "Set 1080 height")
+    -- Resolve 20 may refuse to change an existing timeline's resolution
+    -- through Timeline.SetSetting(). Resolution is irrelevant to the
+    -- core Fusion+OFX integration proof. Respect the user's project default.
+    local successW, width = pcall(function()
+        return createdTimeline:GetSetting("timelineResolutionWidth")
+    end)
+    local successH, height = pcall(function()
+        return createdTimeline:GetSetting("timelineResolutionHeight")
+    end)
+    if successW and successH and width and height then
+        print("[CartoRig Hybrid Test] Using default timeline: " ..
+              tostring(width) .. "x" .. tostring(height))
+    else
+        print("[CartoRig Hybrid Test] Using Resolve default timeline resolution.")
+    end
 
     local clip = assert_ok(createdTimeline:InsertOFXGeneratorIntoTimeline("CartoRig Map (Edit)"),
                            "Insert CartoRig Map (Edit) OFX generator")
