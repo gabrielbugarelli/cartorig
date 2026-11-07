@@ -49,6 +49,24 @@ class RealResolutionQATests(unittest.TestCase):
         for number,text in enumerate(invalid):
             with self.subTest(number=number),self.assertRaises(ValueError):
                 probe.parse_matrix(text)
+    def test_recorded_native_real_4k_source_proof_never_claims_host(self):
+        path=Path(__file__).resolve().parents[1]/(
+            "data/natural-earth/native_real_4k_observation_2026-11-07.json")
+        observed=json.loads(path.read_text(encoding="utf-8"))
+        source=expected_official_sample(OBS)
+        self.assertEqual(observed["source_sha256"],source["observed_sha256"])
+        self.assertEqual(observed["archive_bytes"],source["archive_bytes"])
+        self.assertTrue(observed["identical_rgba_and_png_pixel_hashes"])
+        self.assertFalse(observed["real_resolve_studio_20_host_test"])
+        self.assertFalse(observed["full_natural_earth_release_certified"])
+        self.assertEqual(len(observed["resolutions"]),3)
+        self.assertEqual(observed["resolutions"][-1]["pixels"],3840*2160)
+        self.assertEqual(observed["resolutions"][-1]["sha_frame_hash"],
+                         "9566281827029369332")
+        for item in observed["resolutions"]:
+            self.assertEqual(item["png_overhead_pct"],round(
+                100*(item["png_v2_median_ms"]/item["rgba_v1_median_ms"]-1),2))
+
     def test_documented_resolution_qa_never_implies_resolve_host(self):
         self.assertEqual(probe.REQUIRED_RESOLUTIONS,
                          ((1280,720),(2560,1440),(3840,2160)))
