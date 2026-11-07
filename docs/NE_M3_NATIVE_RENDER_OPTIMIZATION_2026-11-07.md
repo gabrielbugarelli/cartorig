@@ -76,6 +76,10 @@ Machine-readable proof:
    64 tiles / at most ~16 MiB per render request. No new Python, OpenCV,
    web requests or OS-specific services are required at Resolve runtime.
 
+### Additional native 1440p/4K real-source acceptance
+
+A separate one-off publisher-backed [real 720p/1440p/4K native matrix run](https://github.com/gabrielbugarelli/cartorig/actions/runs/42346691749) confirmed identical output frame hashes from the same source in PNG v2 and RGBA v1 at all three resolutions. The 2560x1440 medians were PNG 288.704ms and RGBA 256.051ms; 3840x2160 were PNG 728.366ms and RGBA 542.239ms (5 passes on an Ubuntu CI runner). This is **actual native C++ raster computation**, not the licensed Resolve Studio 20 host. Evidence: [native_real_4k_observation](../data/natural-earth/native_real_4k_observation_2026-11-07.json). No claim of 30/60 FPS on the target machine.
+
 ## Release/QA limits
 
 The observed optimized 720p CPU frame time **still ranges from 74.337
