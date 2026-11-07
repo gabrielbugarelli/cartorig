@@ -29,3 +29,12 @@ SHA256 values, and commit the reviewed result. `release_pipeline.py` now
 rejects a Complete pack build if the lock is absent or disagrees with the
 publisher archive SHA256 values. This avoids publishing fictional source
 integrity claims based solely on locally generated download summaries.
+
+## Real raster compression proof
+
+A genuine 50m Manual Shaded Relief archive (17,984,241 bytes) was
+converted and rendered in native C++ as both raw RGBA v1 and lossless PNG v2.
+PNG v2 reduced one atlas from 335,806,464 to 33,583,241 bytes (90.0%)
+with identical native output frame hash and 230,400 pixels.
+See raster_png_v2_observation_2026-11-07.json and
+../../docs/NE_RASTER_PNG_V2_2026-11-07.md. This is not full-pack proof.
