@@ -178,30 +178,13 @@ def audit(fetch=fetch_page) -> dict:
     }
 
 def download_and_hash(url: str, path: Path, max_bytes: int = MAX_ARCHIVE) -> tuple[int,str]:
-    """Explicit producer-only download. Runtime is strictly offline."""
+    """Opt-in publisher HTTPS download, safely resumable between invocations."""
     canonical = canonical_url(url, BASE)
-    if canonical != url or not any(urllib.parse.urlsplit(url).path.lower().endswith(x) for x in ARCHIVE_TYPES):
+    if (canonical != url or not any(urllib.parse.urlsplit(url).path.lower().endswith(x)
+                                    for x in ARCHIVE_TYPES)):
         raise ValueError("download must be an official, canonical archive URL")
-    path.parent.mkdir(parents=True, exist_ok=True)
-    temp = path.with_suffix(path.suffix + ".part")
-    h = hashlib.sha256()
-    count = 0
-    try:
-        with urllib.request.urlopen(urllib.request.Request(
-                url, headers={"User-Agent": "CartoRigNaturalEarthBuild/0.1"}), timeout=90) as source:
-            if urllib.parse.urlsplit(source.url).hostname not in ALLOWED_HOSTS:
-                raise ValueError("redirect outside official data providers")
-            with temp.open("wb") as dest:
-                while chunk := source.read(1024 * 1024):
-                    count += len(chunk)
-                    if count > max_bytes:
-                        raise ValueError("archive exceeds configured size limit")
-                    h.update(chunk)
-                    dest.write(chunk)
-        temp.replace(path)
-    finally:
-        temp.unlink(missing_ok=True)
-    return count, h.hexdigest()
+    from tools.natural_earth.resumable_download import download
+    return download(url,path,allowed_hosts=ALLOWED_HOSTS,max_bytes=max_bytes)
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__)
