@@ -62,29 +62,32 @@ def probe(out:Path, preview:Path,observations:Path,
         "sha256":sha,"status":"VERIFIED",
     }
     root=out/"rasters"
-    report=compile_archives({"schema_version":1,"resources":[record]},publisher,root)
+    report=compile_archives({"schema_version":1,"resources":[record]},
+                            publisher,root,tile_format="png")
     if (not report["complete"] or report["sources_converted"]!=1 or
         not report["assets"] or report["failures"]):
         raise RuntimeError("real publisher raster conversion failed: "+repr(report))
     assets=[]
-    raw_bytes=0
+    compressed_bytes=0
+    raw_equivalent_bytes=0
     total_tiles=0
     for asset in report["assets"]:
         ident=asset["asset_id"]
         meta=json.loads((root/ident/"index.json").read_text(encoding="utf-8"))
-        if (meta.get("format")!="cartorig-rgba-tiles-v1" or
+        if (meta.get("format")!="cartorig-png-tiles-v2" or
             meta.get("provenance",{}).get("source_sha256")!=sha):
             raise RuntimeError("raster atlas source provenance was lost")
         counts=[level["tiles_x"]*level["tiles_y"] for level in meta["levels"]]
         tiles=sum(counts)
         if tiles<=0:
             raise RuntimeError("publisher raster produced no real atlas tiles")
-        actual_tiles=list((root/ident/"tiles").rglob("*.rgba"))
+        actual_tiles=list((root/ident/"tiles").rglob("*.png"))
         if len(actual_tiles)!=tiles:
             raise RuntimeError("publisher raster tile count mismatch")
         byte_count=sum(p.stat().st_size for p in actual_tiles)
-        if byte_count!=tiles*256*256*4:
-            raise RuntimeError("raw atlas tiles disagree with 256x256 RGBA contract")
+        raw_equivalent=tiles*256*256*4
+        if byte_count<=0 or byte_count>=raw_equivalent:
+            raise RuntimeError("PNG v2 atlas did not reduce official raster storage")
         output=renderer([str(preview),str(root),ident],
                         capture_output=True,text=True,timeout=90)
         if output.returncode!=0:
@@ -95,10 +98,14 @@ def probe(out:Path, preview:Path,observations:Path,
             raise RuntimeError("native raster preview evidence is malformed: "+
                                output.stdout[:300])
         native_pixels,native_frame_hash,native_levels=map(int,match.groups())
-        if native_pixels<100 or native_levels!=len(meta["levels"]) or native_frame_hash==0:
-            raise RuntimeError("native C++ raster rendered invalid pixels/LOD")
+        # Previous real RGBA v1 baseline from the same pinned official source:
+        # https://github.com/gabrielbugarelli/cartorig/actions/runs/42342818040
+        if (native_pixels!=230400 or native_levels!=len(meta["levels"]) or
+            native_frame_hash!=13112041101257582482):
+            raise RuntimeError("PNG v2 native pixels differ from verified real RGBA v1")
         total_tiles+=tiles
-        raw_bytes+=byte_count
+        compressed_bytes+=byte_count
+        raw_equivalent_bytes+=raw_equivalent
         assets.append({
             "asset_id":ident,
             "publisher_image":meta["provenance"]["publisher_image"],
@@ -107,7 +114,9 @@ def probe(out:Path, preview:Path,observations:Path,
             "extent":meta["extent"],
             "lod_levels":len(meta["levels"]),
             "tile_count":tiles,
-            "raw_tile_bytes":byte_count,
+            "compressed_png_tile_bytes":byte_count,
+            "equivalent_raw_rgba_tile_bytes":raw_equivalent,
+            "storage_reduction_pct":round(100*(1-byte_count/raw_equivalent),2),
             "native_rendered_pixels":native_pixels,
             "native_frame_hash":native_frame_hash,
         })
@@ -122,7 +131,13 @@ def probe(out:Path, preview:Path,observations:Path,
         "converted_source_count":report["sources_converted"],
         "atlas_asset_count":len(assets),
         "total_atlas_tiles":total_tiles,
-        "total_raw_rgba_tile_bytes":raw_bytes,
+        "tile_format":"cartorig-png-tiles-v2",
+        "total_compressed_png_tile_bytes":compressed_bytes,
+        "total_equivalent_raw_rgba_tile_bytes":raw_equivalent_bytes,
+        "overall_storage_reduction_pct":round(
+            100*(1-compressed_bytes/raw_equivalent_bytes),2),
+        "legacy_v1_native_hash_expected":13112041101257582482,
+        "pixel_identical_to_legacy_v1":True,
         "assets":assets,
         "scope":"one official 50m raster; not a 51/52 production pack or real DaVinci Resolve host test",
     }
