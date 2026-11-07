@@ -1,0 +1,27 @@
+CARTORIG - EASY HYBRID TEST FOR DAVINCI RESOLVE STUDIO 20 / WINDOWS
+===================================================================
+
+1. CLOSE DaVinci Resolve.
+2. Double-click "Install-CartoRig.cmd" (approve the Windows UAC prompt).
+3. Start Resolve Studio 20 and go to:
+   Workspace > Scripts > Utility > CartoRig Hybrid Test
+
+The script creates a NEW disposable QA project (does not change existing clips).
+Save your current work before running it. In the Edit timeline, inspect frames
+18 and 40 for BRA/VEN text over the real CartoRig map. The script does not
+claim geographic anchoring or final user-facing functionality.
+
+If the architecture is not supported by your Resolve installation, the new
+QA timeline will have a RED marker ("CartoRig Hybrid Test BLOCKED").
+A status file will also be written to:
+  %TEMP%\CartoRig-Hybrid-Test-Result.txt
+
+No Python, CMake, ImageMagick, Natural Earth bulk data downloads, network
+access at runtime, or PowerShell commands from the end user are required.
+The installer uses Windows PowerShell internally and installs the prebuilt
+OFX plugin + one Lua script in the Resolve Scripts menu.
+
+IMPORTANT: This is an EXPERIMENTAL architecture test, not certified software.
+Only obtain it from the official gabrielbugarelli/cartorig GitHub repository.
+The downloaded .CMD/.PS1 are unsigned; Windows may display security prompts.
+Do not use real projects for the experiment.
