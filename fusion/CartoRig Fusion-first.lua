@@ -1,4 +1,4 @@
--- CartoRig Fusion-first v0.2.1: protected startup with persistent diagnostics.
+-- CartoRig Fusion-first v0.2.2: native mask loader with persistent diagnostics.
 -- The editor is shown BEFORE any expensive Fusion map-node construction.
 local function startup_log(message)
     local line = os.date('%Y-%m-%d %H:%M:%S') .. ' | ' .. tostring(message)
@@ -11,7 +11,7 @@ local function startup_log(message)
     end
 end
 local function main()
-    startup_log('START v0.2.1 — entry point executed')
+    startup_log('START v0.2.2 — entry point executed')
 -- CartoRig 0.2 greenfield Fusion-first authoring interface for DaVinci Resolve Studio 20.
 -- This file deliberately does not depend on earlier CartoRig plugin implementations.
 -- Creates genuine Natural Earth polygon masks, Fusion nodes, independent native splines.
@@ -40,7 +40,7 @@ local win=dispatcher:AddWindow({
     ID='CartoRigMain',WindowTitle='CartoRig — Fusion-first Map Editor',Geometry={80,90,490,810},
 },ui:VGroup{ID='CR_Root',Spacing=6,
     ui:Label{ID='CR_Title',Text='CARTORIG · MAP SCENE'},
-    ui:Label{ID='CR_Source',Text='Fusion-first v0.2.1 · Offline Natural Earth · Editor'},
+    ui:Label{ID='CR_Source',Text='Fusion-first v0.2.2 · Offline Natural Earth · Editor'},
     ui:Button{ID='CR_CreateScene',Text='Create Map in this Fusion Composition'},
     ui:HGroup{
         ui:LineEdit{ID='CR_Find',PlaceholderText='Find location: Brasil, São Paulo, Amapá...'},
