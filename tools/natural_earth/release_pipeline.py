@@ -139,8 +139,15 @@ def produce(*,workspace:Path,output:Path,allow_network:bool=False,
     workspace=workspace.resolve()
     workspace.mkdir(parents=True,exist_ok=True)
     sources=_load_verified_inventory(workspace,allow_network)
+    # Verify 215 vector layers using official GPKG + 33 pinned supplements.
+    # Source-page vector ZIP links are alternate distribution formats and
+    # need not be downloaded redundantly. Download all raster variants.
+    raster_only=dict(sources,resources=[item for item in sources["resources"]
+                                      if item.get("theme")=="raster"])
+    if not raster_only["resources"]:
+        raise ReleaseNotReady("Natural Earth inventory has no raster archives")
     acquired=materialize.materialize(
-        sources,workspace/"downloads",allow_network=allow_network,
+        raster_only,workspace/"downloads",allow_network=allow_network,
         max_downloads=max_downloads if allow_network else 0)
     if not acquired["summary"]["complete"]:
         raise ReleaseNotReady(
