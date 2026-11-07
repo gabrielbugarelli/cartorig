@@ -2,6 +2,7 @@
 import json
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from unittest.mock import patch
 import unittest
 
 from tools import cartorig_fusion_spike as probe
@@ -202,7 +203,7 @@ class HybridProbeTests(unittest.TestCase):
         self.assertEqual(result["status"], "HOST_CONNECTED_HYBRID_GATES_PENDING")
         self.assertEqual(self.app.manager.projects, {})
         self.assertFalse(result["full_cartorig_product_accepted"])
-        self.assertFalse(json.loads(report.read_text())["real_host_viewer_or_deliver_verified"])
+        self.assertFalse(json.loads(report.read_text())["real_host_deliver_job_completed"])
 
     def test_prepare_requires_explicit_project_switch_consent(self):
         with self.assertRaisesRegex(probe.ProbeError, "allow-switch-project"):
@@ -268,6 +269,56 @@ class HybridProbeTests(unittest.TestCase):
     def test_missing_binary_fails_preflight(self):
         with self.assertRaisesRegex(probe.ProbeError, "not found"):
             probe.preflight(self.app, self.root / "missing.ofx")
+
+
+    def test_render_needs_consent_and_preserves_existing_outputs(self):
+        probe.prepare(self.app, self.project, allow_project_switch=True)
+        output = self.root / "existing"
+        output.mkdir()
+        (output / "keep-me.mp4").write_bytes(b"unaltered")
+        with self.assertRaisesRegex(probe.ProbeError, "must be empty"):
+            probe.render(self.app, self.project, output)
+        self.assertEqual((output / "keep-me.mp4").read_bytes(), b"unaltered")
+        with self.assertRaisesRegex(probe.ProbeError, "allow-switch-project"):
+            probe.run_cli("render", self.root / "blocked.json", self.project,
+                          app=self.app, binary=self.bundle, render_dir=self.root/"renders")
+
+    def test_real_render_job_contract_requires_output_but_not_visual_claim(self):
+        probe.prepare(self.app, self.project, allow_project_switch=True)
+        project = self.app.manager.projects[self.project]
+        project.SetCurrentRenderFormatAndCodec = lambda fmt, codec: fmt == "mp4" and codec == "H264"
+        def set_settings(settings):
+            project.render_settings = settings
+            return True
+        project.SetRenderSettings = set_settings
+        project.AddRenderJob = lambda: "qa-job"
+        def start_render(jobs):
+            self.assertEqual(jobs, ["qa-job"])
+            output = Path(project.render_settings["TargetDir"])
+            (output / (project.render_settings["CustomName"] + ".mp4")).write_bytes(b"simulated-host-output" * 100)
+            return True
+        project.StartRendering = start_render
+        project.IsRenderingInProgress = lambda: False
+        project.GetRenderJobStatus = lambda job: {"JobStatus": "Complete"}
+        self.app.OpenPage = lambda page: page == "deliver"
+        report = self.root / "render.json"
+        with patch.object(probe, "_video_resolution", return_value=(1920,1080)):
+            result = probe.run_cli("render", report, self.project,
+                                   app=self.app, binary=self.bundle,
+                                   allow_project_switch=True,
+                                   render_dir=self.root / "fresh")
+        self.assertEqual(result["status"],
+                         "LIVE_HYBRID_QA_DELIVER_JOB_COMPLETE_VISUAL_REVIEW_PENDING")
+        self.assertTrue(result["real_host_deliver_job_completed"])
+        self.assertFalse(result["action"]["visual_composite_pixels_accepted"])
+        self.assertFalse(result["full_cartorig_product_accepted"])
+
+    def test_verify_requires_explicit_project_switch(self):
+        probe.prepare(self.app, self.project, allow_project_switch=True)
+        with self.assertRaisesRegex(probe.ProbeError, "allow-switch-project"):
+            probe.run_cli("verify", self.root / "verify-blocked.json", self.project,
+                          app=self.app, binary=self.bundle)
+
 
 
 if __name__ == "__main__":
