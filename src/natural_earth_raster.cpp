@@ -209,6 +209,58 @@ void renderNaturalEarthRaster(const NaturalEarthRaster &raster,
     auto it=tiles.emplace(key,CacheTile{std::move(rgba),recent.begin()}).first;
     return it->second.rgba;
   };
+  auto paintSample=[&](int hostX,int hostY,int px,int py){
+    const int tx=px/tileSize,ty=py/tileSize;
+    const auto &tile=sampleTile(tx,ty);
+    const std::size_t offset=(static_cast<std::size_t>(py%tileSize)*tileSize+
+                              static_cast<std::size_t>(px%tileSize))*4;
+    const Color pixel{tile[offset],tile[offset+1],tile[offset+2],tile[offset+3]};
+    if(pixel.a==0)return;
+    compositeColor(target,hostX,hostY,pixel,view.opacity);
+    if(stats)++stats->written;
+  };
+  if(view.camera.bearing==0.0){
+    // Unrotated Mercator is separable: longitude depends only on screen X,
+    // latitude only on screen Y. All projection math is evaluated through
+    // the same unproject() function, preserving the existing source pixel
+    // selection, antimeridian wrapping and OpenFX host coordinates.
+    // Projection evaluations fall from O(width*height) to O(width+height).
+    // The rotated-camera fallback below preserves the general projection.
+    std::vector<int> sourceX(static_cast<std::size_t>(target.x2-target.x1),-1);
+    std::vector<int> sourceY(static_cast<std::size_t>(target.y2-target.y1),-1);
+    const double imageWidth=raster.east-raster.west;
+    const double imageHeight=raster.north-raster.south;
+    const int sampleScreenY=view.height-1-target.y1;
+    for(int x=target.x1;x<target.x2;++x){
+      const auto point=unproject(
+          {x+0.5,sampleScreenY+0.5},view.camera,view.width,view.height);
+      if(point.lon<raster.west||point.lon>=raster.east)continue;
+      const double fx=(point.lon-raster.west)/imageWidth;
+      if(!std::isfinite(fx))continue;
+      sourceX[static_cast<std::size_t>(x-target.x1)]=std::clamp(
+          static_cast<int>(fx*level.width),0,level.width-1);
+    }
+    for(int y=target.y1;y<target.y2;++y){
+      const int screenY=view.height-1-y;
+      const auto point=unproject(
+          {target.x1+0.5,screenY+0.5},view.camera,view.width,view.height);
+      if(point.lat<=raster.south||point.lat>raster.north)continue;
+      const double fy=(raster.north-point.lat)/imageHeight;
+      if(!std::isfinite(fy))continue;
+      sourceY[static_cast<std::size_t>(y-target.y1)]=std::clamp(
+          static_cast<int>(fy*level.height),0,level.height-1);
+    }
+    for(int hostY=target.y1;hostY<target.y2;++hostY){
+      const int py=sourceY[static_cast<std::size_t>(hostY-target.y1)];
+      if(py<0)continue;
+      for(int hostX=target.x1;hostX<target.x2;++hostX){
+        const int px=sourceX[static_cast<std::size_t>(hostX-target.x1)];
+        if(px<0)continue;
+        paintSample(hostX,hostY,px,py);
+      }
+    }
+    return;
+  }
   for(int hostY=target.y1;hostY<target.y2;++hostY){
     const int screenY=view.height-1-hostY;
     for(int hostX=target.x1;hostX<target.x2;++hostX){
@@ -221,14 +273,7 @@ void renderNaturalEarthRaster(const NaturalEarthRaster &raster,
       if(!std::isfinite(fx)||!std::isfinite(fy))continue;
       const int px=std::clamp(static_cast<int>(fx*level.width),0,level.width-1);
       const int py=std::clamp(static_cast<int>(fy*level.height),0,level.height-1);
-      const int tx=px/tileSize,ty=py/tileSize;
-      const auto &tile=sampleTile(tx,ty);
-      const std::size_t offset=(static_cast<std::size_t>(py%tileSize)*tileSize+
-                                static_cast<std::size_t>(px%tileSize))*4;
-      const Color pixel{tile[offset],tile[offset+1],tile[offset+2],tile[offset+3]};
-      if(pixel.a==0)continue;
-      compositeColor(target,hostX,hostY,pixel,view.opacity);
-      if(stats)++stats->written;
+      paintSample(hostX,hostY,px,py);
     }
   }
 }
