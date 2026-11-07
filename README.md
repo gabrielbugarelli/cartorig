@@ -1,5 +1,7 @@
 # CartoRig Native — Edit-first OpenFX developer preview
 
+**Current source acquisition:** [NE-SOURCE-02 — available-source acquisition and experimental offline QA](docs/NE_SOURCE02_AVAILABLE_WORKFLOW_2026-11-07.md) documents the reviewed upstream outage, resilient local acquisition and opt-in non-certified Resolve test pack. The original 52-source production release gate remains mandatory.
+
 ## Natural Earth complete execution plan (zero-cost GitHub policy)
 
 The engineering work order is [Natural Earth Complete — Execution Plan](docs/NATURAL_EARTH_EXECUTION_PLAN.md). It defines source certification (215 vector layers and the frozen raster variants), download and builder recovery, all-layer rendering, independent pack verification, real Resolve Studio 20 acceptance, and GitHub **USD 0** infrastructure. The production pack has **not** been certified. The current PR remains draft.
