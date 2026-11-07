@@ -31,6 +31,8 @@ The three source ZIP files were 10,983,477, 17,991,035 and 11,380,369
 bytes respectively. See the per-source SHA256 and exact hashes in
 `data/natural-earth/multi_raster_native_observation_2026-11-07.json`.
 
+**Subsequent optimization:** The separate, same-source [three-stage native render performance report](NE_M3_NATIVE_RENDER_OPTIMIZATION_2026-11-07.md) compares this baseline to axis-aligned projection precomputation and row-local cache reuse. All three original publisher frame hashes stayed unchanged, and the final observed 720p PNG v2 medians were 74.386 ms (Gray Earth), 87.977 ms (PRISMA), and 74.337 ms (Shaded Relief). The original table below intentionally preserves the **pre-optimization** baseline measurements.
+
 ## Benchmark interpretation
 
 The benchmark is `cartorig_ne_raster_preview --bench`, which measures
