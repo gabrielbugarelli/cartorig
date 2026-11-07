@@ -1,0 +1,49 @@
+{
+  "schema_version": 1,
+  "format": "cartorig-ne-real-source-4k-native-observation-v1",
+  "date_utc": "2026-11-07",
+  "official_archive_url": "https://naturalearth.s3.amazonaws.com/50m_raster/MSR_50M.zip",
+  "source_sha256": "e38f8b256f64eccae250a1e482761d4a7a585e6602c941e6bdb860e160faf609",
+  "archive_bytes": 17984241,
+  "zip_crc_members": 13,
+  "evidence_run": "https://github.com/gabrielbugarelli/cartorig/actions/runs/42346691749",
+  "native_benchmark": "C++ cartorig_ne_raster_preview, standard public Ubuntu-24.04 runner, five 720p/1440p/4K full frame passes; medians include disk PNG decode, projection, compositing",
+  "baseline_640x360_frame_hash": "13112041101257582482",
+  "atlas_levels": 7,
+  "tiles": 1281,
+  "raw_rgba_atlas_bytes": 335806464,
+  "png_v2_atlas_bytes": 33583241,
+  "identical_rgba_and_png_pixel_hashes": true,
+  "real_resolve_studio_20_host_test": false,
+  "full_natural_earth_release_certified": false,
+  "resolutions": [
+    {
+      "width": 1280,
+      "height": 720,
+      "pixels": 921600,
+      "sha_frame_hash": "209897914028017421",
+      "rgba_v1_median_ms": 63.224,
+      "png_v2_median_ms": 77.155,
+      "png_overhead_pct": 22.03
+    },
+    {
+      "width": 2560,
+      "height": 1440,
+      "pixels": 3686400,
+      "sha_frame_hash": "16021997217166669481",
+      "rgba_v1_median_ms": 256.051,
+      "png_v2_median_ms": 288.704,
+      "png_overhead_pct": 12.75
+    },
+    {
+      "width": 3840,
+      "height": 2160,
+      "pixels": 8294400,
+      "sha_frame_hash": "9566281827029369332",
+      "rgba_v1_median_ms": 542.239,
+      "png_v2_median_ms": 728.366,
+      "png_overhead_pct": 34.33
+    }
+  ],
+  "limitations": "Pixels/hashes and native frame rendering verified at 720p/1440p/4K on one official MSR_50M archive only. NOT real DaVinci Resolve 20 licensed host, not 51/52 package, no overlay or Inspector certification."
+}

@@ -1,0 +1,8 @@
+# Release-machine-only build dependencies (never bundled with OpenFX).
+# Versions validated on Python 3.13 Linux for streaming GeoTIFF conversion.
+Pillow==12.3.0
+numpy==2.3.5
+# Rasterio 1.5 requires CPython >=3.12; CI also validates 3.11.
+# The authoritative release producer uses Python 3.12 + rasterio 1.5.0.
+rasterio==1.4.4; python_version < "3.12"
+rasterio==1.5.0; python_version >= "3.12"

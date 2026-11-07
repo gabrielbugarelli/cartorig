@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(CartoRigNative VERSION 0.3.0 LANGUAGES CXX)
+project(CartoRigNative VERSION 0.4.0 LANGUAGES CXX)
 option(CARTORIG_BUILD_TESTS "Build the standalone C++ core tests" ON)
 option(CARTORIG_SANITIZERS "Build with address/undefined-behavior sanitizers (Clang/GCC)" OFF)
 if(CARTORIG_SANITIZERS AND NOT MSVC)
@@ -13,12 +13,16 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 add_library(cartorig_core STATIC
   src/cartorig.cpp
   src/raster.cpp
+  src/natural_earth_raster.cpp
+  third_party/lodepng/lodepng.cpp
+  src/natural_earth_regions.cpp
   src/compositing.cpp
   src/native_controls.cpp
   third_party/json11/json11.cpp)
 target_include_directories(cartorig_core PUBLIC
   ${CMAKE_CURRENT_SOURCE_DIR}/src
-  ${CMAKE_CURRENT_SOURCE_DIR}/third_party/json11)
+  ${CMAKE_CURRENT_SOURCE_DIR}/third_party/json11
+  ${CMAKE_CURRENT_SOURCE_DIR}/third_party/lodepng)
 set_target_properties(cartorig_core PROPERTIES POSITION_INDEPENDENT_CODE ON)
 if(MSVC)
   target_compile_options(cartorig_core PRIVATE /W4 /EHsc)
@@ -49,8 +53,21 @@ if(CARTORIG_BUILD_SHA MATCHES "^[0-9a-f]+$" AND
     string(SUBSTRING "${CARTORIG_BUILD_SHA}" 0 12 CARTORIG_BUILD_SHA)
   endif()
 endif()
+# The native Natural Earth search adapter is isolated from the already-validated
+# rasterizer/OpenFX binary until host UX and dataset packaging are verified.
+add_library(cartorig_ne_catalog STATIC src/natural_earth_catalog.cpp src/natural_earth_geometry.cpp)
+set_target_properties(cartorig_ne_catalog PROPERTIES POSITION_INDEPENDENT_CODE ON)
+target_include_directories(cartorig_ne_catalog PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
+if(UNIX AND NOT APPLE)
+  target_link_libraries(cartorig_ne_catalog PUBLIC ${CMAKE_DL_LIBS})
+endif()
+if(MSVC)
+  target_compile_options(cartorig_ne_catalog PRIVATE /W4 /EHsc)
+else()
+  target_compile_options(cartorig_ne_catalog PRIVATE -Wall -Wextra -Wpedantic)
+endif()
 add_library(CartoRigNative MODULE src/ofx_plugin.cpp)
-target_link_libraries(CartoRigNative PRIVATE cartorig_core)
+target_link_libraries(CartoRigNative PRIVATE cartorig_core cartorig_ne_catalog)
 configure_file(
   "${CMAKE_CURRENT_SOURCE_DIR}/src/build_info.h.in"
   "${CMAKE_CURRENT_BINARY_DIR}/generated/cartorig_build_info.hpp"
@@ -86,6 +103,33 @@ configure_file(data/default-map.cartorig-native.json "${CARTORIG_BUNDLE}/Content
 
 if(CARTORIG_BUILD_TESTS)
   enable_testing()
+  add_executable(cartorig_ne_geometry_tests tests/test_ne_geometry.cpp)
+  target_link_libraries(cartorig_ne_geometry_tests PRIVATE cartorig_ne_catalog)
+  add_test(NAME cartorig_ne_wkb_geopackage_geometry COMMAND cartorig_ne_geometry_tests)
+  add_executable(cartorig_ne_raster_preview tools/ne_raster_preview.cpp)
+  target_link_libraries(cartorig_ne_raster_preview PRIVATE cartorig_core)
+  add_executable(cartorig_ne_raster_projection_tests tests/test_ne_raster_projection.cpp)
+  target_link_libraries(cartorig_ne_raster_projection_tests PRIVATE cartorig_core)
+  add_test(NAME cartorig_ne_raster_fast_projection_pixel_parity COMMAND cartorig_ne_raster_projection_tests)
+  add_executable(cartorig_ne_regions_tests tests/test_ne_regions.cpp)
+  target_link_libraries(cartorig_ne_regions_tests PRIVATE cartorig_core)
+  add_test(NAME cartorig_ne_persistent_region_styles COMMAND cartorig_ne_regions_tests)
+  add_executable(cartorig_ne_preview tools/ne_country_preview.cpp)
+  target_link_libraries(cartorig_ne_preview PRIVATE cartorig_ne_catalog cartorig_core)
+  add_executable(cartorig_ne_lookup tools/ne_lookup.cpp)
+  target_link_libraries(cartorig_ne_lookup PRIVATE cartorig_ne_catalog)
+  find_package(Python3 COMPONENTS Interpreter QUIET)
+  if(Python3_Interpreter_FOUND)
+    add_test(NAME cartorig_ne_raster_native_offline_pixels
+      COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tests/test_ne_raster_cpp.py
+        $<TARGET_FILE:cartorig_ne_raster_preview>)
+    add_test(NAME cartorig_ne_native_offline_search
+      COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tests/test_ne_cpp.py
+        $<TARGET_FILE:cartorig_ne_lookup> ${CMAKE_CURRENT_SOURCE_DIR}
+        $<TARGET_FILE:cartorig_ne_preview>
+        $<TARGET_FILE:cartorig_ofx_sim_host_tests>
+        $<TARGET_FILE:CartoRigNative>)
+  endif()
   add_executable(cartorig_native_controls_tests tests/test_native_controls.cpp)
   target_link_libraries(cartorig_native_controls_tests PRIVATE cartorig_core)
   target_compile_definitions(cartorig_native_controls_tests PRIVATE CARTORIG_ROOT="${CMAKE_CURRENT_SOURCE_DIR}")

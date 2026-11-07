@@ -1,0 +1,358 @@
+name: Natural Earth offline backend checks
+on:
+  push:
+    branches: [feat/natural-earth-offline-data]
+    paths:
+      - "tools/natural_earth/**"
+      - "tests/test_natural_earth*.py"
+      - "tests/test_install_data_pack.ps1"
+      - "packaging/Build-NaturalEarth.ps1"
+      - "packaging/Install-DataPack.ps1"
+      - "data/natural-earth/**"
+      - ".github/workflows/natural-earth.yml"
+  pull_request:
+    paths:
+      - "tools/natural_earth/**"
+      - "tests/test_natural_earth*.py"
+      - "tests/test_install_data_pack.ps1"
+      - "packaging/Build-NaturalEarth.ps1"
+      - "packaging/Install-DataPack.ps1"
+      - "data/natural-earth/**"
+      - ".github/workflows/natural-earth.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: natural-earth-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+jobs:
+  offline-data-tests:
+    # Public standard runners only. Relevant pushes/PRs/dispatch run tests.
+    # No publisher download or persistent big data artifacts in this job.
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Install release-builder-only TIFF/PSD decoder
+        run: python -m pip install -r tools/natural_earth/requirements-release.txt
+      - name: Exercise offline builder without network
+        run: python -m unittest discover -s tests -p "test_natural_earth*.py" -v
+      - name: Assert pinned official layer manifest
+        run: |
+          python - <<'PY'
+          import json
+          d=json.load(open("data/natural-earth/vector_layers_v5.1.2.json",encoding="utf-8"))
+          assert d["layer_count"]==len(d["layers"])==215
+          assert len({x["source_path"] for x in d["layers"]})==215
+          assert all(x["status"]=="expected_not_installed" for x in d["layers"])
+          assert sum(d["summary"].values())==215
+          print("PASS: 215 upstream vector layers, none falsely marked imported")
+          PY
+
+  source-discovery:
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && contains(github.event.head_commit.message, '[source-probe]'))
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Enumerate the eight official source pages and raster families
+        continue-on-error: true
+        run: |
+          mkdir -p build/natural-earth
+          python tools/natural_earth/inventory.py --output build/natural-earth/official_sources.json
+      - name: Verify a real 110m Shapefile archive from the publisher
+        continue-on-error: true
+        run: python -m tools.natural_earth.smoke
+      - name: Upload actual publisher archive verification (small smoke only)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: NaturalEarth-110m-Archive-Smoke
+          path: build/natural-earth/smoke/
+          retention-days: 1
+          if-no-files-found: warn
+      - name: Always preserve the official source audit evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: NaturalEarth-Source-Audit
+          path: build/natural-earth/official_sources.json
+          retention-days: 1
+          if-no-files-found: warn
+
+  # Triggers only for a deliberately tagged one-off commit; never for regular
+  # C++ iterations or the installed Resolve plugin.
+  full-vector-probe:
+    if: github.event_name == 'push' && contains(github.event.head_commit.message, '[gpkg-probe]')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Download and verify the REAL published vector GeoPackage
+        run: python -m tools.natural_earth.probe_gpkg
+      - name: Save feature count and source SHA evidence, never the large GPKG itself
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: NaturalEarth-Real-GeoPackage-Probe
+          path: build/natural-earth/gpkg-probe/gpkg-probe.json
+          retention-days: 1
+          if-no-files-found: warn
+
+  # One-off build-machine test of all 33 missing publisher GeoJSON files.
+  # This runs only when explicitly requested in a tagged commit message.
+  full-supplements-probe:
+    if: github.event_name == 'push' && contains(github.event.head_commit.message, '[supplement-probe]')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Retrieve pinned 33 upstream GeoJSON files and convert to GeoPackage
+        run: |
+          python -m tools.natural_earth.supplements \
+            --manifest data/natural-earth/aggregate_geojson_supplements_v5.1.2.json \
+            --sources-dir build/natural-earth/pinned-geojson \
+            --out build/natural-earth/supplements.gpkg \
+            --report build/natural-earth/supplements-report.json \
+            --fetch-official
+      - name: Verify real supplemental GeoPackage layer counts and EPSG geometry
+        run: |
+          python - <<'PY'
+          import json,sqlite3
+          from pathlib import Path
+          d=json.loads(Path("build/natural-earth/supplements-report.json").read_text())
+          assert d["complete"] and d["imported"]==33 and d["features"]>0,d
+          db=sqlite3.connect("build/natural-earth/supplements.gpkg")
+          assert db.execute("PRAGMA integrity_check").fetchone()[0]=="ok"
+          assert db.execute("SELECT COUNT(*) FROM gpkg_contents").fetchone()[0]==33
+          assert db.execute("SELECT COUNT(*) FROM provenance").fetchone()[0]==33
+          assert db.execute("SELECT COUNT(*) FROM gpkg_geometry_columns WHERE srs_id=4326").fetchone()[0]==33
+          print("PASS:",d["imported"],"official missing layers,",
+                d["features"],"real features, checksums pinned")
+          db.close()
+          PY
+      - name: Publish publisher SHA256 and real data coverage proof
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: NaturalEarth-33-Supplement-Probe
+          path: build/natural-earth/supplements-report.json
+          retention-days: 1
+          if-no-files-found: warn
+
+  combined-vector-probe:
+    if: github.event_name == 'push' && contains(github.event.head_commit.message, '[combined-probe]')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Compile native C++ OpenFX map renderer smoke executable
+        run: |
+          cmake -S . -B build/natural-earth/native-preview -DCMAKE_BUILD_TYPE=Release -DCARTORIG_BUILD_TESTS=ON
+          cmake --build build/natural-earth/native-preview --target cartorig_ne_preview -j2
+      - name: Validate 182 official GeoPackage layers plus 33 SHA-pinned supplements
+        run: python -m tools.natural_earth.probe_vector_complete
+      - name: Publish complete-vector report, never upload the huge datasets
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: NaturalEarth-215-Real-Vector-Coverage
+          path: build/natural-earth/combined-vector/complete-vector-report.json
+          retention-days: 1
+          if-no-files-found: warn
+
+  # Publisher-backed TIFF/TFW conversion plus actual native RGBA pixels.
+  # Only intentionally tagged one-off commits trigger a download.
+  real-raster-probe:
+    if: github.event_name == 'push' && contains(github.event.head_commit.message, '[raster-probe]')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install release-machine raster decoder
+        run: python -m pip install -r tools/natural_earth/requirements-release.txt
+      - name: Build native C++ raster tile renderer
+        run: |
+          cmake -S . -B build/real-raster -DCMAKE_BUILD_TYPE=Release
+          cmake --build build/real-raster --target cartorig_ne_raster_preview -j2
+      - name: Verify one genuine official 50m shaded-relief ZIP and paint pixels
+        run: |
+          python -m tools.natural_earth.probe_raster \
+            --out build/natural-earth/real-raster-probe \
+            --preview build/real-raster/cartorig_ne_raster_preview
+      - name: Publish verified source SHA and native pixel render evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: NaturalEarth-Real-50m-Raster-Proof
+          path: build/natural-earth/real-raster-probe/real-raster-proof.json
+          retention-days: 1
+          if-no-files-found: warn
+
+  # NE-FETCH-01: explicitly tagged, bounded publisher probe.
+  # Uses ONLY public standard Ubuntu runner and uploads JSON, not raster data.
+  # [family-head] interrogates HEAD metadata; [family-samples] downloads
+  # one bounded ZIP per family then deletes the raw archive.
+  raster-family-probe:
+    if: github.event_name == 'push' && (contains(github.event.head_commit.message, '[family-head]') || contains(github.event.head_commit.message, '[family-samples]') || contains(github.event.head_commit.message, '[prisma-diagnostic]'))
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Audit live Natural Earth download links against frozen inventory
+        run: |
+          mkdir -p build/natural-earth/family-probe
+          python -m tools.natural_earth.inventory --output build/natural-earth/family-probe/official_sources.json
+      - name: Probe every raster URL and acquire budgeted family samples
+        shell: bash
+        run: |
+          ARGUMENTS=(--inventory build/natural-earth/family-probe/official_sources.json
+                     --discovery-lock data/natural-earth/raster_discovery_v2026-11-07.lock.json
+                     --out build/natural-earth/family-probe --allow-network
+                     --max-archive-mb 250 --max-total-mb 1200)
+          if [[ "${{ contains(github.event.head_commit.message, '[family-samples]') }}" == "true" ]]; then
+            ARGUMENTS+=(--fetch-samples)
+          fi
+          if [[ "${{ contains(github.event.head_commit.message, '[prisma-diagnostic]') }}" == "true" ]]; then
+            ARGUMENTS+=(--fetch-samples --only-family 50m-prisma-shaded-relief)
+          fi
+          python -m tools.natural_earth.probe_families "${ARGUMENTS[@]}"
+      - name: Upload JSON-only raster family source evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: NaturalEarth-16-Families-Report
+          path: build/natural-earth/family-probe/family-probe.json
+          retention-days: 1
+          if-no-files-found: warn
+
+
+  # Explicit one-shot, bounded by three previously SHA-observed ZIPs (~40 MB).
+  # No large source/archive/atlas artifacts, no Actions Cache or LFS.
+  multi-family-raster-probe:
+    if: github.event_name == 'push' && contains(github.event.head_commit.message, '[multi-raster-probe]')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install release-build-only raster readers
+        run: python -m pip install -r tools/natural_earth/requirements-release.txt
+      - name: Build actual C++ OpenFX raster decoder/benchmark executable
+        run: |
+          cmake -S . -B build/multi-raster-native -DCMAKE_BUILD_TYPE=Release
+          cmake --build build/multi-raster-native --target cartorig_ne_raster_preview -j2
+      - name: Verify 3 independent authentic 50m families, PNG vs RGBA and native 720p render timings
+        run: |
+          python -m tools.natural_earth.probe_multi_raster \
+            --out build/natural-earth/multi-family-proof \
+            --preview build/multi-raster-native/cartorig_ne_raster_preview
+      - name: Upload JSON-only publisher and renderer proof
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: NaturalEarth-Three-Families-Native-Proof
+          path: build/natural-earth/multi-family-proof/multi-raster-proof.json
+          retention-days: 1
+          if-no-files-found: warn
+
+
+  # Deliberately tagged official publisher sample; never claim Resolve host QA.
+  # On free standard runners: 17.98 MB publisher ZIP, temporary atlases,
+  # exactly one JSON proof (1-day retention), all big bytes deleted.
+  real-resolution-matrix-probe:
+    if: github.event_name == 'push' && contains(github.event.head_commit.message, '[real-4k-probe]')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install release-builder-only TIFF reader
+        run: python -m pip install -r tools/natural_earth/requirements-release.txt
+      - name: Compile real native C++ map raster renderer
+        run: |
+          cmake -S . -B build/4k-qa-native -DCMAKE_BUILD_TYPE=Release
+          cmake --build build/4k-qa-native --target cartorig_ne_raster_preview -j2
+      - name: Audit SHA-pinned official source and render exact 720p 1440p 4K PNG/RGBA pixels
+        run: |
+          python -m tools.natural_earth.probe_4k_raster \
+            --out build/natural-earth/native-resolution-matrix \
+            --preview build/4k-qa-native/cartorig_ne_raster_preview
+      - name: Preserve only JSON native renderer proof
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: CartoRig-Real-Raster-Native-720p-1440p-4K
+          path: build/natural-earth/native-resolution-matrix/native-4k-qa.json
+          retention-days: 1
+          if-no-files-found: warn
+
+
+  # Explicit one-off public Windows QA kit: built OFX + complete source scripts.
+  # Do not upload Natural Earth publisher archives or experimental data packs.
+  windows-resolve-qa-kit:
+    if: github.event_name == 'push' && contains(github.event.head_commit.message, '[windows-qa-kit]')
+    runs-on: windows-2022
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure CartoRig OpenFX native Windows release
+        run: cmake -S . -B build/qa-windows -DCMAKE_BUILD_TYPE=Release -DCARTORIG_BUILD_TESTS=ON
+      - name: Build real Win64 OFX bundle and native pixel QA executable
+        run: cmake --build build/qa-windows --config Release --parallel 2
+      - name: Verify Windows native C++ / OFX tests
+        run: ctest --test-dir build/qa-windows -C Release --output-on-failure
+      - name: Package one-day native QA kit without Natural Earth data files
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $bundle='build/qa-windows/CartoRigNative.ofx.bundle'
+          if (-not (Test-Path "$bundle/Contents/Win64/CartoRigNative.ofx")) {
+            throw 'Built OFX DLL missing from native Windows bundle'
+          }
+          $stage='build/qa-kit'
+          New-Item -Force -ItemType Directory $stage | Out-Null
+          git archive --format=zip --output="$stage/CartoRigNative-Source.zip" HEAD
+          if ($LASTEXITCODE -ne 0) {throw 'Source snapshot failed'}
+          Copy-Item $bundle "$stage/CartoRigNative.ofx.bundle" -Recurse -Force
+          Copy-Item 'packaging/Install.ps1' "$stage/Install-CartoRigNative.ps1" -Force
+          Copy-Item 'packaging/Uninstall.ps1' "$stage/Uninstall-CartoRigNative.ps1" -Force
+          Copy-Item 'packaging/Install-DataPack.ps1' "$stage/Install-CartoRigNaturalEarth-DataPack.ps1" -Force
+          Copy-Item 'build/qa-windows/Release/cartorig_ne_raster_preview.exe' "$stage/cartorig_ne_raster_preview.exe" -Force
+          Copy-Item 'docs/NE_WINDOWS_END_TO_END_QA_2026-11-07.md' "$stage/READ-ME-FIRST.md" -Force
+          Write-Host 'Packaged verified Windows OpenFX QA kit. NO raster archives in artifact.'
+      - name: Upload bounded, one-day Windows Resolve 20 QA kit
+        uses: actions/upload-artifact@v4
+        with:
+          name: CartoRig-Resolve20-Windows-QA-Kit
+          path: build/qa-kit/
+          retention-days: 1
+          if-no-files-found: error

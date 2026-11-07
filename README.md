@@ -1,6 +1,24 @@
 # CartoRig Native — Edit-first OpenFX developer preview
 
-**Status: developer preview v0.3.0.** The Map Generator and its antimeridian rendering fix have been validated by a user in DaVinci Resolve Studio 20. The new Overlay/alpha, persistence, keyframe/retime controls and 4K pipeline still require formal in-Resolve acceptance.
+**Real raster rendering and performance:** [Three genuine 50m publisher families](docs/NE_M3_MULTIFAMILY_REAL_RASTER_2026-11-07.md) have now been converted in both raw RGBA v1 and lossless PNG v2; with the prior Manual Shaded Relief source, **four raster variants** have been fully converted and natively rendered. The three additional PNG v2 samples save **94.50%** of tile storage with pixel-identical frames. A [three-stage native CPU performance investigation](docs/NE_M3_NATIVE_RENDER_OPTIMIZATION_2026-11-07.md) reduced the observed 720p PNG v2 full-frame medians by **48.19%–53.67%** using separable unrotated projection and per-row tile caching; the measured post-optimization times remain **74–88 ms** on the CI runner. Full publisher acquisition, 4K and actual Resolve host acceptance remain open.
+
+**Current source acquisition:** [NE-SOURCE-02 — available-source acquisition and experimental offline QA](docs/NE_SOURCE02_AVAILABLE_WORKFLOW_2026-11-07.md) documents the reviewed upstream outage, resilient local acquisition and opt-in non-certified Resolve test pack. The original 52-source production release gate remains mandatory.
+
+**Experimental pack and Windows Resolve host QA:** [Complete Windows workstation execution guide](docs/NE_WINDOWS_END_TO_END_QA_2026-11-07.md) links the new one-command 51-archive acquisition, resumable pack build, real native 1440p/4K asset validation and an actual Resolve Studio 20 scripting bridge. An [official pinned-source native 1440p/4K proof](data/natural-earth/native_real_4k_observation_2026-11-07.json) already verified bit-identical PNG v2/RGBA v1 frames (4K PNG v2 median 728.366 ms on the Ubuntu standard runner). **The 51 ZIPs have not been downloaded persistently, the experiment has not been built, and the licensed Windows Resolve 20 host has not been tested by this automation.** CI alone must not mark those gates complete.
+
+## Natural Earth complete execution plan (zero-cost GitHub policy)
+
+The engineering work order is [Natural Earth Complete — Execution Plan](docs/NATURAL_EARTH_EXECUTION_PLAN.md). It defines source certification (215 vector layers and the frozen raster variants), download and builder recovery, all-layer rendering, independent pack verification, real Resolve Studio 20 acceptance, and GitHub **USD 0** infrastructure. The production pack has **not** been certified. The current PR remains draft.
+
+
+## Natural Earth complete offline backend (active development)
+
+The [Natural Earth integration](docs/NATURAL_EARTH_OFFLINE_BACKEND.md) audits the complete 215-layer pinned vector source (182 official aggregate GeoPackage layers plus 33 SHA-verified supplements), implements an offline SQLite FTS5/RTree search catalog and a native C++ geometry decoder. It also provides **opt-in local Natural Earth country rendering inside the OpenFX effect** at 110m / 50m / 10m, with native data load and rendering verified by CI on the real publisher GeoPackage.
+
+**This is a v0.4.0 developer preview, not a complete Natural Earth installation.** Offline raster preparation (including TIFF/PNG/JPEG windows and optional PSD composite), SHA256-verified installer, searchable region/raster Inspector and independent RGBA keys are implemented in code. However the **52 actual raster variants have not been downloaded, converted and certified as one data pack**. All source classes, dynamic Inspector UI, 4K Deliver and real Windows Resolve 20 acceptance remain outstanding. The OpenFX runtime makes no network requests. See [Edit integration test guide](docs/NATURAL_EARTH_EDIT_BRIDGE.md).
+
+
+**Status: developer preview v0.4.0.** The Map Generator and its antimeridian rendering fix have been validated by a user in DaVinci Resolve Studio 20. The new Overlay/alpha, persistence, keyframe/retime controls and 4K pipeline still require formal in-Resolve acceptance.
 
 This repository is a new, independently compiled C++ project. It does not require Electron, SVG screenshots, `fuscript.exe`, the Workflow Integration bridge or the Fusion page for normal image generation.
 

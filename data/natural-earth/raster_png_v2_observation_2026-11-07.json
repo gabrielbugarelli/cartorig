@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "format": "cartorig-natural-earth-real-raster-format-comparison-v1",
+  "source": "Natural Earth / NACIS",
+  "source_archive": "https://naturalearth.s3.amazonaws.com/50m_raster/MSR_50M.zip",
+  "source_sha256": "e38f8b256f64eccae250a1e482761d4a7a585e6602c941e6bdb860e160faf609",
+  "source_archive_bytes": 17984241,
+  "render_validation": "native offline C++ cartorig_ne_raster_preview, 640x360 RGBA",
+  "raster_dimensions": [
+    10800,
+    5400
+  ],
+  "levels": 7,
+  "tile_count": 1281,
+  "tile_dimensions": [
+    256,
+    256
+  ],
+  "raw_v1": {
+    "format": "cartorig-rgba-tiles-v1",
+    "bytes": 335806464,
+    "native_frame_hash": "13112041101257582482",
+    "proof": "https://github.com/gabrielbugarelli/cartorig/actions/runs/42342818040"
+  },
+  "png_v2": {
+    "format": "cartorig-png-tiles-v2",
+    "bytes": 33583241,
+    "native_frame_hash": "13112041101257582482",
+    "proof": "https://github.com/gabrielbugarelli/cartorig/actions/runs/42343229449"
+  },
+  "measured_storage_reduction_pct": 90,
+  "native_rendered_pixels": 230400,
+  "bit_identical_native_frame": true,
+  "baseline_note": "Source archive is one verified 50m variant, not full 52-source certification; not DaVinci Resolve host acceptance.",
+  "third_party_decoder": {
+    "library": "LodePNG",
+    "license": "zlib",
+    "upstream_repository": "https://github.com/lvandeve/lodepng",
+    "upstream_revision": "7b2893e35891c0c85bee5595caafaf3c2044b409",
+    "notice_path": "third_party/lodepng/LICENSE"
+  }
+}

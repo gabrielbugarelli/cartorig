@@ -1,0 +1,169 @@
+{
+  "schema_version": 1,
+  "format": "cartorig-natural-earth-family-sample-observation-v1",
+  "snapshot_utc": "2026-11-07",
+  "discovery_lock_digest": "dbd0bb7a3323b764570c3305e0c778aaa73143cf15d941d2a84c1dba9cd2b0b0",
+  "archive_source_count": 52,
+  "head_verified": 51,
+  "expected_families": 16,
+  "verified_family_samples": 15,
+  "total_sample_archive_bytes": 654444735,
+  "sample_provenance": [
+    {
+      "run": "https://github.com/gabrielbugarelli/cartorig/actions/runs/42338899344",
+      "families_verified": 14
+    },
+    {
+      "run": "https://github.com/gabrielbugarelli/cartorig/actions/runs/42339183252",
+      "families_verified": 1
+    }
+  ],
+  "observations": [
+    {
+      "family": "10m-cross-blend-hypso",
+      "scale": "10m",
+      "source_url": "https://www.naturalearthdata.com/download/10m/raster/HYP_LR.zip",
+      "archive": "HYP_LR.zip",
+      "archive_bytes": 53729560,
+      "observed_sha256": "4ff9ace34cbe777199071072bbd8cbb8df9eb34cfcc1ac5b6ea3d8cd88a79d7a",
+      "validation": "ZIP_CRC_PASS_WORLD_FILE_PAIR_FOUND"
+    },
+    {
+      "family": "10m-gray-earth",
+      "scale": "10m",
+      "source_url": "https://www.naturalearthdata.com/download/10m/raster/GRAY_LR_SR_W.zip",
+      "archive": "GRAY_LR_SR_W.zip",
+      "archive_bytes": 26349649,
+      "observed_sha256": "1a31009d75be2a0a941661d68485b5a82b91a7d4886f85cddea9778c9208e828",
+      "validation": "ZIP_CRC_PASS_WORLD_FILE_PAIR_FOUND"
+    },
+    {
+      "family": "10m-natural-earth-1",
+      "scale": "10m",
+      "source_url": "https://www.naturalearthdata.com/download/10m/raster/NE1_LR_LC.zip",
+      "archive": "NE1_LR_LC.zip",
+      "archive_bytes": 75362325,
+      "observed_sha256": "dae6ad77c963976f44afb3a3916febf36f44c42da1690854b9fa1dac74694e54",
+      "validation": "ZIP_CRC_PASS_WORLD_FILE_PAIR_FOUND"
+    },
+    {
+      "family": "10m-natural-earth-2",
+      "scale": "10m",
+      "source_url": "https://www.naturalearthdata.com/download/10m/raster/NE2_LR_LC.zip",
+      "archive": "NE2_LR_LC.zip",
+      "archive_bytes": 72509963,
+      "observed_sha256": "3506ed32f53020eb8822a8c694dc80df7327e21c9a4df0df8f4630756ed4c919",
+      "validation": "ZIP_CRC_PASS_WORLD_FILE_PAIR_FOUND"
+    },
+    {
+      "family": "10m-ocean-bottom",
+      "scale": "10m",
+      "source_url": "https://www.naturalearthdata.com/download/10m/raster/OB_LR.zip",
+      "archive": "OB_LR.zip",
+      "archive_bytes": 89978517,
+      "observed_sha256": "f096f1746522dcb2663a2cde6210d23f4e46b98c60f38150c5a74d48a000e046",
+      "validation": "ZIP_CRC_PASS_WORLD_FILE_PAIR_FOUND"
+    },
+    {
+      "family": "10m-shaded-relief",
+      "scale": "10m",
+      "source_url": "https://www.naturalearthdata.com/download/10m/raster/SR_LR.zip",
+      "archive": "SR_LR.zip",
+      "archive_bytes": 25179752,
+      "observed_sha256": "e3aa47b13aff26e1b4b3792a94100d8667d3147046aeac7840be00a15f839d18",
+      "validation": "ZIP_CRC_PASS_WORLD_FILE_PAIR_FOUND"
+    },
+    {
+      "family": "50m-bathymetry",
+      "scale": "50m",
+      "source_url": "https://www.naturalearthdata.com/download/50m/raster/BATH_50M.zip",
+      "archive": "BATH_50M.zip",
+      "archive_bytes": 69738281,
+      "observed_sha256": "e1183975014e20e966a94aefe43bcf725d7f669ccc50e06ce9fc7cddc413d3ce",
+      "validation": "ZIP_CRC_PASS_WORLD_FILE_PAIR_FOUND"
+    },
+    {
+      "family": "50m-cross-blend-hypso",
+      "scale": "50m",
+      "source_url": "https://www.naturalearthdata.com/download/50m/raster/HYP_50M_SR.zip",
+      "archive": "HYP_50M_SR.zip",
+      "archive_bytes": 49874140,
+      "observed_sha256": "de6faaee29c8707764852a36c0973aea184e8ec94b6eebf21d061c923c8025de",
+      "validation": "ZIP_CRC_PASS_WORLD_FILE_PAIR_FOUND"
+    },
+    {
+      "family": "50m-gray-earth",
+      "scale": "50m",
+      "source_url": "https://www.naturalearthdata.com/download/50m/raster/GRAY_50M_SR_W.zip",
+      "archive": "GRAY_50M_SR_W.zip",
+      "archive_bytes": 10983477,
+      "observed_sha256": "25230eaa5c82c9e913b9acede197e29e575817e36df9925231c1a1b92a101d8c",
+      "validation": "ZIP_CRC_PASS_WORLD_FILE_PAIR_FOUND"
+    },
+    {
+      "family": "50m-manual-shaded-relief",
+      "scale": "50m",
+      "source_url": "https://www.naturalearthdata.com/download/50m/raster/MSR_50M.zip",
+      "archive": "MSR_50M.zip",
+      "archive_bytes": 17984241,
+      "observed_sha256": "e38f8b256f64eccae250a1e482761d4a7a585e6602c941e6bdb860e160faf609",
+      "validation": "ZIP_CRC_PASS_WORLD_FILE_PAIR_FOUND"
+    },
+    {
+      "family": "50m-natural-earth-1",
+      "scale": "50m",
+      "source_url": "https://www.naturalearthdata.com/download/50m/raster/NE1_50M_SR.zip",
+      "archive": "NE1_50M_SR.zip",
+      "archive_bytes": 40889620,
+      "observed_sha256": "ae930744c0cf3d10e73c292726b74c81a40490a75829f8299dec9069e5d0e934",
+      "validation": "ZIP_CRC_PASS_WORLD_FILE_PAIR_FOUND"
+    },
+    {
+      "family": "50m-natural-earth-2",
+      "scale": "50m",
+      "source_url": "https://www.naturalearthdata.com/download/50m/raster/NE2_50M_SR.zip",
+      "archive": "NE2_50M_SR.zip",
+      "archive_bytes": 41618548,
+      "observed_sha256": "0e9838cb3acb10ce4674b74a8f79bd5aae02e4b715185d54f018afaf4d9451f4",
+      "validation": "ZIP_CRC_PASS_WORLD_FILE_PAIR_FOUND"
+    },
+    {
+      "family": "50m-ocean-bottom",
+      "scale": "50m",
+      "source_url": "https://www.naturalearthdata.com/download/50m/raster/OB_50M.zip",
+      "archive": "OB_50M.zip",
+      "archive_bytes": 50875258,
+      "observed_sha256": "7339ee90615232596bbfd67f20c09bbefaef596ab0fdddc45dcb56edc3b98710",
+      "validation": "ZIP_CRC_PASS_WORLD_FILE_PAIR_FOUND"
+    },
+    {
+      "family": "50m-prisma-shaded-relief",
+      "scale": "50m",
+      "source_url": "https://www.naturalearthdata.com/download/50m/raster/PRISMA_SR_50M.zip",
+      "archive": "PRISMA_SR_50M.zip",
+      "archive_bytes": 17991035,
+      "observed_sha256": "2aa9c316bb767b4c4aecbb1c2de255d00d43ab93e7d837e85f01a6dc4e2043fe",
+      "validation": "ZIP_CRC_PASS_WORLD_FILE_PAIR_FOUND"
+    },
+    {
+      "family": "50m-shaded-relief",
+      "scale": "50m",
+      "source_url": "https://www.naturalearthdata.com/download/50m/raster/SR_50M.zip",
+      "archive": "SR_50M.zip",
+      "archive_bytes": 11380369,
+      "observed_sha256": "ff810f5f2747463fd8ffa612b23e5f5e5d593a345218976872b6749610976ab7",
+      "validation": "ZIP_CRC_PASS_WORLD_FILE_PAIR_FOUND"
+    }
+  ],
+  "missing": [
+    {
+      "family": "10m-manual-shaded-relief",
+      "source_url": "https://www.naturalearthdata.com/download/10m/raster/US_MSR_10M.zip",
+      "official_mirror": "https://naturalearth.s3.amazonaws.com/10m_raster/US_MSR_10M.zip",
+      "status": "HTTP_404_BOTH",
+      "issue": "https://github.com/gabrielbugarelli/cartorig/issues/4"
+    }
+  ],
+  "certification_note": "Observed ZIP digest values are sampled publisher archive evidence only. This IS NOT an independently reviewed 52-source lock and IS NOT proof of NATURAL_EARTH_COMPLETE. All sample archives were discarded on ephemeral CI runner after CRC and world-file pairing checks.",
+  "certified_full_pack": false
+}

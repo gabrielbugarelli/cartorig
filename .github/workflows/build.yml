@@ -1,9 +1,14 @@
 name: CartoRig Native C++ and OpenFX CI
 on:
   push:
-    branches: [main, 'feat/**']
+    branches: [main]
   pull_request:
   workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: build-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 jobs:
   build:
     strategy:
@@ -54,23 +59,50 @@ jobs:
           [System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path ./packaging/Install.ps1),[ref]$null,[ref]$errors) | Out-Null
           if ($errors.Count -gt 0) { throw ($errors | Out-String) }
           ./packaging/Install.ps1 -BundlePath ./build/CartoRigNative.ofx.bundle -Upgrade -WhatIf
+      - name: Parse Natural Earth PowerShell scripts (Windows AST)
+        if: runner.os == 'Windows'
+        shell: powershell
+        run: |
+          foreach ($file in @('./packaging/Install-DataPack.ps1','./packaging/Build-NaturalEarth.ps1','./packaging/Acquire-NaturalEarth.ps1','./packaging/Run-NaturalEarth-QA.ps1','./tests/test_install_data_pack.ps1')) {
+            $tokens = $null
+            $errors = $null
+            [System.Management.Automation.Language.Parser]::ParseFile(
+              (Resolve-Path $file).Path, [ref]$tokens, [ref]$errors) | Out-Null
+            if ($errors.Count -gt 0) {
+              foreach ($errorItem in $errors) {
+                Write-Error ("PowerShell AST: " + $file + ": " + $errorItem.Message)
+              }
+              exit 1
+            }
+            Write-Host ("PASS PowerShell AST: " + $file)
+          }
+      - name: Verify Natural Earth offline installer on Windows PowerShell
+        if: runner.os == 'Windows'
+        shell: powershell
+        run: ./tests/test_install_data_pack.ps1
       - name: Stage Windows installation scripts
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
           Copy-Item ./packaging/Install.ps1 ./build/Install-CartoRigNative.ps1
           Copy-Item ./packaging/Uninstall.ps1 ./build/Uninstall-CartoRigNative.ps1
-      - name: Upload native OFX bundle and previews
+          Copy-Item ./packaging/Install-DataPack.ps1 ./build/Install-CartoRigNaturalEarth-DataPack.ps1
+      # Public standard runners are free; artifact *storage* is not unlimited.
+      # No persistent uploads on normal PR/push runs.
+      - name: Upload native OFX bundle for requested manual Resolve test
+        if: github.event_name == 'workflow_dispatch'
         uses: actions/upload-artifact@v4
         with:
           name: CartoRigNative-${{ runner.os }}
           path: |
             build/CartoRigNative.ofx.bundle/
-            build/previews/
             build/Install-CartoRigNative.ps1
             build/Uninstall-CartoRigNative.ps1
+            build/Install-CartoRigNaturalEarth-DataPack.ps1
+          retention-days: 1
           if-no-files-found: error
   source-snapshot:
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
@@ -81,6 +113,7 @@ jobs:
         with:
           name: CartoRigNative-Source
           path: cartorig-native-source.tar.gz
+          retention-days: 1
           if-no-files-found: error
   sanitizers:
     runs-on: ubuntu-24.04

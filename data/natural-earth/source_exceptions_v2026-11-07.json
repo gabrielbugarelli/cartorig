@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "format": "cartorig-ne-publisher-exceptions-v1",
+  "publisher": "Natural Earth / NACIS",
+  "discovery_sha256": "dbd0bb7a3323b764570c3305e0c778aaa73143cf15d941d2a84c1dba9cd2b0b0",
+  "policy": "Acquisition-only exceptions; never authorize NATURAL_EARTH_COMPLETE or a 51-of-52 release.",
+  "exceptions": [
+    {
+      "resource_id": "ne-10m-raster-ae87770d641091765473",
+      "scale": "10m",
+      "url": "https://www.naturalearthdata.com/download/10m/raster/US_MSR_10M.zip",
+      "source_page": "https://www.naturalearthdata.com/downloads/10m-raster-data/10m-manual-shaded-relief/",
+      "issue": "https://github.com/gabrielbugarelli/cartorig/issues/4",
+      "observed_status": "PUBLISHER_HTTP_404",
+      "observed_utc": "2026-11-07"
+    }
+  ]
+}

@@ -1,0 +1,88 @@
+{
+  "schema_version": 1,
+  "format": "cartorig-ne-3-real-raster-families-observation-v1",
+  "observed_utc": "2026-11-07",
+  "publisher": "Natural Earth / NACIS",
+  "evidence_run": "https://github.com/gabrielbugarelli/cartorig/actions/runs/42344497361",
+  "full_source_lock_certified": false,
+  "resolve_host_test": false,
+  "runner": "ubuntu-24.04 standard public GitHub Actions runner",
+  "benchmark_method": "native C++ render including cold per-frame LRU tile reads/decode, geographic projection and compositing at 1280x720; median of 5 passes; same runner, process-per-format; not pure PNG decode and not Resolve FPS",
+  "families": [
+    {
+      "family": "50m-gray-earth",
+      "archive": "GRAY_50M_SR_W.zip",
+      "source_archive_bytes": 10983477,
+      "sha256": "25230eaa5c82c9e913b9acede197e29e575817e36df9925231c1a1b92a101d8c",
+      "image_pixels": [
+        10800,
+        5400
+      ],
+      "levels": 7,
+      "tiles": 1281,
+      "rgba_v1_bytes": 335806464,
+      "png_v2_bytes": 21404460,
+      "native_640x360_frame_hash": "13024482577733760989",
+      "render_720p_v1_median_ms": 149.178,
+      "render_720p_v2_median_ms": 160.544,
+      "conversion_v1_seconds": 1.515,
+      "conversion_v2_seconds": 7.316,
+      "storage_reduction_pct": 93.63,
+      "native_720p_v2_time_overhead_pct": 7.62
+    },
+    {
+      "family": "50m-prisma-shaded-relief",
+      "archive": "PRISMA_SR_50M.zip",
+      "source_archive_bytes": 17991035,
+      "sha256": "2aa9c316bb767b4c4aecbb1c2de255d00d43ab93e7d837e85f01a6dc4e2043fe",
+      "image_pixels": [
+        16200,
+        8100
+      ],
+      "levels": 7,
+      "tiles": 2731,
+      "rgba_v1_bytes": 715915264,
+      "png_v2_bytes": 30031801,
+      "native_640x360_frame_hash": "11708255958712787630",
+      "render_720p_v1_median_ms": 153.041,
+      "render_720p_v2_median_ms": 169.818,
+      "conversion_v1_seconds": 2.853,
+      "conversion_v2_seconds": 12.645,
+      "storage_reduction_pct": 95.81,
+      "native_720p_v2_time_overhead_pct": 10.96
+    },
+    {
+      "family": "50m-shaded-relief",
+      "archive": "SR_50M.zip",
+      "source_archive_bytes": 11380369,
+      "sha256": "ff810f5f2747463fd8ffa612b23e5f5e5d593a345218976872b6749610976ab7",
+      "image_pixels": [
+        10800,
+        5400
+      ],
+      "levels": 7,
+      "tiles": 1281,
+      "rgba_v1_bytes": 335806464,
+      "png_v2_bytes": 24895999,
+      "native_640x360_frame_hash": "6987416738967865316",
+      "render_720p_v1_median_ms": 151.037,
+      "render_720p_v2_median_ms": 159.566,
+      "conversion_v1_seconds": 1.332,
+      "conversion_v2_seconds": 7.806,
+      "storage_reduction_pct": 92.59,
+      "native_720p_v2_time_overhead_pct": 5.65
+    }
+  ],
+  "summary": {
+    "verified_new_official_families": 3,
+    "real_png_vs_rgba_pixel_hash_parity": 3,
+    "native_rendered_pixels_per_image": 230400,
+    "sum_rgba_v1_bytes": 1387528192,
+    "sum_png_v2_bytes": 76332260,
+    "storage_reduction_pct": 94.5,
+    "jpeg_or_lossy_compression_used": false,
+    "source_zip_and_atlas_files_uploaded": false,
+    "complete_natural_earth_pack": false,
+    "note": "previous standalone MSR_50M family gives four distinct official raster families converted; original 52-source completeness gate unchanged"
+  }
+}

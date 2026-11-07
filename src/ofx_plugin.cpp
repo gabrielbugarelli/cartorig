@@ -1,6 +1,9 @@
 // CartoRig Native: minimal OpenFX 1.x C ABI, no Resolve private SDK.
 #include "cartorig.hpp"
 #include "native_controls.hpp"
+#include "natural_earth_catalog.hpp"
+#include "natural_earth_raster.hpp"
+#include "natural_earth_regions.hpp"
 #include "ofx_pixel_layout.hpp"
 #include "ofxCore.h"
 #include "ofxImageEffect.h"
@@ -14,6 +17,8 @@
 #include <sstream>
 #include <cmath>
 #include <cstring>
+#include <cstdlib>
+#include <cctype>
 #include <filesystem>
 #include <iostream>
 #include <memory>
@@ -36,6 +41,13 @@ const OfxParameterSuiteV1 *param=nullptr;
 struct Instance {
   OfxImageClipHandle output=nullptr,source=nullptr;
   OfxParamHandle sceneFile=nullptr,datasetFile=nullptr,sceneInline=nullptr,datasetInline=nullptr;
+  OfxParamHandle naturalEarthGpkg=nullptr,naturalEarthDetail=nullptr,naturalEarthLayer=nullptr,naturalEarthLayerFile=nullptr,naturalEarthRasterRoot=nullptr,naturalEarthRasterAsset=nullptr;
+  OfxParamHandle useInstalledNaturalEarth=nullptr;
+  OfxParamHandle rasterSearch=nullptr,rasterChoice=nullptr,rasterApply=nullptr,rasterInfo=nullptr;
+  OfxParamHandle regionCatalog=nullptr,regionKind=nullptr,regionQuery=nullptr,regionMatch=nullptr;
+  OfxParamHandle regionRed=nullptr,regionGreen=nullptr,regionBlue=nullptr,regionAlpha=nullptr;
+  OfxParamHandle regionAdd=nullptr,regionRemove=nullptr,regionSaved=nullptr,regionStatus=nullptr;
+  OfxParamHandle regionEdit=nullptr,regionCaptureKey=nullptr,regionRemoveSaved=nullptr,regionEase=nullptr;
   OfxParamHandle useSceneKeys=nullptr,lon=nullptr,lat=nullptr,zoom=nullptr,bearing=nullptr,route=nullptr,opacity=nullptr;
   OfxParamHandle frameOffset=nullptr,timeScale=nullptr,diagnosticMode=nullptr,diagnosticLog=nullptr;
   OfxParamHandle countryA=nullptr,countryB=nullptr,countryList=nullptr,highlightStrength=nullptr;
@@ -58,6 +70,22 @@ struct CacheEntry {
 };
 std::mutex cacheMutex;
 std::unordered_map<std::string,CacheEntry> cache;
+// Optional typed overlay cache; keep it separate from country-only datasets.
+struct VectorLayerCache {
+  std::filesystem::file_time_type modified;
+  std::shared_ptr<const std::vector<cartorig::NaturalEarthGeometry>> features;
+};
+std::unordered_map<std::string,VectorLayerCache> vectorLayerCache;
+struct RasterCacheEntry {
+  std::filesystem::file_time_type modified;
+  std::shared_ptr<const cartorig::NaturalEarthRaster> raster;
+};
+std::unordered_map<std::string,RasterCacheEntry> rasterCache;
+struct RegionGeometryCacheEntry {
+  std::filesystem::file_time_type modified;
+  std::shared_ptr<const std::vector<cartorig::NaturalEarthGeometry>> features;
+};
+std::unordered_map<std::string,RegionGeometryCacheEntry> regionGeometryCache;
 std::mutex diagnosticsMutex;
 std::atomic<unsigned> diagnosticsCount{0};
 void writeDiagnostics(const std::string &message) noexcept {
@@ -86,7 +114,7 @@ void writeDiagnostics(const std::string &message) noexcept {
       if(file) {
         file<<std::chrono::duration_cast<std::chrono::seconds>(
           std::chrono::system_clock::now().time_since_epoch()).count()
-          <<" CartoRigNative 0.3.0-dev/"<<CARTORIG_BUILD_SHA<<" "<<message<<"\n";
+          <<" CartoRigNative 0.4.0-dev/"<<CARTORIG_BUILD_SHA<<" "<<message<<"\n";
         file.flush();
         if(file.good())return;
       }
@@ -101,6 +129,44 @@ void writeDiagnostics(const std::string &message) noexcept {
   }
 }
 
+// An explicit Inspector opt-in is required, so installing a data pack does
+// not silently change the appearance of previously saved video projects.
+std::filesystem::path installedNaturalEarthRoot(){
+#ifdef _WIN32
+  const auto getEnv=[](const wchar_t *key)->std::filesystem::path{
+    wchar_t value[32768]{};
+    const DWORD n=GetEnvironmentVariableW(key,value,32768);
+    if(n==0||n>=32768)return {};
+    return std::filesystem::path(std::wstring(value,n));
+  };
+  const auto configured=getEnv(L"CARTORIG_NATURAL_EARTH_PACK");
+  if(!configured.empty())return configured;
+  const auto local=getEnv(L"LOCALAPPDATA");
+  if(!local.empty())return local/"CartoRigNative"/"NaturalEarth";
+#else
+  const char *configured=std::getenv("CARTORIG_NATURAL_EARTH_PACK");
+  if(configured&&*configured)return std::filesystem::path(configured);
+  const char *xdg=std::getenv("XDG_DATA_HOME");
+  if(xdg&&*xdg)
+    return std::filesystem::path(xdg)/"CartoRigNative"/"NaturalEarth";
+  const char *home=std::getenv("HOME");
+  if(home&&*home)
+    return std::filesystem::path(home)/".local"/"share"/
+           "CartoRigNative"/"NaturalEarth";
+#endif
+  return {};
+}
+std::filesystem::path installedNaturalEarthAsset(const char *relative){
+  const auto root=installedNaturalEarthRoot();
+  if(root.empty()||!std::filesystem::is_regular_file(root/"pack.json"))
+    throw std::runtime_error(
+        "Natural Earth data pack not installed: pack.json missing");
+  const auto path=root/relative;
+  if(!std::filesystem::is_regular_file(path))
+    throw std::runtime_error(std::string(
+        "Natural Earth pack is missing offline asset: ")+relative);
+  return path;
+}
 std::string defaultAsset(const char *filename){
   std::filesystem::path module;
 #ifdef _WIN32
@@ -114,6 +180,89 @@ std::string defaultAsset(const char *filename){
 #endif
   if(module.empty())throw std::runtime_error("Unable to locate CartoRig Native plugin bundle");
   return (module.parent_path().parent_path()/"Resources"/filename).string();
+}
+std::shared_ptr<const cartorig::Dataset> naturalEarthCountriesAt(
+    const std::string &path,const std::string &scale){
+  // Cache only immutable geometry, never the mutable per-instance scene.
+  // A file update invalidates this entry, matching the existing GeoJSON cache.
+  std::lock_guard<std::mutex> lock(cacheMutex);
+  const auto stamp=std::filesystem::last_write_time(path);
+  const auto key="ne-country:"+scale+":"+path;
+  auto it=cache.find(key);
+  if(it!=cache.end()&&it->second.modified==stamp&&it->second.dataset)
+    return it->second.dataset;
+  auto result=std::make_shared<cartorig::Dataset>(
+      cartorig::NaturalEarthCatalog::countryPolygons(path,scale));
+  if(cache.size()>16)cache.clear();
+  cache[key]={stamp,result,nullptr};
+  return result;
+}
+std::shared_ptr<const std::vector<cartorig::NaturalEarthGeometry>>
+naturalEarthLayerAt(const std::string &path,const std::string &name){
+  std::lock_guard<std::mutex> lock(cacheMutex);
+  const auto stamp=std::filesystem::last_write_time(path);
+  const auto key=path+":"+name;
+  auto it=vectorLayerCache.find(key);
+  if(it!=vectorLayerCache.end()&&it->second.modified==stamp)
+    return it->second.features;
+  auto value=std::make_shared<const std::vector<cartorig::NaturalEarthGeometry>>(
+      cartorig::NaturalEarthCatalog::layerGeometries(path,name));
+  if(vectorLayerCache.size()>=8)vectorLayerCache.clear();
+  vectorLayerCache[key]={stamp,value};
+  return value;
+}
+std::shared_ptr<const cartorig::NaturalEarthRaster> naturalEarthRasterAt(
+    const std::string &root,const std::string &assetId){
+  std::lock_guard<std::mutex> lock(cacheMutex);
+  // Cache immutable source metadata only; all per-render tile buffers remain
+  // thread-local, preventing races during asynchronous Resolve frame requests.
+  const auto index=std::filesystem::path(root)/assetId/"index.json";
+  const auto stamp=std::filesystem::last_write_time(index);
+  const auto key=root+":"+assetId;
+  const auto it=rasterCache.find(key);
+  if(it!=rasterCache.end()&&it->second.modified==stamp)
+    return it->second.raster;
+  auto value=std::make_shared<const cartorig::NaturalEarthRaster>(
+      cartorig::loadNaturalEarthRaster(root,assetId));
+  if(rasterCache.size()>=12)rasterCache.clear();
+  rasterCache[key]={stamp,value};
+  return value;
+}
+std::shared_ptr<const std::vector<cartorig::NaturalEarthGeometry>>
+geographicRegionAt(const std::string &primary,const std::string &supplement,
+                   const cartorig::GeographicRegionSelection &r){
+  const auto load=[&](const std::string &source){
+    const auto stamp=std::filesystem::last_write_time(source);
+    const auto key=source+"|"+r.featureKey;
+    std::lock_guard<std::mutex> lock(cacheMutex);
+    const auto found=regionGeometryCache.find(key);
+    if(found!=regionGeometryCache.end()&&found->second.modified==stamp)
+      return found->second.features;
+    std::vector<cartorig::NaturalEarthGeometry> geometries;
+    if(r.kind=="continent"){
+      geometries=cartorig::NaturalEarthCatalog::continentGeometries(source,r.name,"10m");
+    }else{
+      cartorig::NaturalEarthRegion region;
+      region.sourceLayer=r.sourceLayer;region.sourceRowId=r.sourceRowId;
+      region.geometryType=r.kind=="city"?"POINT":"POLYGON";
+      auto geometry=cartorig::NaturalEarthCatalog::featureGeometry(source,region);
+      if(!geometry.empty())geometries.push_back(std::move(geometry));
+    }
+    if(geometries.empty())
+      throw std::invalid_argument("Selected geographic region has no publisher geometry");
+    auto ptr=std::make_shared<const std::vector<cartorig::NaturalEarthGeometry>>(
+        std::move(geometries));
+    if(regionGeometryCache.size()>=100)regionGeometryCache.clear();
+    regionGeometryCache[key]={stamp,ptr};
+    return ptr;
+  };
+  try{return load(primary);}
+  catch(const std::invalid_argument &error){
+    if(supplement.empty()||supplement==primary||
+       std::string(error.what())!="Natural Earth geometry layer absent from GeoPackage")
+      throw;
+    return load(supplement);
+  }
 }
 std::shared_ptr<const cartorig::Dataset> datasetAt(const std::string &path){
   std::lock_guard<std::mutex> lock(cacheMutex);
@@ -201,13 +350,88 @@ void defineNativeToggle(OfxParamSetHandle ps,const char*name,const char*label,bo
   prop->propSetInt(props,kOfxParamPropAnimates,0,0);
   if(group)prop->propSetString(props,kOfxParamPropParent,0,group);
 }
+void defineNaturalEarthDetailChoice(OfxParamSetHandle ps){
+  OfxPropertySetHandle properties=nullptr;
+  if(param->paramDefine(ps,kOfxParamTypeChoice,"NaturalEarthDetail",&properties)!=kOfxStatOK)
+    throw std::runtime_error("Natural Earth detail choice parameter unavailable");
+  prop->propSetString(properties,kOfxPropLabel,0,"Vector detail");
+  prop->propSetString(properties,kOfxParamPropParent,0,"AdvancedScene");
+  prop->propSetInt(properties,kOfxParamPropDefault,0,0);
+  const char* levels[]={"Auto (zoom dependent)","110m (overview)","50m (medium)","10m (detailed)"};
+  for(int n=0;n<4;++n)
+    prop->propSetString(properties,kOfxParamPropChoiceOption,n,levels[n]);
+}
+void defineGeographicChoice(OfxParamSetHandle ps,const char*name,
+                            const char*label,const char *const *options,
+                            int count,int selected){
+  OfxPropertySetHandle props=nullptr;
+  if(param->paramDefine(ps,kOfxParamTypeChoice,name,&props)!=kOfxStatOK)
+    throw std::runtime_error("Geographic region dropdown unavailable");
+  prop->propSetString(props,kOfxPropLabel,0,label);
+  prop->propSetString(props,kOfxParamPropParent,0,"GeographicRegion");
+  prop->propSetInt(props,kOfxParamPropDefault,0,selected);
+  prop->propSetInt(props,kOfxParamPropAnimates,0,0);
+  for(int index=0;index<count;++index)
+    prop->propSetString(props,kOfxParamPropChoiceOption,index,options[index]);
+}
+void defineGeographicButton(OfxParamSetHandle ps,const char *name,
+                            const char *label){
+  OfxPropertySetHandle props=nullptr;
+  if(param->paramDefine(ps,kOfxParamTypePushButton,name,&props)!=kOfxStatOK)
+    throw std::runtime_error("Geographic region action button unavailable");
+  prop->propSetString(props,kOfxPropLabel,0,label);
+  prop->propSetString(props,kOfxParamPropParent,0,"GeographicRegion");
+}
+void defineGeographicRegionUI(OfxParamSetHandle ps){
+  defineNativeGroup(ps,"GeographicRegion","Geographic region",false);
+  defineString(ps,"GeographicCatalog","Offline search index (catalog.sqlite)","GeographicRegion");
+  const char *kinds[]={"Continent","Country","State / Province","City"};
+  defineGeographicChoice(ps,"GeographicRegionKind","Geographic region",kinds,4,1);
+  defineNativeText(ps,"GeographicRegionQuery","Search location","GeographicRegion");
+  const char *matches[]={"Result 1","Result 2","Result 3","Result 4","Result 5",
+                         "Result 6","Result 7","Result 8","Result 9","Result 10"};
+  defineGeographicChoice(ps,"GeographicRegionMatch","Search result",matches,10,0);
+  // Native OpenFX text label is best effort: Resolve may not refresh it
+  // immediately on InstanceChanged; selected content still persists in JSON.
+  OfxPropertySetHandle info=nullptr;
+  if(param->paramDefine(ps,kOfxParamTypeString,"GeographicRegionStatus",&info)!=kOfxStatOK)
+    throw std::runtime_error("Geographic result label unavailable");
+  prop->propSetString(info,kOfxPropLabel,0,"Matches / selected");
+  prop->propSetString(info,kOfxParamPropStringMode,0,kOfxParamStringIsLabel);
+  prop->propSetString(info,kOfxParamPropDefault,0,"Choose type and search a location");
+  prop->propSetInt(info,kOfxParamPropAnimates,0,0);
+  prop->propSetString(info,kOfxParamPropParent,0,"GeographicRegion");
+  defineNativeDouble(ps,"GeographicRegionRed","Region red",40,0,255,"GeographicRegion");
+  defineNativeDouble(ps,"GeographicRegionGreen","Region green",157,0,255,"GeographicRegion");
+  defineNativeDouble(ps,"GeographicRegionBlue","Region blue",192,0,255,"GeographicRegion");
+  defineNativeDouble(ps,"GeographicRegionAlpha","Region opacity (0-255)",220,0,255,"GeographicRegion");
+  defineGeographicButton(ps,"GeographicRegionAdd","Add / update selected region");
+  defineGeographicButton(ps,"GeographicRegionRemove","Remove matching search result");
+  OfxPropertySetHandle existing=nullptr;
+  if(param->paramDefine(ps,kOfxParamTypeChoice,"GeographicRegionEdit",&existing)!=kOfxStatOK)
+    throw std::runtime_error("saved geographic region choice unavailable");
+  prop->propSetString(existing,kOfxPropLabel,0,"Selected region to animate / edit");
+  prop->propSetString(existing,kOfxParamPropParent,0,"GeographicRegion");
+  prop->propSetInt(existing,kOfxParamPropDefault,0,0);
+  prop->propSetInt(existing,kOfxParamPropAnimates,0,0);
+  for(int i=0;i<64;++i){
+    const std::string option="No selected region "+std::to_string(i+1);
+    prop->propSetString(existing,kOfxParamPropChoiceOption,i,option.c_str());
+  }
+  const char *ease[]={"Smoothstep","Linear","Hold"};
+  defineGeographicChoice(ps,"GeographicRegionEase","Color keyframe easing",ease,3,0);
+  defineGeographicButton(ps,"GeographicRegionCaptureKey","Capture RGBA key at playhead");
+  defineGeographicButton(ps,"GeographicRegionRemoveSaved","Remove saved region");
+  defineMultiline(ps,"GeographicRegionSaved",
+                  "Selected regions (persistent project state)","GeographicRegion");
+}
 void defineVersionLabel(OfxParamSetHandle ps){
   OfxPropertySetHandle props=nullptr;
   if(param->paramDefine(ps,kOfxParamTypeString,"CartoRigBuildInfo",&props)!=kOfxStatOK)
     throw std::runtime_error("version label parameter failed");
   prop->propSetString(props,kOfxPropLabel,0,"Installed plugin build");
   prop->propSetString(props,kOfxParamPropStringMode,0,kOfxParamStringIsLabel);
-  const std::string info=std::string("0.3.0-dev / ")+CARTORIG_BUILD_SHA;
+  const std::string info=std::string("0.4.0-dev / ")+CARTORIG_BUILD_SHA;
   prop->propSetString(props,kOfxParamPropDefault,0,info.c_str());
   prop->propSetInt(props,kOfxParamPropPersistant,0,0);
   prop->propSetInt(props,kOfxParamPropAnimates,0,0);
@@ -267,6 +491,7 @@ OfxStatus describeInContext(OfxImageEffectHandle e,bool filter){
  defineNativeText(ps,"CountryList","More countries (ISO3 list)","CountryControls");
  defineNativeDouble(ps,"HighlightStrength","Highlight opacity",1,0,1,"CountryControls");
 
+ defineGeographicRegionUI(ps);
  defineNativeGroup(ps,"RouteControls","Manual geographic route",true);
  defineNativeToggle(ps,"NativeRouteEnabled","Enable manual route",false,"RouteControls");
  defineNativeDouble(ps,"RouteStartLongitude","Start longitude",-20,-180,180,"RouteControls");
@@ -293,6 +518,42 @@ OfxStatus describeInContext(OfxImageEffectHandle e,bool filter){
  defineNativeDouble(ps,"HighlightB","Highlight blue",192,0,255,"MapColors");
 
  defineNativeGroup(ps,"AdvancedScene","Advanced: import custom scenes",false);
+ defineString(ps,"NaturalEarthVectorGpkg","Vector GeoPackage","AdvancedScene");
+ defineNaturalEarthDetailChoice(ps);
+ // Optional raw publisher table name. Never changes existing map clips unless set.
+ defineString(ps,"NaturalEarthLayer","Additional vector layer (ne_...)","AdvancedScene");
+ defineString(ps,"NaturalEarthLayerGpkg","Additional layer GeoPackage (optional)","AdvancedScene");
+ defineBoolean(ps,"UseInstalledNaturalEarth",
+               "Use installed offline Natural Earth data pack",false,"AdvancedScene");
+ defineString(ps,"NaturalEarthRasterRoot","Raster tiles directory (offline)","AdvancedScene");
+ defineNativeText(ps,"NaturalEarthRasterAsset","Raster asset ID (blank: disabled)","AdvancedScene");
+ defineNativeText(ps,"NaturalEarthRasterSearch","Search offline raster","AdvancedScene");
+ OfxPropertySetHandle rasterOptions=nullptr;
+ if(param->paramDefine(ps,kOfxParamTypeChoice,"NaturalEarthRasterChoice",&rasterOptions)!=kOfxStatOK)
+   throw std::runtime_error("offline raster picker is unavailable");
+ prop->propSetString(rasterOptions,kOfxPropLabel,0,"Offline raster results");
+ prop->propSetString(rasterOptions,kOfxParamPropParent,0,"AdvancedScene");
+ prop->propSetInt(rasterOptions,kOfxParamPropDefault,0,0);
+ prop->propSetInt(rasterOptions,kOfxParamPropAnimates,0,0);
+ prop->propSetString(rasterOptions,kOfxParamPropChoiceOption,0,"No raster selected");
+ for(int idx=1;idx<=10;++idx){
+   const auto label="No raster result "+std::to_string(idx);
+   prop->propSetString(rasterOptions,kOfxParamPropChoiceOption,idx,label.c_str());
+ }
+ OfxPropertySetHandle rasterAction=nullptr;
+ if(param->paramDefine(ps,kOfxParamTypePushButton,"NaturalEarthRasterApply",&rasterAction)!=kOfxStatOK)
+   throw std::runtime_error("offline raster apply action is unavailable");
+ prop->propSetString(rasterAction,kOfxPropLabel,0,"Use selected offline raster");
+ prop->propSetString(rasterAction,kOfxParamPropParent,0,"AdvancedScene");
+ OfxPropertySetHandle rasterStatus=nullptr;
+ if(param->paramDefine(ps,kOfxParamTypeString,"NaturalEarthRasterInfo",&rasterStatus)!=kOfxStatOK)
+   throw std::runtime_error("offline raster catalog status unavailable");
+ prop->propSetString(rasterStatus,kOfxPropLabel,0,"Raster search status");
+ prop->propSetString(rasterStatus,kOfxParamPropParent,0,"AdvancedScene");
+ prop->propSetString(rasterStatus,kOfxParamPropStringMode,0,kOfxParamStringIsLabel);
+ prop->propSetString(rasterStatus,kOfxParamPropDefault,0,
+                     "Select a local raster catalog or enable installed offline data");
+ prop->propSetInt(rasterStatus,kOfxParamPropAnimates,0,0);
  defineString(ps,"SceneFile","Scene .json (blank: empty map)","AdvancedScene");
  defineString(ps,"CatalogFile","GeoJSON (blank: offline countries)","AdvancedScene");
  defineMultiline(ps,"EmbeddedSceneJSON","Embedded scene JSON (portable)","AdvancedScene");
@@ -305,6 +566,26 @@ OfxStatus createInstance(OfxImageEffectHandle e,bool filter){auto i=std::make_un
  if(fx->clipGetHandle(e,kOfxImageEffectOutputClipName,&i->output,nullptr)!=kOfxStatOK)return kOfxStatFailed;
  if(filter&&fx->clipGetHandle(e,kOfxImageEffectSimpleSourceClipName,&i->source,nullptr)!=kOfxStatOK)return kOfxStatFailed;
  for(auto t:std::vector<std::pair<const char*,OfxParamHandle*>>{{"SceneFile",&i->sceneFile},{"CatalogFile",&i->datasetFile},
+ {"NaturalEarthVectorGpkg",&i->naturalEarthGpkg},{"NaturalEarthDetail",&i->naturalEarthDetail},
+ {"NaturalEarthLayer",&i->naturalEarthLayer},
+ {"NaturalEarthLayerGpkg",&i->naturalEarthLayerFile},
+ {"NaturalEarthRasterRoot",&i->naturalEarthRasterRoot},
+ {"NaturalEarthRasterAsset",&i->naturalEarthRasterAsset},
+ {"UseInstalledNaturalEarth",&i->useInstalledNaturalEarth},
+ {"NaturalEarthRasterSearch",&i->rasterSearch},
+ {"NaturalEarthRasterChoice",&i->rasterChoice},
+ {"NaturalEarthRasterApply",&i->rasterApply},
+ {"NaturalEarthRasterInfo",&i->rasterInfo},
+ {"GeographicCatalog",&i->regionCatalog},
+ {"GeographicRegionKind",&i->regionKind},{"GeographicRegionQuery",&i->regionQuery},
+ {"GeographicRegionMatch",&i->regionMatch},{"GeographicRegionStatus",&i->regionStatus},
+ {"GeographicRegionRed",&i->regionRed},{"GeographicRegionGreen",&i->regionGreen},
+ {"GeographicRegionBlue",&i->regionBlue},{"GeographicRegionAlpha",&i->regionAlpha},
+ {"GeographicRegionAdd",&i->regionAdd},{"GeographicRegionRemove",&i->regionRemove},
+ {"GeographicRegionEdit",&i->regionEdit},{"GeographicRegionEase",&i->regionEase},
+ {"GeographicRegionCaptureKey",&i->regionCaptureKey},
+ {"GeographicRegionRemoveSaved",&i->regionRemoveSaved},
+ {"GeographicRegionSaved",&i->regionSaved},
  {"EmbeddedSceneJSON",&i->sceneInline},{"EmbeddedCatalogJSON",&i->datasetInline},
  {"SceneTimeOffset",&i->frameOffset},{"SceneTimeScale",&i->timeScale},
  {"UseSceneCamera",&i->useSceneKeys},{"Longitude",&i->lon},{"Latitude",&i->lat},{"Zoom",&i->zoom},
@@ -430,13 +711,28 @@ OfxStatus render(OfxImageEffectHandle e,OfxPropertySetHandle args){Instance *i=i
    cartorig::renderDiagnosticPattern(target,width,height,diagnosticMode);
    return kOfxStatOK;
  }
- std::string sceneFile,datasetFile,inlineScene,inlineCatalog;
+ std::string sceneFile,datasetFile,inlineScene,inlineCatalog,naturalEarthPath;
  stringAt(i->sceneFile,time,sceneFile);stringAt(i->datasetFile,time,datasetFile);
  stringAt(i->sceneInline,time,inlineScene);stringAt(i->datasetInline,time,inlineCatalog);
+ stringAt(i->naturalEarthGpkg,time,naturalEarthPath);
+ const bool useInstalled=intAt(i->useInstalledNaturalEarth,time,0)!=0;
+ if(useInstalled && naturalEarthPath.empty())
+   naturalEarthPath=installedNaturalEarthAsset(
+       "vector/natural_earth_vector.gpkg").string();
  if(sceneFile.empty())sceneFile=defaultAsset("default-map.cartorig-native.json");
- if(datasetFile.empty())datasetFile=defaultAsset("countries.geojson");
  auto scene=inlineScene.empty()?sceneAt(sceneFile):embeddedSceneAt(*i,inlineScene);
- auto dataset=inlineCatalog.empty()?datasetAt(datasetFile):embeddedDatasetAt(*i,inlineCatalog);
+ // Priority: Embedded GeoJSON > explicit GeoJSON filename > local Natural
+ // Earth GeoPackage > bundled neutral GeoJSON. Existing clips stay unchanged.
+ std::shared_ptr<const cartorig::Dataset> dataset;
+ if(!inlineCatalog.empty())dataset=embeddedDatasetAt(*i,inlineCatalog);
+ else if(!datasetFile.empty())dataset=datasetAt(datasetFile);
+ else if(!naturalEarthPath.empty()){
+   const int detail=intAt(i->naturalEarthDetail,time,0);
+   const double zoom=doubleAt(i->zoom,time,1.3);
+   const char *scale=detail==1?"110m":detail==2?"50m":detail==3?"10m":
+                      (zoom<3.5?"110m":zoom<7?"50m":"10m");
+   dataset=naturalEarthCountriesAt(naturalEarthPath,scale);
+ }else dataset=datasetAt(defaultAsset("countries.geojson"));
  const double sceneFrame=cartorig::mapSceneFrame(time,
    doubleAt(i->frameOffset,time,0),doubleAt(i->timeScale,time,1));
  cartorig::View view;view.width=width;view.height=height;view.frame=sceneFrame;
@@ -482,11 +778,298 @@ OfxStatus render(OfxImageEffectHandle e,OfxPropertySetHandle args){Instance *i=i
    view.preserveBackground=true;
  }
  cartorig::render(copy,*dataset,view,target);
+ std::string rasterRoot,rasterAsset;
+ stringAt(i->naturalEarthRasterRoot,time,rasterRoot);
+ stringAt(i->naturalEarthRasterAsset,time,rasterAsset);
+ if(useInstalled && rasterRoot.empty() && !rasterAsset.empty())
+   rasterRoot=installedNaturalEarthAsset(
+       "raster/validated-raster-assets.json").parent_path().string();
+ if(!rasterAsset.empty()){
+   if(rasterRoot.empty())
+     throw std::invalid_argument("Natural Earth raster asset requires offline tile directory");
+   const auto atlas=naturalEarthRasterAt(rasterRoot,rasterAsset);
+   cartorig::renderNaturalEarthRaster(*atlas,view,target);
+ }
+ std::string extraLayer,extraLayerPath;
+ stringAt(i->naturalEarthLayer,time,extraLayer);
+ stringAt(i->naturalEarthLayerFile,time,extraLayerPath);
+ if(useInstalled && extraLayerPath.empty())
+   extraLayerPath=installedNaturalEarthAsset("vector/supplements.gpkg").string();
+ if(!extraLayer.empty()){
+   const auto &source=extraLayerPath.empty()?naturalEarthPath:extraLayerPath;
+   if(source.empty())
+     throw std::invalid_argument("Additional vector layer requires a local GeoPackage");
+   const auto geometry=naturalEarthLayerAt(source,extraLayer);
+   // Selected non-country geometries are drawn over the existing map; no
+   // implicit geographic claims or fabricated city/municipal polygons.
+   cartorig::renderNaturalEarthLayer(
+       *geometry,view,target,
+       cartorig::Color{76,144,110,155},
+       cartorig::Color{96,193,231,235},
+       cartorig::Color{255,207,115,245});
+ }
+ std::string savedRegions;
+ stringAt(i->regionSaved,time,savedRegions);
+ if(!savedRegions.empty()){
+   if(naturalEarthPath.empty())
+     throw std::invalid_argument("Geographic region requires a local Vector GeoPackage");
+   const auto selections=cartorig::parseGeographicSelections(savedRegions);
+   for(const auto &selection:selections){
+     const auto geometries=geographicRegionAt(
+         naturalEarthPath,extraLayerPath,selection);
+     // Independent RGBA per region, following a stable publisher feature ID.
+     // City points stay points; no fabricated administrative polygons.
+     const auto regionColor=cartorig::evaluateGeographicRegionColor(selection,sceneFrame);
+     cartorig::renderNaturalEarthLayer(
+         *geometries,view,target,regionColor,regionColor,regionColor);
+   }
+ }
  return kOfxStatOK;
+}
+OfxStatus onGeographicRegionChanged(OfxImageEffectHandle effect,
+                                    OfxPropertySetHandle args,
+                                    const std::string &changed){
+  auto *i=instance(effect);
+  if(!i||!param->paramSetValue)return kOfxStatReplyDefault;
+  double time=0;
+  if(args)prop->propGetDouble(args,kOfxPropTime,0,&time);
+  const int choice=intAt(i->regionKind,time,1);
+  const char* types[]={"continent","country","state","city"};
+  if(choice<0||choice>3)throw std::invalid_argument("unknown geographic region type");
+  std::string indexFile,query,saved;
+  stringAt(i->regionCatalog,time,indexFile);
+  if(intAt(i->useInstalledNaturalEarth,time,0)!=0 && indexFile.empty())
+    indexFile=installedNaturalEarthAsset("vector/catalog.sqlite").string();
+  stringAt(i->regionQuery,time,query);
+  stringAt(i->regionSaved,time,saved);
+  const bool actionAdd=changed=="GeographicRegionAdd";
+  const bool actionRemove=changed=="GeographicRegionRemove";
+  const bool actionCapture=changed=="GeographicRegionCaptureKey";
+  const bool actionRemoveSaved=changed=="GeographicRegionRemoveSaved";
+  std::vector<cartorig::NaturalEarthRegion> results;
+  if(!indexFile.empty()&&!query.empty())
+    results=cartorig::NaturalEarthCatalog::search(indexFile,query,types[choice],10);
+  // Keep ten stable choice indices while replacing their *display names* with
+  // actual offline FTS matches. Resolve may not repaint labels on every host
+  // version; fallback status text still shows the same names.
+  OfxPropertySetHandle choiceProps=nullptr;
+  if(param->paramGetPropertySet(i->regionMatch,&choiceProps)==kOfxStatOK &&
+     choiceProps){
+    for(int resultIndex=0;resultIndex<10;++resultIndex){
+      std::string option="No result "+std::to_string(resultIndex+1);
+      if(resultIndex<static_cast<int>(results.size())){
+        const auto &hit=results[static_cast<std::size_t>(resultIndex)];
+        option=hit.name;
+        if(!hit.parent.empty())option+=" ("+hit.parent+")";
+        if(option.size()>110)option.resize(110);
+      }
+      (void)prop->propSetString(choiceProps,kOfxParamPropChoiceOption,
+                               resultIndex,option.c_str());
+    }
+  }
+  const int selected=intAt(i->regionMatch,time,0);
+  const auto refreshSavedChoices=[&](const std::string &updated){
+    const auto entries=cartorig::parseGeographicSelections(updated);
+    OfxPropertySetHandle labels=nullptr;
+    if(param->paramGetPropertySet(i->regionEdit,&labels)==kOfxStatOK && labels){
+      for(int n=0;n<64;++n){
+        std::string label="No selected region "+std::to_string(n+1);
+        if(n<static_cast<int>(entries.size())){
+          const auto &entry=entries[static_cast<std::size_t>(n)];
+          label=entry.name;
+          if(!entry.parent.empty())label+=" ("+entry.parent+")";
+          if(label.size()>120)label.resize(120);
+        }
+        (void)prop->propSetString(labels,kOfxParamPropChoiceOption,n,label.c_str());
+      }
+    }
+    return entries;
+  };
+  const auto updateInfo=[&](std::string message){
+    if(message.size()>700)message.resize(700);
+    // Label refresh is not guaranteed by all OFX hosts; persistent selections
+    // do not depend on it.
+    (void)param->paramSetValue(i->regionStatus,message.c_str());
+  };
+  if(actionCapture||actionRemoveSaved||changed=="GeographicRegionEdit"){
+    const auto current=refreshSavedChoices(saved);
+    const int editIndex=intAt(i->regionEdit,time,0);
+    if(editIndex<0||editIndex>=static_cast<int>(current.size())){
+      if(actionCapture||actionRemoveSaved)
+        throw std::invalid_argument("Select a saved geographic region first");
+      updateInfo("No saved geographic region selected");
+      return kOfxStatReplyDefault;
+    }
+    const auto &entry=current[static_cast<std::size_t>(editIndex)];
+    const double sceneTime=cartorig::mapSceneFrame(
+        time,doubleAt(i->frameOffset,time,0),doubleAt(i->timeScale,time,1));
+    if(changed=="GeographicRegionEdit"){
+      const auto rgba=cartorig::evaluateGeographicRegionColor(entry,sceneTime);
+      // Editing the selected region starts from its current local RGBA,
+      // rather than unintentionally cloning the previous region's style.
+      (void)param->paramSetValue(i->regionRed,static_cast<double>(rgba.r));
+      (void)param->paramSetValue(i->regionGreen,static_cast<double>(rgba.g));
+      (void)param->paramSetValue(i->regionBlue,static_cast<double>(rgba.b));
+      (void)param->paramSetValue(i->regionAlpha,static_cast<double>(rgba.a));
+      updateInfo("Editing: "+entry.name+" | "+std::to_string(entry.colorKeys.size())+
+                 " color keys");
+      return kOfxStatReplyDefault;
+    }
+    std::string next;
+    if(actionRemoveSaved){
+      next=cartorig::removeGeographicSelection(saved,entry.featureKey);
+    }else{
+      const auto channel=[&](OfxParamHandle h,double fallback){
+        return static_cast<std::uint8_t>(std::lround(
+          std::clamp(doubleAt(h,time,fallback),0.0,255.0)));
+      };
+      const cartorig::Color keyColor{
+        channel(i->regionRed,40),channel(i->regionGreen,157),
+        channel(i->regionBlue,192),channel(i->regionAlpha,220)};
+      const int easingIndex=intAt(i->regionEase,time,0);
+      const char* easings[]={"smoothstep","linear","hold"};
+      if(easingIndex<0||easingIndex>2)
+        throw std::invalid_argument("Invalid region keyframe easing");
+      next=cartorig::upsertGeographicColorKey(
+        saved,entry.featureKey,sceneTime,keyColor,easings[easingIndex]);
+    }
+    if(param->paramSetValue(i->regionSaved,next.c_str())!=kOfxStatOK)
+      throw std::runtime_error("Resolve did not accept geographic region keyframe state");
+    const auto entries=refreshSavedChoices(next);
+    if(actionRemoveSaved && !entries.empty() && editIndex>=static_cast<int>(entries.size()))
+      (void)param->paramSetValue(i->regionEdit,static_cast<int>(entries.size())-1);
+    updateInfo((actionRemoveSaved?"Removed selected region: ":"Captured color key: ")+
+               entry.name+
+               (actionCapture?" at scene frame "+std::to_string(sceneTime):""));
+    return kOfxStatOK;
+  }
+  if(actionAdd||actionRemove){
+    if(indexFile.empty())
+      throw std::invalid_argument("Set the offline geographic search index first");
+    if(selected<0||selected>=static_cast<int>(results.size()))
+      throw std::invalid_argument("Choose a valid offline search result");
+    const auto &hit=results[static_cast<std::size_t>(selected)];
+    std::string next;
+    if(actionRemove){
+      next=cartorig::removeGeographicSelection(saved,hit.featureKey);
+    }else{
+      const auto channel=[&](OfxParamHandle h,double defaultValue){
+        return static_cast<std::uint8_t>(std::lround(std::clamp(
+            doubleAt(h,time,defaultValue),0.0,255.0)));
+      };
+      cartorig::GeographicRegionSelection added;
+      added.featureKey=hit.featureKey;added.kind=hit.kind;
+      added.name=hit.name;added.parent=hit.parent;
+      added.sourceLayer=hit.sourceLayer;added.sourceRowId=hit.sourceRowId;
+      added.scale=hit.scale;
+      added.fill={channel(i->regionRed,40),channel(i->regionGreen,157),
+                  channel(i->regionBlue,192),channel(i->regionAlpha,220)};
+      next=cartorig::upsertGeographicSelection(saved,added);
+    }
+    if(param->paramSetValue(i->regionSaved,next.c_str())!=kOfxStatOK)
+      throw std::runtime_error("Resolve did not accept persistent region state update");
+    const auto entries=refreshSavedChoices(next);
+    if(actionAdd){
+      for(std::size_t n=0;n<entries.size();++n)
+        if(entries[n].featureKey==hit.featureKey){
+          (void)param->paramSetValue(i->regionEdit,static_cast<int>(n));
+          break;
+        }
+    }
+    updateInfo(std::to_string(entries.size())+
+        " regions selected | "+(actionAdd?"Added / updated: ":"Removed: ")+
+        hit.name);
+    return kOfxStatOK;
+  }
+  (void)refreshSavedChoices(saved);
+  if(indexFile.empty()){
+    updateInfo("Set offline search index (catalog.sqlite) before searching");
+  }else if(query.empty()){
+    updateInfo(std::to_string(cartorig::parseGeographicSelections(saved).size())+
+               " regions selected | Enter a location name");
+  }else if(results.empty()){
+    updateInfo("No offline Natural Earth matches");
+  }else{
+    std::ostringstream summary;
+    summary<<cartorig::parseGeographicSelections(saved).size()<<" selected | ";
+    for(std::size_t n=0;n<results.size();++n){
+      if(n)summary<<" ; ";
+      summary<<(n+1)<<": "<<results[n].name;
+      if(!results[n].parent.empty())summary<<" ("<<results[n].parent<<")";
+    }
+    updateInfo(summary.str());
+  }
+  return kOfxStatReplyDefault;
+}
+OfxStatus onOfflineRasterChanged(OfxImageEffectHandle effect,
+                                 OfxPropertySetHandle args,
+                                 const std::string &changed){
+  auto *i=instance(effect);
+  if(!i||!param->paramSetValue)return kOfxStatReplyDefault;
+  double time=0;
+  if(args)prop->propGetDouble(args,kOfxPropTime,0,&time);
+  std::string root,search;
+  stringAt(i->naturalEarthRasterRoot,time,root);
+  stringAt(i->rasterSearch,time,search);
+  const bool useInstalled=intAt(i->useInstalledNaturalEarth,time,0)!=0;
+  if(root.empty()&&useInstalled)
+    root=installedNaturalEarthAsset(
+      "raster/validated-raster-assets.json").parent_path().string();
+  const auto status=[&](const std::string &value){
+    (void)param->paramSetValue(i->rasterInfo,value.c_str());
+  };
+  if(root.empty()){
+    if(changed=="NaturalEarthRasterApply")
+      throw std::invalid_argument("Set offline raster tiles directory first");
+    status("Set Raster tiles directory or enable installed Natural Earth pack");
+    return kOfxStatReplyDefault;
+  }
+  auto assets=cartorig::listNaturalEarthRasterAssets(root);
+  const auto fold=[](std::string value){
+    std::transform(value.begin(),value.end(),value.begin(),[](unsigned char ch){
+      return static_cast<char>(std::tolower(ch));});
+    return value;
+  };
+  const auto query=fold(search);
+  std::vector<cartorig::NaturalEarthRasterAsset> matches;
+  matches.reserve(10);
+  for(const auto &asset:assets){
+    if(!query.empty()&&fold(asset.sourceId).find(query)==std::string::npos&&
+       fold(asset.assetId).find(query)==std::string::npos)
+      continue;
+    if(matches.size()<10)matches.push_back(asset);
+  }
+  OfxPropertySetHandle opts=nullptr;
+  if(param->paramGetPropertySet(i->rasterChoice,&opts)==kOfxStatOK && opts){
+    for(int option=1;option<=10;++option){
+      std::string label="No raster result "+std::to_string(option);
+      if(option<=static_cast<int>(matches.size())){
+        const auto &asset=matches[static_cast<std::size_t>(option-1)];
+        label=asset.sourceId+" / "+asset.assetId;
+        if(label.size()>120)label.resize(120);
+      }
+      (void)prop->propSetString(opts,kOfxParamPropChoiceOption,
+                                option,label.c_str());
+    }
+  }
+  if(changed=="NaturalEarthRasterApply"){
+    const int selected=intAt(i->rasterChoice,time,0);
+    if(selected<0||selected>static_cast<int>(matches.size()))
+      throw std::invalid_argument("Select one of the available offline raster results");
+    const auto id=selected==0?std::string():
+                          matches[static_cast<std::size_t>(selected-1)].assetId;
+    if(param->paramSetValue(i->naturalEarthRasterAsset,id.c_str())!=kOfxStatOK)
+      throw std::runtime_error("OFX host rejected the chosen raster asset ID");
+    status(id.empty()?"Raster disabled":"Selected offline raster: "+id);
+    return kOfxStatOK;
+  }
+  status(std::to_string(matches.size())+" raster matches (first 10) from "+
+         std::to_string(assets.size())+" installed atlas assets");
+  return kOfxStatReplyDefault;
 }
 OfxStatus entry(const char *action,const void *handle,OfxPropertySetHandle args,OfxPropertySetHandle out,bool filter){try {
  if(!std::strcmp(action,kOfxActionLoad))return onLoad();
- if(!std::strcmp(action,kOfxActionUnload)){std::lock_guard<std::mutex> lock(cacheMutex);cache.clear();return kOfxStatOK;}
+ if(!std::strcmp(action,kOfxActionUnload)){std::lock_guard<std::mutex> lock(cacheMutex);cache.clear();vectorLayerCache.clear();rasterCache.clear();regionGeometryCache.clear();return kOfxStatOK;}
  if(!std::strcmp(action,kOfxActionDescribe))return describe((OfxImageEffectHandle)handle,filter);
  if(!std::strcmp(action,kOfxImageEffectActionDescribeInContext))return describeInContext((OfxImageEffectHandle)handle,filter);
  if(!std::strcmp(action,kOfxActionInstanceChanged)){
@@ -495,6 +1078,11 @@ OfxStatus entry(const char *action,const void *handle,OfxPropertySetHandle args,
    if(args&&prop->propGetString(args,kOfxPropName,0,&changed)==kOfxStatOK&&
       changed&&!std::strcmp(changed,"DiagnosticLog"))
      writeDiagnostics("INSPECTOR DiagnosticLog changed; render may not have started yet");
+   if(changed&&(!std::strncmp(changed,"NaturalEarthRaster",18)||
+                  !std::strcmp(changed,"UseInstalledNaturalEarth")))
+     return onOfflineRasterChanged((OfxImageEffectHandle)handle,args,changed);
+   if(changed&&std::strncmp(changed,"GeographicRegion",16)==0)
+     return onGeographicRegionChanged((OfxImageEffectHandle)handle,args,changed);
    return kOfxStatReplyDefault;
  }
  if(!std::strcmp(action,kOfxImageEffectActionGetClipPreferences)){

@@ -1,0 +1,12 @@
+{
+  "baseline_variants": 52,
+  "digest_contract": "sorted resource_id; fields resource_id,scale,url,source_page,archive_format,theme_version; canonical json UTF-8",
+  "format": "cartorig-natural-earth-raster-discovery-v1",
+  "publisher": "Natural Earth / NACIS",
+  "schema_version": 1,
+  "source_rows_sha256": "dbd0bb7a3323b764570c3305e0c778aaa73143cf15d941d2a84c1dba9cd2b0b0",
+  "variants_by_scale": {
+    "10m": 38,
+    "50m": 14
+  }
+}
