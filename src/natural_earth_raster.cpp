@@ -42,6 +42,41 @@ std::vector<std::uint8_t> readTile(const std::filesystem::path &path){
 }
 } // namespace
 
+std::vector<NaturalEarthRasterAsset> listNaturalEarthRasterAssets(
+    const std::filesystem::path &root){
+  const auto path=root/"validated-raster-assets.json";
+  const auto source=readText(path.string(),8*1024*1024);
+  std::string error;
+  const auto report=json11::Json::parse(source,error);
+  if(!error.empty()||!report.is_object()||
+     integer(report,"schema_version",1,1)!=1)
+    throw std::invalid_argument("invalid Natural Earth offline raster catalogue");
+  const auto &records=report["assets"].array_items();
+  if(records.empty()||records.size()>10000)
+    throw std::invalid_argument("offline Natural Earth raster catalogue is empty or too large");
+  std::vector<NaturalEarthRasterAsset> assets;
+  assets.reserve(records.size());
+  for(const auto &item:records){
+    if(!item.is_object()||item["status"].string_value()!="VALIDATED")
+      throw std::invalid_argument("unvalidated raster catalogue asset");
+    const auto id=item["asset_id"].string_value();
+    const auto sourceId=item["source_id"].string_value();
+    if(!allowedAssetId(id)||sourceId.empty()||sourceId.size()>160)
+      throw std::invalid_argument("invalid raster asset provenance in offline catalogue");
+    if(!std::filesystem::is_regular_file(root/id/"index.json"))
+      throw std::invalid_argument("raster atlas missing from offline catalogue");
+    assets.push_back({id,sourceId});
+  }
+  std::sort(assets.begin(),assets.end(),[](const auto &left,const auto &right){
+    if(left.sourceId!=right.sourceId)return left.sourceId<right.sourceId;
+    return left.assetId<right.assetId;
+  });
+  for(std::size_t i=1;i<assets.size();++i)
+    if(assets[i-1].assetId==assets[i].assetId)
+      throw std::invalid_argument("duplicate raster asset ID in offline catalogue");
+  return assets;
+}
+
 NaturalEarthRaster loadNaturalEarthRaster(
     const std::filesystem::path &root,const std::string &assetId){
   if(!allowedAssetId(assetId))
