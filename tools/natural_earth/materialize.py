@@ -155,13 +155,13 @@ def materialize(inventory:dict,root:Path,allow_network:bool=False,
         ident=item["resource_id"]
         dest=root/relative
         item["file"]=relative
-        checkpoint=prior.get(ident,{})
-        matching_checkpoint=(checkpoint.get("url")==item["url"] and
-                             checkpoint.get("theme")==item.get("theme") and
-                             checkpoint.get("scale")==item.get("scale") and
-                             checkpoint.get("file")==relative and
-                             checkpoint.get("status")=="VERIFIED")
-        verified=checkpoint if matching_checkpoint else item
+        prior_checkpoint=prior.get(ident,{})
+        matching_checkpoint=(prior_checkpoint.get("url")==item["url"] and
+                             prior_checkpoint.get("theme")==item.get("theme") and
+                             prior_checkpoint.get("scale")==item.get("scale") and
+                             prior_checkpoint.get("file")==relative and
+                             prior_checkpoint.get("status")=="VERIFIED")
+        verified=prior_checkpoint if matching_checkpoint else item
         if _verified_existing(dest,verified):
             item["sha256"]=verified["sha256"]
             item["archive_bytes"]=dest.stat().st_size
