@@ -94,6 +94,14 @@ an unavailable source still blocks a complete release.
 - tests/test_natural_earth_release.py: experimental full-manifest preservation
   and complete-pack certification rejection.
 
+## Raster storage format after conversion
+
+Production and experimental builders now use lossless PNG v2 offline atlas
+tiles. One actual MSR_50M publisher source showed 90% less atlas storage
+and identical native C++ output to raw RGBA v1.
+See [PNG v2 real-source evidence](NE_RASTER_PNG_V2_2026-11-07.md).
+The total 51-archive footprint has not been measured.
+
 ## Evidence and remaining blockers
 
 - Previous real publisher audit: 24/24 pages, 52 source URLs.
