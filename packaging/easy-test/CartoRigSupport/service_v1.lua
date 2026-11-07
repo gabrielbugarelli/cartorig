@@ -130,9 +130,15 @@ local function objectList(comp)
     for _,node in pairs(comp:GetToolList(false) or {}) do
         local attrs=node:GetAttrs() or {}
         local n=tonumber((attrs.TOOLS_Name or ""):match("^CR_Layer_(%d+)_"))
-        if n then result[#result+1]={index=n,node=node,meta=node:GetData("CartoRig.V1Object")} end
+        if n then
+            result[#result+1]={index=n,order=tonumber(node:GetData("CartoRig.V1Order")) or n,
+                node=node,meta=node:GetData("CartoRig.V1Object")}
+        end
     end
-    table.sort(result,function(a,b)return a.index<b.index end)
+    table.sort(result,function(a,b)
+        if a.order==b.order then return a.index<b.index end
+        return a.order<b.order
+    end)
     return result
 end
 function M.objects(sceneIndex)
@@ -181,7 +187,10 @@ local function addObject(sceneIndex,kind,meta,configure)
     return atomic(comp,"CartoRig: Add "..kind,function()
         local entries=objectList(comp)
         if #entries>=128 then error("Maximum CartoRig objects reached") end
-        local index=entries[#entries] and entries[#entries].index+1 or 1
+        local index=1
+        for _,entry in ipairs(entries) do
+            index=math.max(index,entry.index+1)
+        end
         local node=requireHost(comp:AddTool("ofx.com.cartorig.native.overlay",index,1),
                                "CartoRig OpenFX Overlay")
         local ok,result=pcall(function()
@@ -192,6 +201,9 @@ local function addObject(sceneIndex,kind,meta,configure)
             set(node,"Opacity",1)
             syncCamera(node,base)
             configure(node)
+            if node:SetData("CartoRig.V1Order",index)==false then
+                error("Host refused object ordering metadata")
+            end
             if node:SetData("CartoRig.V1Object",meta)==false then
                 error("Host refused to store object metadata")
             end
@@ -552,5 +564,97 @@ function M.delete(sceneIndex,objectIndex)
             error("Fusion refused object deletion")
         end
     end)
+end
+
+function M.renameObject(sceneIndex,objectIndex,newName)
+    newName=tostring(newName or ""):match("^%s*(.-)%s*$")
+    if #newName<1 or #newName>120 or newName:find("[%z\1-\31]") then
+        error("Name must contain 1–120 printable characters",2)
+    end
+    local comp=sceneAt(sceneIndex)
+    local entry=M.objects(sceneIndex)[objectIndex]
+    if not entry or not entry.meta then error("Select an existing object",2) end
+    return atomic(comp,"CartoRig: Rename object",function()
+        entry.meta.name=newName
+        if entry.node:SetData("CartoRig.V1Object",entry.meta)==false then
+            error("Cannot persist the new name")
+        end
+    end)
+end
+function M.moveObject(sceneIndex,objectIndex,delta)
+    if delta~=-1 and delta~=1 then error("Invalid reorder direction",2) end
+    local comp,base,layers=sceneAt(sceneIndex)
+    local entries=objectList(comp)
+    local a=entries[objectIndex]
+    local b=entries[objectIndex+delta]
+    if not a or not b then error("Object is already at the stack edge",2) end
+    return atomic(comp,"CartoRig: Reorder objects",function()
+        local aOrder,bOrder=a.order,b.order
+        if a.node:SetData("CartoRig.V1Order",bOrder)==false or
+           b.node:SetData("CartoRig.V1Order",aOrder)==false then
+            error("Host refused layer reordering")
+        end
+        rewire(comp,layers,base)
+    end)
+end
+function M.editRoute(sceneIndex,objectIndex,from,to,options)
+    local comp=sceneAt(sceneIndex)
+    local entry=M.objects(sceneIndex)[objectIndex]
+    if not entry or not entry.meta or entry.meta.type~="Route" then
+        error("Select an existing Route",2)
+    end
+    options=options or {}
+    local a=from and geoPoint(from,options.fromPoint) or
+        {lon=entry.meta.lon,lat=entry.meta.lat}
+    local b=to and geoPoint(to,options.toPoint) or
+        {lon=entry.meta.endLon,lat=entry.meta.endLat}
+    local curve=bounded(options.curve or entry.meta.curve,-100,100,"route curvature")
+    local width=bounded(options.width or entry.meta.width,.5,30,"route width")
+    local arrowhead=options.arrowhead
+    if arrowhead==nil then arrowhead=entry.meta.arrowhead end
+    return atomic(comp,"CartoRig: Edit route",function()
+        local node=entry.node
+        set(node,"RouteStartLongitude",a.lon)
+        set(node,"RouteStartLatitude",a.lat)
+        set(node,"RouteEndLongitude",b.lon)
+        set(node,"RouteEndLatitude",b.lat)
+        set(node,"NativeRouteCurve",curve)
+        set(node,"NativeRouteWidth",width)
+        set(node,"NativeRouteArrowhead",arrowhead and 1 or 0)
+        -- Do not touch RouteProgress / BezierSpline: preserve authored keyframes.
+        entry.meta.lon=a.lon;entry.meta.lat=a.lat
+        entry.meta.endLon=b.lon;entry.meta.endLat=b.lat
+        entry.meta.curve=curve;entry.meta.width=width
+        entry.meta.arrowhead=arrowhead
+        if from then entry.meta.from=from.name end
+        if to then entry.meta.to=to.name end
+        entry.meta.name=entry.meta.from.." → "..entry.meta.to
+        if node:SetData("CartoRig.V1Object",entry.meta)==false then
+            error("Failed to persist edited route")
+        end
+    end)
+end
+function M.duplicateObject(sceneIndex,objectIndex)
+    local original=M.objects(sceneIndex)[objectIndex]
+    if not original or not original.meta then error("Choose an existing object",2) end
+    local meta=original.meta
+    if meta.type=="Region" then
+        -- New layer, identical publisher geometry, independently editable style.
+        local loc={kind=meta.kind,name=meta.name,parent=meta.parent,
+            code=meta.code,isOfficial=meta.sourceLayer~=nil,
+            geometry="MULTIPOLYGON",sourceLayer=meta.sourceLayer,
+            rowid=meta.rowid,scale=meta.scale,key=meta.key}
+        return M.addRegion(sceneIndex,loc,meta.fill,meta.stroke,meta.opacity)
+    elseif meta.type=="Marker" then
+        local loc={kind="city",name=meta.name,lon=meta.lon,lat=meta.lat}
+        return M.addMarker(sceneIndex,loc,meta.label,meta.fill)
+    elseif meta.type=="Route" then
+        local from={kind="city",name=meta.from,lon=meta.lon,lat=meta.lat}
+        local to={kind="city",name=meta.to,lon=meta.endLon,lat=meta.endLat}
+        return M.addRoute(sceneIndex,from,to,{
+            color=meta.fill,curve=meta.curve,width=meta.width,
+            arrowhead=meta.arrowhead,opacity=meta.opacity})
+    end
+    error("Unsupported object type for duplication",2)
 end
 return M
