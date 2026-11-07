@@ -46,7 +46,8 @@ Prepare separately:
 Then run:
 
 ```bash
-python -m pip install Pillow==11.3.0
+python -m pip install -r tools/natural_earth/requirements-release.txt
+# Install ImageMagick 7 on the release workstation for publisher PSD variants.
 
 python -m tools.natural_earth.assemble_pack \
   --vector /publisher/natural_earth_vector.gpkg \
@@ -59,9 +60,10 @@ python -m tools.natural_earth.assemble_pack \
   --out /release/CartoRigNaturalEarth
 ```
 
-This command validates the archives, builds the SQLite search index, prepares
-every inventoried raster source, verifies the 215 vectors including the 33
-supplements, evaluates raster coverage, and constructs the deterministic
+This command validates the needed raster archives, builds the SQLite search index, prepares
+every inventoried raster variant, verifies 215 pinned vector sources through the
+official aggregate GeoPackage and the 33 supplements (without redundant vector ZIP downloads),
+evaluates raster coverage, and constructs the deterministic
 `pack.json` manifest. It fails and does not publish the output directory
 unless **all** requirements pass.
 
