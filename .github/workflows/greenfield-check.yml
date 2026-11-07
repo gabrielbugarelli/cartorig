@@ -12,6 +12,8 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y lua5.4
       - name: Lua scene runtime and native host mock
         run: lua5.4 tests/test_runtime.lua .
+      - name: Native Polygon setting and rollback regression
+        run: lua5.4 tests/test_mask_serialization.lua .
       - name: Editor startup and missing MediaOut diagnostics mock
         run: lua5.4 tests/test_editor_startup.lua .
       - name: Catalog and naming contracts
