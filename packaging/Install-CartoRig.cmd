@@ -25,7 +25,7 @@ copy /Y "%SOURCE%\CartoRig Fusion-first.lua" "%TARGET%\CartoRig Fusion-first.lua
 copy /Y "%SOURCE%\CartoRig\*.lua" "%TARGET%\CartoRig\" >nul || exit /b 1
 copy /Y "%SOURCE%\CartoRig\data\*.lua" "%TARGET%\CartoRig\data\" >nul || exit /b 1
 echo.
-echo CartoRig Fusion-first v0.2.1 installed (offline Lua + Natural Earth).
+echo CartoRig Fusion-first v0.2.2 installed (offline Lua + Natural Earth).
 echo Installed to: "%TARGET%"
 echo Startup log: "%TEMP%\CartoRig_FusionFirst_startup.log"
 echo If script fails: run packaging\Diagnose-CartoRig.cmd and open Workspace ^> Console.
