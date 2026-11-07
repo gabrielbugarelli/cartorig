@@ -57,7 +57,7 @@ struct Instance {
   OfxParamHandle showRouteMarkers=nullptr,routeStartLabel=nullptr,routeEndLabel=nullptr;
   OfxParamHandle manualColors=nullptr,oceanR=nullptr,oceanG=nullptr,oceanB=nullptr;
   OfxParamHandle landR=nullptr,landG=nullptr,landB=nullptr,borderR=nullptr,borderG=nullptr,borderB=nullptr;
-  OfxParamHandle highlightR=nullptr,highlightG=nullptr,highlightB=nullptr;
+  OfxParamHandle highlightR=nullptr,highlightG=nullptr,highlightB=nullptr,highlightAlpha=nullptr;
   std::mutex embeddedMutex;
   std::string lastSceneText,lastDatasetText;
   std::shared_ptr<const cartorig::Scene> embeddedScene;
@@ -525,6 +525,7 @@ OfxStatus describeInContext(OfxImageEffectHandle e,bool filter){
  defineNativeDouble(ps,"HighlightR","Highlight red",40,0,255,"MapColors");
  defineNativeDouble(ps,"HighlightG","Highlight green",157,0,255,"MapColors");
  defineNativeDouble(ps,"HighlightB","Highlight blue",192,0,255,"MapColors");
+ defineNativeDouble(ps,"HighlightAlpha","Highlight alpha",220,0,255,"MapColors");
 
  defineNativeGroup(ps,"AdvancedScene","Advanced: import custom scenes",false);
  defineString(ps,"NaturalEarthVectorGpkg","Vector GeoPackage","AdvancedScene");
@@ -609,7 +610,7 @@ OfxStatus createInstance(OfxImageEffectHandle e,bool filter){auto i=std::make_un
  {"RouteFromLabel",&i->routeStartLabel},{"RouteToLabel",&i->routeEndLabel},
  {"CustomMapColors",&i->manualColors},{"OceanR",&i->oceanR},{"OceanG",&i->oceanG},
  {"OceanB",&i->oceanB},{"LandR",&i->landR},{"LandG",&i->landG},{"LandB",&i->landB},{"BorderR",&i->borderR},{"BorderG",&i->borderG},{"BorderB",&i->borderB},
- {"HighlightR",&i->highlightR},{"HighlightG",&i->highlightG},{"HighlightB",&i->highlightB},
+ {"HighlightR",&i->highlightR},{"HighlightG",&i->highlightG},{"HighlightB",&i->highlightB},{"HighlightAlpha",&i->highlightAlpha},
  {"DiagnosticMode",&i->diagnosticMode},{"DiagnosticLog",&i->diagnosticLog}})if(param->paramGetHandle(ps,t.first,t.second,nullptr)!=kOfxStatOK)return kOfxStatFailed;
  OfxPropertySetHandle p=nullptr;fx->getPropertySet(e,&p);if(prop->propSetPointer(p,kOfxPropInstanceData,0,i.get())!=kOfxStatOK)return kOfxStatFailed;i.release();return kOfxStatOK;
 }
@@ -779,7 +780,7 @@ OfxStatus render(OfxImageEffectHandle e,OfxPropertySetHandle args){Instance *i=i
    controls.ocean={byteAt(i->oceanR,13),byteAt(i->oceanG,30),byteAt(i->oceanB,50),255};
    controls.land={byteAt(i->landR,35),byteAt(i->landG,59),byteAt(i->landB,82),255};
    controls.border={byteAt(i->borderR,90),byteAt(i->borderG,120),byteAt(i->borderB,147),255};
-   controls.highlight={byteAt(i->highlightR,40),byteAt(i->highlightG,157),byteAt(i->highlightB,192),220};
+   controls.highlight={byteAt(i->highlightR,40),byteAt(i->highlightG,157),byteAt(i->highlightB,192),byteAt(i->highlightAlpha,220)};
  }
  auto copy=cartorig::sceneWithNativeControls(*scene,controls);
  ImageLease source;
