@@ -186,9 +186,13 @@ class ProducerTests(unittest.TestCase):
         out=self.root/"experimental"
         built=assemble_pack.assemble(**cfg,out=out,
                                      allow_incomplete=True,
-                                     reviewed_unavailable=audited)
+                                     reviewed_unavailable=audited,
+                                     raster_tile_format="png")
         self.assertFalse(built["complete"])
         self.assertEqual(built["raster_sources"],1)
+        png_meta=json.loads((out/"raster/ne-50m-raster-fixture_0/index.json").read_text())
+        self.assertEqual(png_meta["format"],"cartorig-png-tiles-v2")
+        self.assertTrue((out/"raster/ne-50m-raster-fixture_0/tiles/0/0_0.png").is_file())
         metadata=json.loads((out/"pack.json").read_text(encoding="utf-8"))
         self.assertEqual(metadata["status"],"EXPERIMENTAL_INCOMPLETE")
         kept=json.loads((out/"provenance/source-archives.json").read_text())
