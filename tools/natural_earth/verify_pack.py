@@ -4,6 +4,8 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import re
+import stat
 from pathlib import Path, PurePosixPath
 import zipfile
 
@@ -26,6 +28,11 @@ def verify_zip(path: Path, *, max_items=10000, max_uncompressed=4_000_000_000):
         names = set()
         for item in items:
             name = PurePosixPath(item.filename.replace("\\", "/"))
+            mode = (item.external_attr >> 16) & 0xFFFF
+            if stat.S_ISLNK(mode):
+                raise VerificationError("ZIP symbolic links are forbidden: " + item.filename)
+            if re.match(r"^[A-Za-z]:", item.filename):
+                raise VerificationError("Windows drive path forbidden in ZIP: " + item.filename)
             if (name.is_absolute() or ".." in name.parts or
                     item.filename.startswith(("/", "\\")) or "\0" in item.filename):
                 raise VerificationError("unsafe archive entry: " + item.filename)
