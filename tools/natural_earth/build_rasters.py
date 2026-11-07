@@ -23,6 +23,20 @@ TILE = 256
 MAX_PIXELS = 850_000_000
 IMAGE_EXTENSIONS = {".tif", ".tiff", ".png", ".jpg", ".jpeg", ".psd"}
 WORLD_EXTENSIONS = (".tfw", ".tifw", ".wld", ".jgw", ".pgw")
+
+def is_payload_member(filename: str) -> bool:
+    """Ignore AppleDouble, Finder/resource-fork and other non-cartographic ZIP metadata.
+
+    Real Natural Earth ZIPs can contain __MACOSX/._NAME.tif/.tfw pairs.
+    Their binary AppleDouble sidecars are *not* real TIFF/world files.
+    Security checks still cover the entire ZIP separately.
+    """
+    path=PurePosixPath(filename.replace("\\","/"))
+    return (bool(path.name) and
+            not any(part.casefold()=="__macosx" for part in path.parts) and
+            not any(part.startswith("._") for part in path.parts) and
+            path.name.casefold() not in (".ds_store","thumbs.db"))
+
 SLUG = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9_-]{0,120}$")
 
 def sha256(path: Path) -> str:
@@ -284,7 +298,8 @@ def compile_archives(manifest: dict, archive_root: Path, output: Path,
                 raise ValueError("unsupported publisher raster container (requires ZIP)")
             # verify_manifest already checked source SHA256 and all ZIP CRCs.
             with zipfile.ZipFile(archive) as z:
-                names=[i.filename for i in z.infolist() if not i.is_dir()]
+                names=[i.filename for i in z.infolist()
+                       if not i.is_dir() and is_payload_member(i.filename)]
                 images=[name for name in names
                         if PurePosixPath(name).suffix.lower() in IMAGE_EXTENSIONS]
                 geo_images=[(name,find_world_file(names,name)) for name in images]
