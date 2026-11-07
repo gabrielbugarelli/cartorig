@@ -64,7 +64,8 @@ def assemble(*,vector:Path,supplement:Path,sources:Path,
              archives:Path,archive_root:Path,vector_pin:Path,
              supplement_pin:Path,out:Path,allow_incomplete:bool=False,
              resume:bool=False,
-             reviewed_unavailable:dict[str,dict]|None=None)->dict:
+             reviewed_unavailable:dict[str,dict]|None=None,
+             raster_tile_format:str="rgba")->dict:
     out=out.resolve()
     if out.exists():
         raise FileExistsError("offline data pack output already exists: "+str(out))
@@ -88,6 +89,7 @@ def assemble(*,vector:Path,supplement:Path,sources:Path,
     legacy_checkpoint=root/".cartorig-build-inputs.json"
     provenance_inputs={
         "schema_version":1,
+        "raster_tile_format":raster_tile_format,
         "vector_pin_sha256":build_pack.digest(vector_pin),
         "supplement_pin_sha256":build_pack.digest(supplement_pin),
         "discovery_sha256":build_pack.digest(sources),
@@ -152,7 +154,8 @@ def assemble(*,vector:Path,supplement:Path,sources:Path,
         build_catalog.index_source(
             root/"vector/natural_earth_vector.gpkg",catalog)
     raster=build_rasters.compile_archives(
-        raster_inputs,archive_root,root/"raster",resume=resume)
+        raster_inputs,archive_root,root/"raster",
+        resume=resume,tile_format=raster_tile_format)
     audit=coverage.audit(
         pinned,catalog,discovery,acquired,raster,
         root/"vector/supplements.gpkg",supplemental_pin)
