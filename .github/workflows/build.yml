@@ -63,7 +63,7 @@ jobs:
         if: runner.os == 'Windows'
         shell: powershell
         run: |
-          foreach ($file in @('./packaging/Install-DataPack.ps1','./packaging/Build-NaturalEarth.ps1','./tests/test_install_data_pack.ps1')) {
+          foreach ($file in @('./packaging/Install-DataPack.ps1','./packaging/Build-NaturalEarth.ps1','./packaging/Acquire-NaturalEarth.ps1','./tests/test_install_data_pack.ps1')) {
             $tokens = $null
             $errors = $null
             [System.Management.Automation.Language.Parser]::ParseFile(
