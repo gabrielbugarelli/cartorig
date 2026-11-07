@@ -24,13 +24,15 @@ ImageMagick 7 (magick), and substantial SSD space for the 51 publisher
 source ZIPs, GeoPackage, and the large compiled lossless atlas pyramids.
 Only build-time release scripts download data; the installed OpenFX stays offline.
 
+The verified 2026-11-07 publisher HEAD audit measured **6,687,019,474 bytes (6.23 GiB)** of zipped source data across the 51 accessible variants alone. Atlas conversion, GeoPackage and staging require considerably more free disk space. The default preflight requires **50 GiB free on both the source and pack destination volumes**; this is a conservative guard, not a proven maximum or a guarantee of sufficient capacity.
+
 ## 2. End-to-end source download, build and native 4K QA
 
 From PowerShell inside the source folder, with explicit release-time
 network permission:
 
 ~~~powershell
-.\packaging\Run-NaturalEarth-QA.ps1 -Workspace 'C:\CartoRigQA\publisher-build' -Output 'C:\CartoRigQA\experimental-pack' -AllowNetwork -SetupDependencies -MaxDownloads 12 -MaxBatches 10 -MinFreeGiB 4 -InstallExperimentalPack
+.\packaging\Run-NaturalEarth-QA.ps1 -Workspace 'C:\CartoRigQA\publisher-build' -Output 'C:\CartoRigQA\experimental-pack' -AllowNetwork -SetupDependencies -MaxDownloads 12 -MaxBatches 10 -MinFreeGiB 50 -InstallExperimentalPack
 ~~~
 
 The command:
