@@ -51,6 +51,13 @@ def _load_verified_inventory(workspace:Path,allow_network:bool)->dict:
         raise ReleaseNotReady(
             "Source-page audit incomplete or empty; cannot certify full Natural Earth: "+
             str(blocked[:6]))
+    # A live source-page scrape is not a release source of truth. Only the
+    # reviewed and committed 52-source discovery identity can be acquired.
+    discovery_lock=Path(__file__).resolve().parents[2]/"data/natural-earth/raster_discovery_v2026-11-07.lock.json"
+    if not discovery_lock.is_file():
+        raise ReleaseNotReady("Reviewed 52-raster publisher discovery lock is missing")
+    source_lock.verify_discovery(
+        json.loads(discovery_lock.read_text(encoding="utf-8")),report)
     return report
 
 
