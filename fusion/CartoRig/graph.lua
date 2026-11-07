@@ -26,30 +26,60 @@ local function setrgb(node,rgb)
     local channels={'TopLeftRed','TopLeftGreen','TopLeftBlue','TopLeftAlpha'}
     for i,k in ipairs(channels) do node:SetInput(k,rgb[i] or (i==4 and 1 or 0)) end
 end
-local function make_polyline(comp,id,ring,closed,node_x,node_y)
-    if #ring<3 and closed then errorf('Polygon requires at least three vertices') end
-    if #ring<2 and not closed then errorf('Route requires two points') end
-    if #ring>5000 then errorf('Geometry exceeds safe Fusion mask budget') end
-    local ctor=rawget(_G,'Polyline')
-    if not ctor then
-        errorf('Fusion Polyline constructor unavailable; cannot create geographic mask')
+-- Fusion's `Polyline { ... }` is a typed value in native .setting tables.
+-- It is NOT guaranteed to be installed as a Lua global in Resolve 20.
+-- Compile geometry via Fusion's table reader and apply a native mask setting.
+local function mask_setting(name,ring,closed)
+    local function num(value)
+        if type(value)~='number' or value~=value or value==math.huge or value==-math.huge then
+            errorf('Geographic mask contains a non-finite coordinate')
+        end
+        -- Format independently of the user's Windows numeric locale.
+        return (string.format('%.17g',value):gsub(',', '.'))
     end
     local points={}
     for _,coord in ipairs(ring) do
-        local x,y = coord[1],coord[2]
-        -- World geographic coordinates are transformed once for the full map.
-        x,y=(x+180)/360,(y+90)/180
-        points[#points+1]={Linear=true,X=x-0.5,Y=y-0.5}
+        local lon,lat=coord[1],coord[2]
+        if type(lon)~='number' or type(lat)~='number' then
+            errorf('Geographic mask has invalid coordinate types')
+        end
+        if lon < -180.000001 or lon > 180.000001 or lat < -90.000001 or lat > 90.000001 then
+            errorf('Geographic mask has a point outside longitude/latitude bounds')
+        end
+        local x,y=(lon+180)/360-0.5,(lat+90)/180-0.5
+        points[#points+1]='{ Linear = true, X = '..num(x)..', Y = '..num(y)..' }'
     end
+    -- `name` comes only from internal numeric/identifier values, never user input.
+    if not name:match('^[_%a][_%w]*$') then errorf('Invalid internal mask name') end
+    return '{ Tools = ordered() { '..name..' = PolylineMask { NameSet = true, Inputs = {'..
+        ' Center = Input { Value = { 0.5, 0.5 } },'..
+        ' Polyline = Input { Value = Polyline { Closed = '..tostring(closed)..','..
+        ' Points = { '..table.concat(points,',')..' } } }'..
+        ' } } } }'
+end
+local function make_polyline(comp,id,ring,closed,node_x,node_y)
+    if type(ring)~='table' then errorf('Invalid geographic ring') end
+    if #ring<3 and closed then errorf('Polygon requires at least three vertices') end
+    if #ring<2 and not closed then errorf('Route requires two points') end
+    if #ring>5000 then errorf('Geometry exceeds safe Fusion mask budget') end
     local name=PREFIX..'Mask_'..id
-    local node=add(comp,'PolylineMask',name,'Mask',id,node_x,node_y)
-    node:SetInput('Center',{0.5,0.5})
-    local ok,poly=pcall(function() return ctor{Closed=closed,Points=points} end)
-    if not ok then errorf('Could not make Polyline geometry: '..tostring(poly)) end
-    local set_ok,why=pcall(function() return node:SetInput('Polyline',poly) end)
-    if not set_ok or why==false then
-        errorf('Fusion rejected geographic Polyline input: '..tostring(why))
+    local reader=rawget(_G,'bmd') and bmd.readstring
+    if type(reader)~='function' then
+        errorf('Fusion native setting parser bmd.readstring is unavailable')
     end
+    local source=mask_setting(name,ring,closed)
+    local parsed_ok,settings=pcall(reader,source)
+    if not parsed_ok or type(settings)~='table' then
+        errorf('Fusion could not parse a native PolylineMask setting: '..tostring(settings))
+    end
+    local node=add(comp,'PolylineMask',name,'Mask',id,node_x,node_y)
+    local load_ok,result=pcall(function() return node:LoadSettings(settings) end)
+    if not load_ok or result==false then
+        pcall(function() node:Delete() end)
+        errorf('Fusion rejected native PolylineMask settings: '..tostring(result))
+    end
+    -- A settings load can replace metadata. Always restore the CartoRig identity.
+    tag(node,name,'Mask',id)
     if not closed then
         node:SetInput('Solid',0)
         node:SetInput('BorderWidth',0.005)
