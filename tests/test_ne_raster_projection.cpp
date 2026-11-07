@@ -5,6 +5,7 @@
 #include "natural_earth_raster.hpp"
 #include <algorithm>
 #include <chrono>
+#include <cmath>
 #include <cstdint>
 #include <filesystem>
 #include <fstream>
