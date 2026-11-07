@@ -1,5 +1,6 @@
 """End-to-end offline test: synthetic GeoPackage -> SQLite index -> C++ runtime."""
 from pathlib import Path
+import json
 import os
 import shutil
 import sqlite3
@@ -137,6 +138,26 @@ with tempfile.TemporaryDirectory() as directory:
     shutil.copy2(gpkg,installed/"vector/natural_earth_vector.gpkg")
     shutil.copy2(gpkg,installed/"vector/supplements.gpkg")
     shutil.copy2(catalog,installed/"vector/catalog.sqlite")
+    # Offline raster catalog is derived from the release manifest, with a
+    # genuine local atlas file. Never invent entries in the production pack.
+    raster_asset="synthetic_relief_0"
+    tile_root=installed/"raster"/raster_asset/"tiles"/"0"
+    tile_root.mkdir(parents=True)
+    (tile_root/"0_0.rgba").write_bytes(bytes([177,33,211,255])*(256*256))
+    (installed/"raster"/raster_asset/"index.json").write_text(json.dumps({
+        "schema_version":1,"format":"cartorig-rgba-tiles-v1",
+        "asset_id":raster_asset,"tile_size":256,
+        "extent":[-180,-90,180,90],
+        "original_width":256,"original_height":256,
+        "levels":[{"z":0,"width":256,"height":256,"tiles_x":1,"tiles_y":1}]
+    }),encoding="utf-8")
+    (installed/"raster/validated-raster-assets.json").write_text(json.dumps({
+        "schema_version":1,"complete":True,
+        "sources_expected":1,"sources_converted":1,"failures":[],
+        "assets":[{"status":"VALIDATED",
+                   "source_id":"ne-50m-raster-manual-shaded-relief",
+                   "asset_id":raster_asset}]
+    }),encoding="utf-8")
     (installed/"pack.json").write_text('{"schema_version":1}',encoding="utf-8")
     env=dict(os.environ,CARTORIG_NATURAL_EARTH_PACK=str(installed))
     simulated=subprocess.run(
