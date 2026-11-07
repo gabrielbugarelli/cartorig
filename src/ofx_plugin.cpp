@@ -52,7 +52,7 @@ struct Instance {
   OfxParamHandle frameOffset=nullptr,timeScale=nullptr,diagnosticMode=nullptr,diagnosticLog=nullptr;
   OfxParamHandle countryA=nullptr,countryB=nullptr,countryList=nullptr,highlightStrength=nullptr,objectLayerOnly=nullptr;
   OfxParamHandle routeEnabled=nullptr,routeStartLon=nullptr,routeStartLat=nullptr;
-  OfxParamHandle routeEndLon=nullptr,routeEndLat=nullptr,routeCurve=nullptr,routeWidth=nullptr;
+  OfxParamHandle routeEndLon=nullptr,routeEndLat=nullptr,routeCurve=nullptr,routeWidth=nullptr,routeArrowhead=nullptr;
   OfxParamHandle routeRed=nullptr,routeGreen=nullptr,routeBlue=nullptr;
   OfxParamHandle showRouteMarkers=nullptr,routeStartLabel=nullptr,routeEndLabel=nullptr;
   OfxParamHandle manualColors=nullptr,oceanR=nullptr,oceanG=nullptr,oceanB=nullptr;
@@ -503,6 +503,7 @@ OfxStatus describeInContext(OfxImageEffectHandle e,bool filter){
  defineDouble(ps,"RouteProgress","Route reveal (animate 0 to 1)",1,-1,1,"RouteControls");
  defineNativeDouble(ps,"NativeRouteCurve","Route curvature",-20,-100,100,"RouteControls");
  defineNativeDouble(ps,"NativeRouteWidth","Route width",3,.5,30,"RouteControls");
+ defineNativeToggle(ps,"NativeRouteArrowhead","Show arrowhead",true,"RouteControls");
  defineNativeDouble(ps,"NativeRouteRed","Route red",255,0,255,"RouteControls");
  defineNativeDouble(ps,"NativeRouteGreen","Route green",200,0,255,"RouteControls");
  defineNativeDouble(ps,"NativeRouteBlue","Route blue",100,0,255,"RouteControls");
@@ -599,7 +600,7 @@ OfxStatus createInstance(OfxImageEffectHandle e,bool filter){auto i=std::make_un
  {"NativeRouteEnabled",&i->routeEnabled},{"RouteStartLongitude",&i->routeStartLon},
  {"RouteStartLatitude",&i->routeStartLat},{"RouteEndLongitude",&i->routeEndLon},
  {"RouteEndLatitude",&i->routeEndLat},{"NativeRouteCurve",&i->routeCurve},
- {"NativeRouteWidth",&i->routeWidth},{"NativeRouteRed",&i->routeRed},
+ {"NativeRouteWidth",&i->routeWidth},{"NativeRouteArrowhead",&i->routeArrowhead},{"NativeRouteRed",&i->routeRed},
  {"NativeRouteGreen",&i->routeGreen},{"NativeRouteBlue",&i->routeBlue},
  {"RouteMarkers",&i->showRouteMarkers},
  {"RouteFromLabel",&i->routeStartLabel},{"RouteToLabel",&i->routeEndLabel},
@@ -760,6 +761,7 @@ OfxStatus render(OfxImageEffectHandle e,OfxPropertySetHandle args){Instance *i=i
  controls.routeEnd.lat=doubleAt(i->routeEndLat,time,0);
  controls.routeCurve=doubleAt(i->routeCurve,time,-20);
  controls.routeWidth=doubleAt(i->routeWidth,time,3);
+ controls.routeArrowhead=intAt(i->routeArrowhead,time,1)!=0;
  controls.routeMarkers=intAt(i->showRouteMarkers,time,1)!=0;
  stringAt(i->routeStartLabel,time,controls.startLabel);
  stringAt(i->routeEndLabel,time,controls.endLabel);
