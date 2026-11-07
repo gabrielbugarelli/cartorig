@@ -175,4 +175,16 @@ check(#srv.objects(1)==4 and srv.objects(1)[4].meta.type=="Region",
 srv.delete(1,3)
 check(#srv.objects(1)==3,"delete affects selected object only")
 check(#srv.scenes()==1,"no extra host scene created by object operations")
+srv.addLabel(1,city,"São Paulo","#E8EBF0")
+local label=srv.objects(1)[4]
+check(label.meta.type=="Label" and label.meta.showPin==false,
+      "label is independent from marker icon")
+check(label.node:GetInput("EmbeddedSceneJSON"):find('"showPin":false'),
+      "label persisted as georeferenced text without visible pin")
+srv.backgroundMode(1,true)
+check(core:FindTool("CR_Ocean"):GetInput("TopLeftAlpha")==0,
+      "transparent oceans can overlay footage in Edit")
+srv.backgroundMode(1,false)
+check(core:FindTool("CR_Ocean"):GetInput("TopLeftAlpha")==1,
+      "opaque map mode restored")
 print("PASS: v1 single-scene, typed search, independent styles, camera, routes, safety")
