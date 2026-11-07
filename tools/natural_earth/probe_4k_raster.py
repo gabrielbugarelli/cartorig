@@ -5,6 +5,7 @@ Source ZIP, TIFFs and atlas tiles remain transient and are deleted on return.
 The JSON-only report records independently observed publisher SHA256/CRC,
 lossless raw-vs-PNG native frame parity, resolution-level hashes and timings.
 Use only with explicit one-off [real-4k-probe] on standard free CI runners.
+The authoritative host test must be performed in the actual installed Resolve 20.
 """
 from __future__ import annotations
 import argparse
