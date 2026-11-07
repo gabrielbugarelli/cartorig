@@ -827,13 +827,14 @@ OfxStatus render(OfxImageEffectHandle e,OfxPropertySetHandle args){Instance *i=i
      throw std::invalid_argument("Geographic region requires a local Vector GeoPackage");
    const auto selections=cartorig::parseGeographicSelections(savedRegions);
    for(const auto &selection:selections){
+     if(!selection.visible)continue;
      const auto geometries=geographicRegionAt(
          naturalEarthPath,extraLayerPath,selection);
      // Independent RGBA per region, following a stable publisher feature ID.
      // City points stay points; no fabricated administrative polygons.
      const auto regionColor=cartorig::evaluateGeographicRegionColor(selection,sceneFrame);
      cartorig::renderNaturalEarthLayer(
-         *geometries,view,target,regionColor,regionColor,regionColor);
+         *geometries,view,target,regionColor,selection.stroke,regionColor);
    }
  }
  return kOfxStatOK;
