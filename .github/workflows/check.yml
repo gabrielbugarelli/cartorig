@@ -1,0 +1,19 @@
+name: Greenfield Fusion POC checks
+on:
+  push:
+    branches:
+      - rewrite/fusion-first-greenfield-poc
+  workflow_dispatch:
+jobs:
+  syntax-and-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Lua parser
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y lua5.4
+      - name: Lua syntax
+        run: luac5.4 -p 'fusion/CartoRig Fusion-first POC.lua'
+      - name: Source contract checks
+        run: python3 -m unittest discover -s tests -v
