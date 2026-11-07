@@ -8,10 +8,12 @@ manifest-verified directory. Failed audits never label a pack complete.
 """
 from __future__ import annotations
 import argparse
+import hashlib
 import json
+import os
+import sqlite3
 from pathlib import Path
 import shutil
-import tempfile
 
 from tools.natural_earth import (
     build_catalog, build_pack, build_rasters, coverage, verify_pack
@@ -19,57 +21,103 @@ from tools.natural_earth import (
 
 def assemble(*,vector:Path,supplement:Path,sources:Path,
              archives:Path,archive_root:Path,vector_pin:Path,
-             supplement_pin:Path,out:Path,allow_incomplete:bool=False)->dict:
-    if out.exists():raise FileExistsError("output data pack already exists")
-    parent=out.resolve().parent
-    parent.mkdir(parents=True,exist_ok=True)
+             supplement_pin:Path,out:Path,allow_incomplete:bool=False,
+             resume:bool=False)->dict:
+    out=out.resolve()
+    if out.exists():
+        raise FileExistsError("offline data pack output already exists: "+str(out))
+    out.parent.mkdir(parents=True,exist_ok=True)
     discovery=json.loads(sources.read_text(encoding="utf-8"))
     acquired=json.loads(archives.read_text(encoding="utf-8"))
     pinned=json.loads(vector_pin.read_text(encoding="utf-8"))
     supplemental_pin=json.loads(supplement_pin.read_text(encoding="utf-8"))
     verified=verify_pack.verify_manifest(acquired,archive_root)
-    if not verified["complete"] and not allow_incomplete:
-        raise ValueError("all publisher source archives must be SHA256-verified")
-    with tempfile.TemporaryDirectory(prefix=".cartorig-pack.",dir=parent) as temp:
-        root=Path(temp)/"data"
-        (root/"vector").mkdir(parents=True)
-        (root/"raster").mkdir(parents=True)
-        (root/"provenance").mkdir(parents=True)
-        for source,target in (
-            (vector,root/"vector/natural_earth_vector.gpkg"),
-            (supplement,root/"vector/supplements.gpkg"),
-            (sources,root/"provenance/official_sources.json"),
-            (archives,root/"provenance/source-archives.json"),
-            (vector_pin,root/"provenance/vector_layers.json"),
-            (supplement_pin,root/"provenance/supplement_pin.json"),
-        ):
-            if not source.is_file():raise FileNotFoundError(source)
-            shutil.copy2(source,target)
+    if not verified["complete"]:
+        raise ValueError("publisher source archives are not fully SHA256/CRC verified")
+    # Persistent same-volume staging permits bounded, resumable 50+ GB builds.
+    root=out.with_name("."+out.name+".assembling")
+    checkpoint=root/".cartorig-build-inputs.json"
+    provenance_inputs={
+        "schema_version":1,
+        "vector_pin_sha256":build_pack.digest(vector_pin),
+        "supplement_pin_sha256":build_pack.digest(supplement_pin),
+        "discovery_sha256":build_pack.digest(sources),
+        "archives_manifest_sha256":build_pack.digest(archives),
+        "primary_vector_sha256":build_pack.digest(vector),
+        "supplemental_vector_sha256":build_pack.digest(supplement),
+    }
+    if root.exists():
+        if not resume:
+            raise FileExistsError(
+                "partial producer build found; use --resume after checking source manifests: "+
+                str(root))
+        if root.is_symlink() or not checkpoint.is_file() or json.loads(
+                checkpoint.read_text(encoding="utf-8"))!=provenance_inputs:
+            raise ValueError("partial build provenance differs; refusing unsafe resume")
+    else:
+        root.mkdir(parents=True)
+        checkpoint.write_text(json.dumps(provenance_inputs,indent=2)+"\n",
+                              encoding="utf-8")
+    def ensure_copy(source:Path,target:Path)->None:
+        if target.is_file() and not target.is_symlink() and (
+                target.stat().st_size==source.stat().st_size and
+                build_pack.digest(target)==build_pack.digest(source)):
+            return
+        target.parent.mkdir(parents=True,exist_ok=True)
+        tmp=target.with_name(target.name+".copying")
+        tmp.unlink(missing_ok=True)
+        shutil.copy2(source,tmp)
+        tmp.replace(target)
+    for source,target in (
+        (vector,root/"vector/natural_earth_vector.gpkg"),
+        (supplement,root/"vector/supplements.gpkg"),
+        (sources,root/"provenance/official_sources.json"),
+        (archives,root/"provenance/source-archives.json"),
+        (vector_pin,root/"provenance/vector_layers.json"),
+        (supplement_pin,root/"provenance/supplement_pin.json"),
+    ):
+        if not source.is_file():raise FileNotFoundError(source)
+        ensure_copy(source,target)
+    catalog=root/"vector/catalog.sqlite"
+    rebuild=not catalog.is_file()
+    if not rebuild:
+        try:
+            db=sqlite3.connect(catalog.resolve().as_uri()+"?mode=ro",uri=True)
+            try:
+                stored=db.execute(
+                    "SELECT value FROM metadata WHERE key='source_sha256'").fetchone()
+                rebuild=not stored or stored[0]!=provenance_inputs["primary_vector_sha256"]
+            finally:db.close()
+        except sqlite3.Error:
+            rebuild=True
+    if rebuild:
         build_catalog.index_source(
-            root/"vector/natural_earth_vector.gpkg",
-            root/"vector/catalog.sqlite")
-        # build_rasters itself verifies every raster archive before reading it.
-        raster=build_rasters.compile_archives(
-            acquired,archive_root,root/"raster")
-        # Fail-closed coverage ties independent evidence together, not merely
-        # the presence of names in a directory.
-        audit=coverage.audit(
-            pinned,root/"vector/catalog.sqlite",
-            discovery,acquired,raster,
-            root/"vector/supplements.gpkg",supplemental_pin)
-        (root/"provenance/coverage-report.json").write_text(
-            json.dumps(audit,indent=2,sort_keys=True)+"\n",encoding="utf-8")
-        if not audit["complete"] and not allow_incomplete:
-            raise ValueError("Natural Earth Complete audit failed: "+
-                             json.dumps({k:v.get("passed") for k,v in audit.items()
-                                         if isinstance(v,dict)}))
+            root/"vector/natural_earth_vector.gpkg",catalog)
+    raster=build_rasters.compile_archives(
+        acquired,archive_root,root/"raster",resume=resume)
+    audit=coverage.audit(
+        pinned,catalog,discovery,acquired,raster,
+        root/"vector/supplements.gpkg",supplemental_pin)
+    (root/"provenance/coverage-report.json").write_text(
+        json.dumps(audit,indent=2,sort_keys=True)+"\n",encoding="utf-8")
+    if not audit["complete"] and not allow_incomplete:
+        raise ValueError("Natural Earth Complete audit failed: "+
+                         json.dumps({k:v.get("passed") for k,v in audit.items()
+                                     if isinstance(v,dict)}))
+    checkpoint.unlink(missing_ok=True)
+    try:
         manifest=build_pack.build_pack(
             root,audit,allow_incomplete=allow_incomplete)
-        root.replace(out)
-        return {"pack_id":manifest["pack_id"],"complete":manifest["complete"],
-                "raster_sources":raster["sources_converted"],
-                "vector_verified":audit["vector"]["indexed"],
-                "files":len(manifest["files"]),"destination":str(out)}
+    except Exception:
+        checkpoint.write_text(json.dumps(provenance_inputs,indent=2)+"\n",
+                              encoding="utf-8")
+        raise
+    root.replace(out)
+    return {"pack_id":manifest["pack_id"],"complete":manifest["complete"],
+            "raster_sources":raster["sources_converted"],
+            "reused_raster_assets":raster.get("reused_assets",0),
+            "vector_verified":audit["vector"]["indexed"],
+            "files":len(manifest["files"]),"destination":str(out)}
 
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
@@ -77,13 +125,15 @@ def main():
                  "vector-pin","supplement-pin","out"):
         parser.add_argument("--"+name,type=Path,required=True)
     parser.add_argument("--allow-incomplete",action="store_true")
+    parser.add_argument("--resume",action="store_true",
+        help="Resume validated staged raster atlas conversions after interruption")
     args=parser.parse_args()
     result=assemble(
         vector=args.vector,supplement=args.supplement,
         sources=args.sources,archives=args.archives,
         archive_root=args.archive_root,vector_pin=args.vector_pin,
         supplement_pin=args.supplement_pin,out=args.out,
-        allow_incomplete=args.allow_incomplete)
+        allow_incomplete=args.allow_incomplete,resume=args.resume)
     print(json.dumps(result,indent=2))
 
 if __name__=="__main__":
