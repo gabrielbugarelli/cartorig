@@ -209,15 +209,18 @@ void renderNaturalEarthRaster(const NaturalEarthRaster &raster,
     auto it=tiles.emplace(key,CacheTile{std::move(rgba),recent.begin()}).first;
     return it->second.rgba;
   };
-  auto paintSample=[&](int hostX,int hostY,int px,int py){
-    const int tx=px/tileSize,ty=py/tileSize;
-    const auto &tile=sampleTile(tx,ty);
+  auto paintDecodedPixel=[&](int hostX,int hostY,int px,int py,
+                           const std::vector<std::uint8_t> &tile){
     const std::size_t offset=(static_cast<std::size_t>(py%tileSize)*tileSize+
                               static_cast<std::size_t>(px%tileSize))*4;
     const Color pixel{tile[offset],tile[offset+1],tile[offset+2],tile[offset+3]};
     if(pixel.a==0)return;
     compositeColor(target,hostX,hostY,pixel,view.opacity);
     if(stats)++stats->written;
+  };
+  auto paintSample=[&](int hostX,int hostY,int px,int py){
+    const auto &tile=sampleTile(px/tileSize,py/tileSize);
+    paintDecodedPixel(hostX,hostY,px,py,tile);
   };
   if(view.camera.bearing==0.0){
     // Unrotated Mercator is separable: longitude depends only on screen X,
@@ -253,10 +256,22 @@ void renderNaturalEarthRaster(const NaturalEarthRaster &raster,
     for(int hostY=target.y1;hostY<target.y2;++hostY){
       const int py=sourceY[static_cast<std::size_t>(hostY-target.y1)];
       if(py<0)continue;
+      const int ty=py/tileSize;
+      int lastTx=-1;
+      const std::vector<std::uint8_t>* rowTile=nullptr;
       for(int hostX=target.x1;hostX<target.x2;++hostX){
         const int px=sourceX[static_cast<std::size_t>(hostX-target.x1)];
         if(px<0)continue;
-        paintSample(hostX,hostY,px,py);
+        const int tx=px/tileSize;
+        if(rowTile==nullptr||tx!=lastTx){
+          // A constant projected Y and repeated X tile share the same tile
+          // for a run of adjacent screen pixels. Avoid an unordered_map
+          // lookup + LRU splice for every pixel. The pointer is used only
+          // until the next sampleTile() call, so eviction is safe.
+          rowTile=&sampleTile(tx,ty);
+          lastTx=tx;
+        }
+        paintDecodedPixel(hostX,hostY,px,py,*rowTile);
       }
     }
     return;
