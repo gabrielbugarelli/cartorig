@@ -176,10 +176,14 @@ def materialize(inventory:dict,root:Path,allow_network:bool=False,
             item["sha256"]=None
             item["archive_bytes"]=None
         elif allow_network and (max_downloads is None or downloaded<max_downloads):
-            mirrors=[item["url"]]
-            fallback=official_raster_mirror(item)
-            if fallback and fallback!=item["url"]:
-                mirrors.append(fallback)
+            publisher_mirror=official_raster_mirror(item)
+            # Official NACIS S3 raster objects are more stable than the
+            # publisher's WordPress link rewrites. Keep the audited WordPress
+            # URL unchanged as source identity/provenance and fallback.
+            # Only canonical Natural Earth raster URLs can generate the mirror.
+            mirrors=([publisher_mirror,item["url"]]
+                     if publisher_mirror and publisher_mirror!=item["url"] else
+                     [item["url"]])
             reasons=[]
             for attempt in mirrors:
                 try:
