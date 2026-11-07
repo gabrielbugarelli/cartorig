@@ -1,5 +1,8 @@
 # CartoRig Native — Natural Earth complete offline release
 
+> **Engineering authority:** [Natural Earth Complete — Execution Plan](NATURAL_EARTH_EXECUTION_PLAN.md) defines the current zero-cost policy, mandatory gate G0–G7, immutable source lock, real raster acceptance, GitHub Releases distribution, and final Definition of Done. This file remains a practical CLI runbook; it must not be treated as completion evidence.
+
+
 Date: 2026-11-06. PR #3. Experimental v0.4.0, not yet a certified release.
 
 ## Goals and source-of-truth
