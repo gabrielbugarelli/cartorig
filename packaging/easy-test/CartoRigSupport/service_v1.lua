@@ -530,6 +530,17 @@ function M.style(sceneIndex,objectIndex,hex,stroke,opacity)
         entry.node:SetData("CartoRig.V1Object",m)
     end)
 end
+function M.backgroundMode(sceneIndex,transparent)
+    local comp=sceneAt(sceneIndex)
+    local ocean=comp:FindTool("CR_Ocean")
+    if not ocean then error("CartoRig background source is missing",2) end
+    return atomic(comp,"CartoRig: Background transparency",function()
+        set(ocean,"TopLeftAlpha",transparent and 0 or 1)
+        if ocean:SetData("CartoRig.V1TransparentOcean",transparent and true or false)==false then
+            error("Cannot persist background transparency mode")
+        end
+    end)
+end
 function M.baseStyle(sceneIndex,part,hex)
     if part~="land" and part~="ocean" and part~="border" then
         error("Select land, ocean or border style",2)
