@@ -503,7 +503,10 @@ function M.style(sceneIndex,objectIndex,hex,stroke,opacity)
     local m=entry.meta
     rgb(hex);rgb(stroke or hex);alpha(opacity)
     return atomic(comp,"CartoRig: Style "..m.type,function()
-        m.fill=hex;m.stroke=stroke or hex;m.opacity=opacity
+        -- Routes use Stroke; polygons use Fill + Stroke. The UI does not
+        -- expose two competing meanings for the same property.
+        m.fill=m.type=="Route" and (stroke or hex) or hex
+        m.stroke=stroke or hex;m.opacity=opacity
         if m.type=="Region" then
             if m.sourceLayer then
                 set(entry.node,"GeographicRegionSaved",
