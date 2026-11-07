@@ -8,6 +8,17 @@ The `vector_layers_v5.1.2.json` file covers **215 shape layers**, across 10m / 5
 
 Natural Earth data is in the public domain: https://www.naturalearthdata.com/about/terms-of-use/ .
 
+## Audited raster source discovery — 52 ZIP variants
+
+The real official-source scan
+(https://github.com/gabrielbugarelli/cartorig/actions/runs/42336954400)
+verified 24 accessible source/category pages and identified 52 unique
+raster ZIP links, 38 at 10m and 14 at 50m. The identity of those 52
+publisher URLs/versions is pinned by
+`raster_discovery_v2026-11-07.lock.json`. No raster archive itself has been
+downloaded or certified by this discovery lock; the content SHA lock below is
+an independent release gate.
+
 ## Publisher raster SHA256 lock — release gate
 
 `data/natural-earth/raster_sources.lock.json` is intentionally absent until
