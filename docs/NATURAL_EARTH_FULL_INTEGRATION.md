@@ -109,6 +109,45 @@ After installing the OFX plugin and the offline data pack, set:
 Blank raster asset and blank additional vector layer retain their previous
 default behavior. There is no external raster URL, API key, or tile service.
 
+### One-click installed offline data pack
+
+The new **Use installed offline Natural Earth data pack** toggle is OFF by
+default, so installing the pack does not alter previously authored maps.
+When enabled, an otherwise blank Vector GeoPackage, additional layer
+GeoPackage, search index and raster tiles directory resolve from:
+
+```text
+%LOCALAPPDATA%\\CartoRigNative\\NaturalEarth
+```
+
+An alternative pack root can be set before launching Resolve via the
+`CARTORIG_NATURAL_EARTH_PACK` environment variable. Explicit Inspector file
+paths always take priority. A missing installed pack or required file fails
+with an actionable error; there is **never a network fallback**.
+
+### Search offline raster
+
+The raster picker uses only `raster/validated-raster-assets.json` plus the
+existing local asset `index.json` files:
+
+1. Enable the installed pack toggle, or set **Raster tiles directory (offline)**.
+2. Enter a source identifier or part of its name in **Search offline raster**.
+3. Choose a matching entry in **Offline raster results** (the first ten
+   matching assets, ordered by source ID).
+4. Click **Use selected offline raster**. The chosen atlas ID is saved with
+   the clip in **Raster asset ID**. Selecting **No raster selected** and
+   applying disables imagery without clearing the vector or regional styling.
+
+The picker does not download anything, generate geographic data, or silently
+accept unverified entries. Dynamic dropdown labels are confirmed with a
+synthetic OpenFX host but still require **real Resolve 20 host acceptance**.
+
+The native raster cache now retains at most 64 RGBA tiles (16 MiB) per render.
+Previously a wide view could fail after loading too many distinct tiles.
+A 65-tile stress fixture validates eviction, repeatable output, and rejection
+of corrupted source tiles. This is memory bounded, not a guarantee of 8K
+interactive frame rates.
+
 ### Geographic region
 
 Open **Geographic region** in the Inspector:
@@ -161,7 +200,8 @@ admin-0 country polygons. Source geometries remain 4326.
 
 ## Release acceptance checklist
 
-- [x] Native CPU raster atlas path implemented and synthetic RGBA pixel tests.
+- [x] Native CPU raster atlas path implemented, bounded 16 MiB tile LRU,
+  offline searchable catalog and synthetic OpenFX raster-picker pixel tests.
 - [x] Deterministic offline data pack builder and SHA256 installer source.
 - [x] Geographic search, stable multi-selection, independent RGBA and
   persisted per-region color keyframes with synthetic OpenFX action tests.
