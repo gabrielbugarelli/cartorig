@@ -63,7 +63,8 @@ local function serializeMarker(meta)
            '"style":{"transparent":true},'..
            '"markers":[{"id":'..escape(meta.key)..',"label":'..
            escape(meta.label or "")..',"lon":'..tostring(meta.lon)..
-           ',"lat":'..tostring(meta.lat)..',"size":'..
+           ',"lat":'..tostring(meta.lat)..',"showPin":'..
+           tostring(meta.showPin~=false)..',"size":'..
            tostring(meta.size or 6)..',"color":"#'..
            string.format("%02X%02X%02X",r,g,b)..
            '"}],"routes":[],"highlights":[],"cameraKeys":[]}'
