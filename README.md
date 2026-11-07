@@ -1,4 +1,4 @@
-# CartoRig — Fusion-first greenfield 0.2.1 (startup hotfix / functional authoring alpha)
+# CartoRig — Fusion-first greenfield 0.2.2 (native Polygon fix / functional authoring alpha)
 
 > This is newly written source. It is **not** a port of the earlier CartoRig codebase. This is an implementable **Fusion-native editor**, not an OpenFX Generator or a standalone Electron application.
 >
@@ -30,6 +30,16 @@ v0.2.1 changes the flow:
 4. If **no startup log** is produced, the launched script may be an old copy, a different scripts folder may be taking precedence, or Resolve did not run the entry point. Inspect `Scripts/Comp` in the installed directory reported by the installer.
 
 This hotfix does **not** certify the Natural Earth mask creation in the real Resolve 20 host; it makes that operation explicit and diagnosable.
+
+## Native Polygon mask loader fix v0.2.2 (reported Resolve Studio 20 failure)
+
+A real Resolve 20 test showed `Fusion Polyline constructor unavailable; cannot create geographic mask` after clicking **Create Map**. The previous Lua graph directly called a global `Polyline` function not provided by that host; our old test mocks incorrectly supplied it.
+
+The updated graph serializes polygon and route points as Fusion-native `.setting` data (`Polyline = Input { Value = Polyline { Closed = ..., Points = ... } }`). It uses `bmd.readstring` to parse that structure and `PolylineMask:LoadSettings` to apply it. It also checks point bounds, restores mask metadata, and deletes an attempted mask when loading fails. The initial scene creation rollback leaves the composition uninitialized on a parser failure.
+
+Regression tests now explicitly run without `_G.Polyline` and test both polygon/route settings and failed-parser rollback. **These are mocked tests: real `bmd.readstring`, `LoadSettings`, visible polygons, and full-map rendering must still be confirmed in DaVinci Resolve 20.**
+
+For a complete existing v0.2.1 installation, the incremental ZIP `CartoRig_FusionFirst_Mask_Fix_v0.2.2.zip` replaces just `graph.lua` and the editor entry script. **Close Resolve before applying and test in a fresh empty Fusion Composition.**
 
 ## Installation / use (Windows, DaVinci Resolve Studio 20)
 
