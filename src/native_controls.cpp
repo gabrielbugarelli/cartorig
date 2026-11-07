@@ -44,7 +44,7 @@ Scene sceneWithNativeControls(const Scene &original,const NativeMapControls &n) 
     throw std::invalid_argument("native control out of range");
   Scene s=original;
   if(n.customColors){
-    s.style.ocean=n.ocean;s.style.land=n.land;s.style.highlight=n.highlight;
+    s.style.ocean=n.ocean;s.style.land=n.land;s.style.border=n.border;s.style.highlight=n.highlight;
   }
   s.style.highlight.a=static_cast<uint8_t>(
     std::lround(s.style.highlight.a*n.highlightStrength));
