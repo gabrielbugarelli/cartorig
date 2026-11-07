@@ -1,4 +1,4 @@
-# CartoRig — Fusion-first greenfield 0.2 (functional authoring alpha)
+# CartoRig — Fusion-first greenfield 0.2.1 (startup hotfix / functional authoring alpha)
 
 > This is newly written source. It is **not** a port of the earlier CartoRig codebase. This is an implementable **Fusion-native editor**, not an OpenFX Generator or a standalone Electron application.
 >
@@ -7,7 +7,7 @@
 ## What actually works in the source implementation
 
 - Create or reopen a **managed Fusion Composition** rendered in a single Edit-page clip; never overwrite an arbitrary unrelated comp.
-- Generate an offline 2D world base from Natural Earth 110m vector polygons, with separate **Land** and **Ocean** Fill colors. Continent selections are derived from country groups.
+- Generate an offline 2D world base from Natural Earth 110m vector polygons, with separate **Land** and **Ocean** Fill colors.
 - Search **177 named countries**, **27 Brazilian states** (Natural Earth 50m Admin1), and **243 populated-place points** (Natural Earth 110m). Search is case/accent insensitive; `Brasil` and `Brazil` both resolve to Brazil. `Rio de Janeiro` matches a State and City, each with a distinct type.
 - Add independent **Region** objects with authentic polygon geometry; apply fill RGB and alpha by the **same controls** used by the basemap.
 - Add **georeferenced markers** from named city points.
@@ -18,12 +18,25 @@
 - Reopen a managed scene and list objects from metadata saved **inside the Fusion composition**; do not depend on Qt window state for project persistence.
 - Install with a `.cmd` click; normal editing and rendering do not need Python, internet, or a separate application.
 
+## Startup hotfix v0.2.1 (why clicking the menu previously appeared to do nothing)
+
+The older v0.2 entry point called `graph.ensure()` **before showing any window**. That routine creates many Natural Earth Fusion masks and merges. Errors, unsupported mask constructors, and large initialization workloads could therefore prevent the window from ever appearing. The earlier unit tests tested `graph.ensure()` but **never tested actual menu startup**.
+
+v0.2.1 changes the flow:
+
+1. Click **CartoRig Fusion-first** in Fusion: the editor opens first, without creating any nodes.
+2. Click **Create Map in this Fusion Composition** explicitly. If map creation fails, the error is shown in the window and written to `%TEMP%\CartoRig_FusionFirst_startup.log`.
+3. If the editor still does not appear, run `packaging\Diagnose-CartoRig.cmd` and check `Workspace > Console` in Resolve. A startup trace is logged even if UIManager cannot initialize (provided the entry script runs).
+4. If **no startup log** is produced, the launched script may be an old copy, a different scripts folder may be taking precedence, or Resolve did not run the entry point. Inspect `Scripts/Comp` in the installed directory reported by the installer.
+
+This hotfix does **not** certify the Natural Earth mask creation in the real Resolve 20 host; it makes that operation explicit and diagnosable.
+
 ## Installation / use (Windows, DaVinci Resolve Studio 20)
 
-1. Download **all files on this branch** (Code → Download ZIP) or the **CartoRig-FusionFirst-Windows-Alpha** artifact from the latest successful GitHub Actions run. Do not download an individual Lua script. Unzip.
+1. Download **all files on this branch** (Code → Download ZIP), not a single Lua script. Unzip.
 2. Close Resolve and run `packaging/Install-CartoRig.cmd`; it copies the new sources and data into the user Fusion Scripts/Comp directory.
 3. Restart Resolve. Insert a **new empty Fusion Composition** into the Edit timeline. Select it and switch to Fusion.
-4. Launch `CartoRig Fusion-first` from Fusion Scripts (menu positioning varies). The initial vector basemap uses many native mask nodes and may be slow on first creation; this is a known alpha performance cost.
+4. Launch `CartoRig Fusion-first` from Fusion Scripts. The editor should open **before any map is built**. Click **Create Map in this Fusion Composition**. The initial vector basemap uses many native mask nodes and may be slow on first creation; errors are displayed in the editor and logged.
 5. In **Find location**, search `Brasil`, select `Brazil — Country` and click **+ Region**. The **Objects** panel will show it; select it to select the matching native Fusion Background node.
 6. Edit `Fill #` and `Opacity %` using Apply for static values; click **Key @ Playhead** when animating. To change Brazil instantaneously at 30fps: key red at frame 0, key red at 329, key green at 330; or apply Step/Hold interpolation in the **Fusion Spline editor**.
 7. Search `Rio de Janeiro`, select **State — Brazil** rather than City and add the polygon. States have independent Fill controls.
