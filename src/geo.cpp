@@ -275,6 +275,13 @@ std::vector<Location> Catalog::search(const std::string& text,const std::string&
  for(auto&c:found){if(results.size()>=limit)break;results.push_back(*c.ref);}
  return results;
 }
+std::vector<Location> Catalog::all(const std::string& kind) const{
+ if(kind!="country"&&kind!="state"&&kind!="city"&&kind!="land")
+  throw std::invalid_argument("Invalid location kind");
+ std::vector<Location> out;
+ for(const auto&r:records_)if(r.kind==kind)out.push_back(r);
+ return out;
+}
 Geometry Catalog::geometry(const std::string& id) const{
  auto it=byId_.find(id);
  if(it==byId_.end())throw std::invalid_argument("Unknown Natural Earth feature ID");
