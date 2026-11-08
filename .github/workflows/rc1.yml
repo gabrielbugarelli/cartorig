@@ -10,6 +10,11 @@ jobs:
     runs-on: windows-2022
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: AcademySoftwareFoundation/openfx
+          ref: OFX_Release_1_4_TAG
+          path: sdk/openfx
       - name: Configure C++20
         run: cmake -S . -B build
       - name: Compile
@@ -22,6 +27,11 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: AcademySoftwareFoundation/openfx
+          ref: OFX_Release_1_4_TAG
+          path: sdk/openfx
       - name: Configure C++20
         run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
       - name: Compile
@@ -34,6 +44,11 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: AcademySoftwareFoundation/openfx
+          ref: OFX_Release_1_4_TAG
+          path: sdk/openfx
       - name: Configure sanitizers
         run: cmake -S . -B build-sanitize -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_FLAGS="-fsanitize=address,undefined -fno-omit-frame-pointer" -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=address,undefined"
       - name: Compile
