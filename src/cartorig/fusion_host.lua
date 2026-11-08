@@ -99,6 +99,22 @@ function H:init_base(scene)
   if not ok then fail('initialization rolled back: '..tostring(err)) end
   return true
 end
+-- Used only when persistence fails immediately after a new, empty-scene initialization.
+-- All nodes removed MUST carry this exact CartoRig scene identity.
+function H:rollback_base(scene)
+  if not scene or not scene.id then fail('scene identity required for rollback') end
+  if not scene.hostInitialized then return false end
+  for _,tool in pairs(self.comp:GetToolList(false) or {}) do
+    if tool:GetData('CartoRig.V2.Owned')==true
+       and tool:GetData('CartoRig.V2.SceneId')==scene.id then
+      pcall(function() tool:Delete() end)
+    end
+  end
+  scene.hostInitialized=false
+  scene.lastLayerRef=nil
+  for _,o in ipairs(scene.objects or {}) do o.hostToolRef=nil end
+  return true
+end
 local function geometry_rings(feature)
   if not feature or type(feature.geometry)~='table' then fail('missing geographic polygon') end
   local geom=feature.geometry
@@ -106,21 +122,21 @@ local function geometry_rings(feature)
   if geom.type=='MultiPolygon' then return geom.coordinates end
   fail('location has no polygon geometry')
 end
-local function mask_settings(ring)
+local function mask_settings(ring,closed)
   -- Fusion's native .setting syntax; does not require `_G.Polyline` constructor.
-  if type(ring)~='table' or #ring<3 or #ring>10000 then fail('invalid polygon vertex count') end
+  if type(ring)~='table' or #ring<(closed==false and 2 or 3) or #ring>10000 then fail('invalid polyline vertex count') end
   local fragments={}
   for i,pt in ipairs(ring) do
-    if type(pt)~='table' or type(pt[1])~='number' or type(pt[2])~='number' then fail('invalid polygon coordinate') end
+    if type(pt)~='table' or type(pt[1])~='number' or type(pt[2])~='number' or pt[1]~=pt[1] or pt[2]~=pt[2] then fail('invalid polygon coordinate') end
     if pt[1] < -180 or pt[1] >180 or pt[2]<-90 or pt[2]>90 then fail('polygon coordinate out of WGS84 range') end
     fragments[#fragments+1]=string.format('[%d] = { Linear = true, X = %.9f, Y = %.9f }',i,pt[1]/360,pt[2]/180)
   end
-  return 'Polyline { Closed = true, Points = { '..table.concat(fragments,', ')..' } }'
+  return 'Polyline { Closed = '..tostring(closed~=false)..', Points = { '..table.concat(fragments,', ')..' } }'
 end
-function H:_make_polygon_mask(ring,name)
+function H:_make_polyline_mask(ring,name,closed)
   local bmd=self.bridge
   if not bmd or type(bmd.readstring)~='function' then fail('bmd.readstring is required for native polygon mask serialization') end
-  local src=mask_settings(ring)
+  local src=mask_settings(ring,closed)
   local ok,poly=pcall(function()return bmd.readstring(src)end)
   if not ok or not poly then fail('Fusion could not deserialize Polygon geometry: '..tostring(poly)) end
   local mask=add(self.comp,'PolylineMask',name,-2,4)
@@ -131,12 +147,20 @@ function H:_make_polygon_mask(ring,name)
   end
   return mask
 end
+function H:_make_polygon_mask(ring,name)
+  return self:_make_polyline_mask(ring,name,true)
+end
 function H:add_region(scene,object,feature)
   if object.kind~='Region' then fail('object must be a Region') end
   local polygons=geometry_rings(feature)
   local needed=0
   for _,polygon in ipairs(polygons) do
     if #polygon~=1 then fail('region contains internal rings; topology-safe rasterizer required (no incorrect fill fallback)') end
+    for i=2,#polygon[1] do
+      if math.abs(polygon[1][i][1]-polygon[1][i-1][1])>180 then
+        fail('region boundary crosses antimeridian; safe seam-splitting required before render')
+      end
+    end
     needed=needed+1
   end
   if needed>200 then fail('polygon too fragmented for native mask preview') end
