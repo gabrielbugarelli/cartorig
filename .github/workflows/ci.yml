@@ -1,17 +1,45 @@
-name: CartoRig rewrite core
+name: CartoRig rewrite — unit and contracts
 on:
   push:
-    branches: ["rewrite/fusion-v2-from-scratch"]
+    branches: ['rewrite/fusion-v2-from-scratch']
   pull_request:
-    paths: ["src/**", "tests/**", ".github/workflows/ci.yml"]
+    paths: ['src/**', 'fusion/**', 'data/**', 'tests/**', 'tools/**', '.github/workflows/ci.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
 jobs:
-  lua:
+  lua-contracts:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
-      - name: Install Lua runtime
-        run: sudo apt-get update && sudo apt-get install -y lua5.4
-      - name: Run scene contracts
-        run: lua5.4 tests/test_scene.lua .
-      - name: Run motion contracts
-        run: lua5.4 tests/test_motion.lua .
+      - name: Install Lua 5.4
+        run: sudo apt-get update -qq && sudo apt-get install -y lua5.4
+      - name: Lua syntax — every shipped module and entry point
+        run: |
+          find src fusion -name '*.lua' -print0 | xargs -0 -n1 luac5.4 -p
+      - name: Execute all Lua contract tests
+        run: |
+          set -euo pipefail
+          count=0
+          for test in tests/test_*.lua; do
+            echo "::group::$test"
+            lua5.4 "$test" .
+            echo '::endgroup::'
+            count=$((count+1))
+          done
+          echo "Executed $count Lua test files successfully"
+      - name: Validate bundled preview GeoJSON / provenance
+        run: |
+          python3 - <<'PY'
+          import hashlib,json,pathlib
+          base=pathlib.Path('data')
+          m=json.loads((base/'manifest.json').read_text())
+          for d in m['datasets']:
+              p=base/d['filename']
+              assert hashlib.sha256(p.read_bytes()).hexdigest()==d['sha256'], p
+              fc=json.loads(p.read_text())
+              assert fc['type']=='FeatureCollection' and len(fc['features'])==d['feature_count']
+          assert not m['production_ready']
+          print('Preview GeoJSON hash, provenance and feature count: PASS')
+          PY

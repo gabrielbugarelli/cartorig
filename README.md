@@ -1,37 +1,44 @@
-# CartoRig — Fusion rewrite (new codebase)
+# CartoRig — Fusion rewrite (engineering preview)
 
-A completely new implementation of CartoRig based on `CR-PS-2.0` as the **working product specification**. No legacy CartoRig implementation code, graph, UI or installer has been copied into this branch.
+New codebase aligned to `CR-PS-2.0`: Fusion is the authoring host, `Scene` is a UIManager window, native Fusion Inspector and Spline own property animation. **No legacy CartoRig implementation code is included.** Natural Earth data assets are public domain, not legacy application code.
 
-## Implemented in this commit
+## Current functionality
 
-- Independent canonical scene object model, persistent IDs, origin metadata and style values.
-- Typed `Region`, `Marker`, `Label` and `Route` creation with explicit WGS84 endpoints. A City without a polygon cannot be converted into an invented administrative Region.
-- Scene CRUD: rename, duplicate, delete with dependent-object protection, independent style overrides, lock, selection and draw-order changes.
-- Motion planning engine with an initial registry of **16 named presets** from `CR-PS-2.0`. It validates frame bounds, affected channels and existing-channel conflicts, and produces explicit keyframe plans without modifying unrelated channels.
-- Lua regression tests for product invariants and the Brazil instantaneous color-change case (frame 330 at 30 fps).
+- Scene model: typed objects, stable IDs, independent styles, CRUD, groups, route editing, locks, draw order, follower dependency checks, safe snapshot/revert.
+- Motion **planning** for all 16 proposed presets with independent channel conflicts, frame bounds, instant color changes and deterministic keyframe plans. These plans are not all wired to the Fusion Inspector yet.
+- Offline GeoJSON catalog with search, administrative polygon/point distinction, alias and accent matching, plus equirectangular camera, antimeridian splitting, route samples, polygon hole semantics and Fit calculations.
+- Scene persistence using non-executable JSON via Fusion Composition metadata.
+- Fusion adapter (experimental): create Background/Camera, create a Region with native polygon mask, bind RGB keys to BezierSpline, select object in FlowView. Needs real Resolve Studio 20 host test.
+- Script entry `fusion/CartoRig Scene.lua` with Scene window (initialize, search, Add Region, reveal selected object). This is a limited preview, **not** the full UI.
+- Windows preview installer and uninstall script; does not change older plugin branches.
 
-## Not yet implemented
+## Data limitations
 
-- UIManager Scene, Control/Motion Inspector Fuse, geospatial renderer, Natural Earth data bundle, working host adapter, installer and real DaVinci Resolve Studio 20 tests.
-- The presets are **planning contracts**, not yet installed as Fusion keyframes. Do not present them as functional effects.
+The included GeoJSON is an **178-feature Natural Earth Admin-0 1:110m preview**. It is not a complete 10m pack. Official Natural Earth 10m Admin-0/Admin-1/populated places/land/coast/lakes/boundary data must be acquired in build time, validated, and bundled before the product can claim offline global coverage. The separate GitHub Actions `build-natural-earth.yml` is intended to generate this downloadable build artifact; it has not been host-validated. User runtime never fetches data. No municipal boundary is fabricated from a city point.
 
-The next integration target is a single vertical slice: initialize a Fusion Composition, create a real Region from an offline polygon, select it from Scene, expose its Fill/Opacity in the Fusion Inspector and write a real Fusion spline that is editable in Spline. This requires host validation.
-
-## Run tests
-
-From repository root:
+## Local tests
 
 ```sh
-texlua tests/test_scene.lua .
-texlua tests/test_motion.lua .
+for test in tests/test_*.lua; do texlua "$test" . || exit 1; done
 ```
 
-## Product design boundaries
+The automated workflow installs Lua 5.4 and additionally parses every source Lua file, validates GeoJSON SHA256 and executes all test files. See `docs/QA_STATUS.md` for precise evidence limits.
 
-- Fusion-first, not Edit-first.
-- `Scene` is structural UIManager authoring; `Control`/`Motion` belong to Fusion Inspector; Spline remains Fusion-native.
-- No auto-generated editorial objects, keyframes, or routes.
-- No internet runtime dependency; future geographical data originate only from specified offline Natural Earth packages.
-- All source in this branch is written anew; prior implementation history is not treated as a template.
+## Windows integration preview
 
-**Status:** source foundation, **not** a functional Resolve plugin or production release. License selection remains with the project owner; the repository should not be called open-source licensed until a compatible license is adopted.
+1. Extract the full source tree and close DaVinci Resolve.
+2. Run `packaging/Install-CartoRig.cmd` from that extracted tree.
+3. Restart DaVinci Resolve Studio 20, put a Fusion Composition in a test project, open Fusion.
+4. Run `CartoRig Scene` under Scripts. Click **Initialize Map Scene** in an empty Fusion Composition.
+5. Search a country such as Brazil, select the country and click **Add as Region**; select it in Scene and click **Reveal in Fusion**.
+6. On error, consult `%TEMP%\CartoRig_Rewrite_v2.log` and the Resolve Console. Do not use this preview on an irreplaceable project.
+
+**No guarantee of working native polygon parsing or correct image output is claimed until Resolve host testing.** The scene window is independent from rendering, but its interaction with Resolve has not been verified.
+
+## Missing product requirements
+
+The complete Control/Motion Inspector UX, all 16 *executing* presets, full-resolution geography, city/marker/label/route host tools, style overrides in the Inspector, safe arbitrary host node coexistence, 4K renderer optimizations, GUI installer, migrations, and QA-01…QA-60 are not yet complete.
+
+## Specification governance
+
+The v2 document is the immutable functional reference for this rewrite, not a performance claim. No arbitrary UX change will be silently introduced to accommodate implementation shortcuts. This repository branch is pre-release engineering work.

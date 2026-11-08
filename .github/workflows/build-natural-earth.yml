@@ -1,0 +1,24 @@
+name: CartoRig — build full Natural Earth 10m data pack
+on:
+  workflow_dispatch:
+  workflow_call:
+permissions:
+  contents: read
+jobs:
+  build-dataset:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Build-only dependencies (not needed by CartoRig users)
+        run: python -m pip install --disable-pip-version-check --no-cache-dir 'pyshp==2.3.1'
+      - name: Download official ZIPs, validate, convert offline bundle
+        run: python tools/build_natural_earth.py --output dist/natural-earth-10m
+      - uses: actions/upload-artifact@v4
+        with:
+          name: CartoRig-Natural-Earth-10m-Data-Pack
+          path: dist/natural-earth-10m
+          retention-days: 30

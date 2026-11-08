@@ -27,9 +27,9 @@ local positive={ strokeWidth=true,size=true,fontSize=true,zoom=true }
 local function valid_style(key, value)
   if colors[key] then return type(value)=='string' and value:match('^#%x%x%x%x%x%x$')~=nil end
   if pct[key] then return type(value)=='number' and value==value and value>=0 and value<=100 end
-  if positive[key] then return type(value)=='number' and value==value and value>=0 and value<1e6 end
-  if key=='longitude' or key=='bearing' then return type(value)=='number' and value>=-180 and value<=180 end
-  if key=='latitude' then return type(value)=='number' and value>=-85 and value<=85 end
+  if positive[key] then return type(value)=='number' and value==value and value~=math.huge and value>=0 and value<1e6 end
+  if key=='longitude' or key=='bearing' then return type(value)=='number' and value==value and value>=-180 and value<=180 end
+  if key=='latitude' then return type(value)=='number' and value==value and value>=-85 and value<=85 end
   if key=='displayMode' then return value=='Full Map' or value=='Transparent Overlay' end
   if key=='halo' or key=='arrowhead' then return type(value)=='boolean' end
   return value~=nil
@@ -82,6 +82,10 @@ function M.add_location(scene,feature,kind)
   end
   return node(scene,kind,feature.name,{ source={ featureId=feature.id,version=feature.version,
     dataset=feature.dataset,type=feature.type }, anchor=feature.point })
+end
+function M.add_group(scene,name)
+  if type(name)~='string' or name=='' then fail('group name required') end
+  return node(scene,'Group',name)
 end
 function M.add_route(scene,from,to)
   assert_point(from); assert_point(to)

@@ -1,0 +1,15 @@
+{
+  "bundle": "natural-earth-110m-preview",
+  "datasets": [
+    {
+      "filename": "ne_110m_admin_0_countries.geojson",
+      "scale": "110m",
+      "kind": "Country",
+      "version": "Natural Earth public-domain source (prior data acquisition)",
+      "feature_count": 178,
+      "sha256": "1a423e143da4347e8aca94751e4fea672ff0bb8e79f5f4b22a12beab87bb8be1"
+    }
+  ],
+  "production_ready": false,
+  "disclaimer": "Preview Admin-0 dataset; not the specified 10m Admin-0/Admin-1/cities package. No street/municipal polygons."
+}
