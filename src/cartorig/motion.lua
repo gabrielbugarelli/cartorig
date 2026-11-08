@@ -48,6 +48,7 @@ function M.prepare(object,preset_id,opts,existing)
   if not valid_integer(delay) or delay<0 then fail('invalid delay') end
   local duration=opts.duration or d.duration
   if preset_id=='MO-REG-04' then duration=0 elseif not valid_integer(duration) or duration<1 then fail('duration must be positive') end
+  if not valid_integer(start) or start<0 then fail('start must be a nonnegative whole composition frame') end
   local first=start+delay
   validate_frame(first,duration,opts.frameCount)
   local last=first+duration
