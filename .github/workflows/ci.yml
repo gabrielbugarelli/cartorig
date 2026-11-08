@@ -18,6 +18,7 @@ jobs:
       - name: Lua syntax — every shipped module and entry point
         run: |
           find src fusion -name '*.lua' -print0 | xargs -0 -n1 luac5.4 -p
+          find fuses -name '*.fuse' -print0 | xargs -0 -n1 luac5.4 -p
       - name: Execute all Lua contract tests
         run: |
           set -euo pipefail
