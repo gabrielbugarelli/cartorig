@@ -15,7 +15,7 @@
 | Experimental Fuse with Control/Motion Inspector pages, premultiplied alpha pass | PASS callback mock | NOT RUN | OPEN |
 | All 16 Motion plan definitions | PASS unit plan contracts | NOT RUN | OPEN |
 | All 16 preset execution in Inspector Control/Motion | **NOT IMPLEMENTED** | NOT RUN | OPEN |
-| Real 10m data and geometry source inventory | Offline build workflow separate | NOT RUN | OPEN |
+| Real 10m data and geometry source inventory | Offline 7-dataset build + self-contained Windows preview artifact in Actions (SHA256 checked) | NOT RUN | OPEN |
 | Production renderer: polygons with holes, antimeridian, 4K, alpha, screen-space symbols | **NOT IMPLEMENTED** | NOT RUN | OPEN |
 | HOST-01…HOST-10 and QA-01…QA-60 | NOT RUN | NOT RUN | OPEN |
 
