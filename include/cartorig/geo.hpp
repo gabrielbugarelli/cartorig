@@ -36,6 +36,7 @@ public:
   std::vector<Location> search(const std::string& text,const std::string& kind="all",
                                std::size_t limit=50) const;
   Geometry geometry(const std::string& id) const;
+  std::vector<Location> all(const std::string& kind) const;
   std::size_t size() const {return records_.size();}
 private:
   std::filesystem::path archive_;
