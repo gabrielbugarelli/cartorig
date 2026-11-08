@@ -1,0 +1,59 @@
+name: CartoRig Fusion RC1 - Build and Test
+on:
+  push:
+    branches:
+      - release/1.0-rc1-fusion-rewrite
+  pull_request:
+  workflow_dispatch:
+jobs:
+  windows:
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure C++20
+        run: cmake -S . -B build
+      - name: Compile
+        run: cmake --build build --config Release --parallel 2
+      - name: C++ unit tests
+        run: ctest --test-dir build -C Release --output-on-failure
+      - name: Natural Earth offline fixture tests
+        run: python -m unittest discover -s tests -p "test_builder.py" -v
+  linux:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure C++20
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+      - name: Compile
+        run: cmake --build build --parallel 2
+      - name: C++ unit tests
+        run: ctest --test-dir build --output-on-failure
+      - name: Natural Earth offline fixture tests
+        run: python3 -m unittest discover -s tests -p "test_builder.py" -v
+  sanitizers:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure sanitizers
+        run: cmake -S . -B build-sanitize -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_FLAGS="-fsanitize=address,undefined -fno-omit-frame-pointer" -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=address,undefined"
+      - name: Compile
+        run: cmake --build build-sanitize --parallel 2
+      - name: Execute ASan and UBSan tests
+        run: ctest --test-dir build-sanitize --output-on-failure
+  publisher-data:
+    runs-on: ubuntu-24.04
+    if: github.event_name == 'workflow_dispatch'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Acquire Natural Earth 10m during package build ONLY
+        run: python3 tools/build_ne.py --archives build-datasets --out dist/data --online-build
+      - name: Verify complete essential data categories
+        run: |
+          python3 -c "import json; m=json.load(open('dist/data/manifest.json')); assert m['features']>5000; assert len(m['datasets'])==4; assert not m['network_required_by_runtime']"
+      - name: Bundle publisher data for offline installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: CartoRig-Fusion-RC1-NaturalEarth10m
+          path: dist/data/
+          retention-days: 7
+          if-no-files-found: error
