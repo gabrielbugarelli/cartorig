@@ -16,6 +16,11 @@ local function run()
   local Catalog=module('catalog')
   local Repository=module('repository')
   local Host=module('fusion_host')
+  local Objects=module('fusion_objects')
+  local Geo=module('geo')
+  local Motion=module('motion')
+  local Writer=module('motion_apply')
+  local Authoring=module('authoring')
   local fus=rawget(_G,'fusion') or rawget(_G,'fu')
   local comp=rawget(_G,'comp')
   if not comp and fus and fus.GetCurrentComp then comp=fus:GetCurrentComp() end
@@ -23,9 +28,10 @@ local function run()
   local bridge=rawget(_G,'bmd')
   local ui=fus and fus.UIManager
   if not ui or not bridge or type(bridge.UIDispatcher)~='function' then error('Resolve Fusion UIManager is unavailable') end
-  local host=Host.new(comp,bridge)
+  local engine=Authoring.new(comp,{Scene=Scene,Repository=Repository,Json=Json,Host=Host,Objects=Objects,Geo=Geo,Motion=Motion,Writer=Writer},bridge)
+  local host=engine.host
   local entries={};local results={};local displayed={}
-  local state=Repository.read(comp,Scene,Json)
+  local state=engine:current()
   local dataDir=dir..'/CartoRig/data'
   local bundle_path=dataDir..'/ne_110m_admin_0_countries.geojson'
   local ok_data,load_error=pcall(function()
@@ -46,9 +52,12 @@ local function run()
       ui:Label{ID='CR_Context',Text='Fusion Composition'},
       ui:Button{ID='CR_Initialize',Text='Initialize Map Scene'},
       ui:HGroup{ui:LineEdit{ID='CR_Search',PlaceholderText='Search location'},ui:Button{ID='CR_SearchBtn',Text='Find'}},
+      ui:HGroup{ui:Label{Text='Filter'},ui:ComboBox{ID='CR_Filter'}},
       ui:Label{Text='OFFLINE LOCATIONS (installed Natural Earth bundle)'},
       ui:Tree{ID='CR_Results',ColumnCount=1,SortingEnabled=false,MinimumSize={320,160}},
-      ui:Button{ID='CR_AddRegion',Text='Add as Region'},
+      ui:HGroup{ui:Button{ID='CR_AddRegion',Text='Add as Region'},ui:Button{ID='CR_AddMarker',Text='Add Marker'},ui:Button{ID='CR_AddLabel',Text='Add Label'}},
+      ui:HGroup{ui:Button{ID='CR_RouteFrom',Text='Route From'},ui:Button{ID='CR_RouteTo',Text='Route To'},ui:Button{ID='CR_CreateRoute',Text='Create Route'}},
+      ui:Label{ID='CR_RouteState',Text='Route: choose explicit point endpoints'},
       ui:Label{Text='SCENE OBJECTS'},
       ui:Tree{ID='CR_Objects',ColumnCount=1,SortingEnabled=false,MinimumSize={320,200}},
       ui:HGroup{ui:Button{ID='CR_Reveal',Text='Reveal in Fusion'},ui:Button{ID='CR_Refresh',Text='Refresh'}},
@@ -57,6 +66,9 @@ local function run()
     })
   local w=win:GetItems()
   local chosen=nil;local selected_id=nil
+  local routeFrom,routeTo=nil,nil
+  local filters={'All','Continent','Country','State','City'}
+  for _,kind in ipairs(filters) do w.CR_Filter:AddItem(kind) end
   local function status(msg)w.CR_Status.Text=tostring(msg);log(msg) end
   local function refresh_context()
     local active=fus and fus.GetCurrentComp and fus:GetCurrentComp() or comp
@@ -78,14 +90,14 @@ local function run()
     end
   end
   local function search()
-    results=Catalog.search(entries,w.CR_Search.Text,'All',50)
+    results=Catalog.search(entries,w.CR_Search.Text,w.CR_Filter.CurrentText or 'All',50)
     local items={};for _,f in ipairs(results) do items[#items+1]={label=f.name..' — '..f.kind..' / '..(f.parent or 'World')} end
     populate_tree(w.CR_Results,items,'Search results')
     chosen=nil
     if #results==0 and #w.CR_Search.Text>0 then status('Location not found in bundled offline data.') end
   end
   local function refresh_objects()
-    state=Repository.read(comp,Scene,Json)
+    state=engine:current()
     displayed={}
     if state then
       for _,o in ipairs(state.objects) do
@@ -104,13 +116,13 @@ local function run()
     guarded(function()
       if state then return 'Scene already initialized' end
       local new_scene=Scene.new('cr2-'..tostring(os.time())..'-'..tostring(math.random(100000,999999)),'natural-earth-110m-preview')
-      host:init_base(new_scene)
-      Repository.write(comp,new_scene,Scene,Json)
+      engine:initialize(new_scene.id,new_scene.manifestId)
       state=new_scene;refresh_objects()
       return 'Initialized Map Scene; select a country and Add as Region.'
     end)
   end
   win.On.CR_SearchBtn.Clicked=search
+  win.On.CR_Filter.CurrentIndexChanged=search
   win.On.CR_Search.TextChanged=search
   win.On.CR_Results.CurrentItemChanged=function(ev)
     local index=item_index(w.CR_Results.CurrentItem)
@@ -120,27 +132,59 @@ local function run()
   win.On.CR_Objects.CurrentItemChanged=function()
     local index=item_index(w.CR_Objects.CurrentItem)
     selected_id=index and displayed[index] and displayed[index].id or nil
+    if selected_id then guarded(function()engine:select(selected_id);return 'Selected object in Fusion Inspector' end) end
   end
   win.On.CR_AddRegion.Clicked=function()
     guarded(function()
       if not state then error('Initialize Map Scene first') end
       if not chosen then error('Choose a location in search results') end
       if chosen.geometryType~='Polygon' and chosen.geometryType~='MultiPolygon' then error('Location has no polygon') end
-      local draft=Scene.snapshot(state)
-      local object=Scene.add_location(draft,{id=chosen.id,name=chosen.name,type=chosen.kind,geometryType=chosen.geometryType,
-        version=chosen.source.version,dataset=chosen.source.dataset},'Region')
       local feature=Catalog.load_feature(dataDir,chosen,Json)
-      host:add_region(draft,object,feature)
-      Repository.write(comp,draft,Scene,Json)
+      local draft,object=engine:add_location(feature,'Region')
       state=draft;refresh_objects()
       return 'Added '..chosen.name..'; select its Fusion node to edit native properties.'
+    end)
+  end
+  local function add_point(kind)
+    guarded(function()
+      if not state then error('Initialize Map Scene first') end
+      if not chosen then error('Choose an explicit location first') end
+      local feature=Catalog.load_feature(dataDir,chosen,Json)
+      if not feature.point then error('This location has no point; choose a City or a custom coordinate') end
+      local draft,object=engine:add_location(feature,kind)
+      state=draft;refresh_objects()
+      return 'Added '..kind..' '..object.name..' as independent Fusion tool.'
+    end)
+  end
+  win.On.CR_AddMarker.Clicked=function()add_point('Marker')end
+  win.On.CR_AddLabel.Clicked=function()add_point('Label')end
+  local function choose_endpoint(target)
+    guarded(function()
+      if not chosen then error('Select a City with an explicit point') end
+      local feature=Catalog.load_feature(dataDir,chosen,Json)
+      if feature.geometryType~='Point' or not feature.point then
+        error('A Country or State is an area. Select a City or specify coordinates; no implicit capital/centroid.')
+      end
+      if target=='from' then routeFrom=feature.point else routeTo=feature.point end
+      w.CR_RouteState.Text='Route: From '..(routeFrom and 'set' or 'missing')..' / To '..(routeTo and 'set' or 'missing')
+      return 'Route '..target..' selected: '..feature.name
+    end)
+  end
+  win.On.CR_RouteFrom.Clicked=function()choose_endpoint('from')end
+  win.On.CR_RouteTo.Clicked=function()choose_endpoint('to')end
+  win.On.CR_CreateRoute.Clicked=function()
+    guarded(function()
+      if not routeFrom or not routeTo then error('Specify both route point endpoints') end
+      local draft,object=engine:add_route(routeFrom,routeTo)
+      state=draft;refresh_objects()
+      return 'Added Route '..object.id..' with native Fusion line mask.'
     end)
   end
   win.On.CR_Reveal.Clicked=function()
     guarded(function()
       if not state or not selected_id then error('Select a scene object') end
       local object=Scene.get(state,selected_id)
-      host:select(object)
+      engine:select(selected_id)
       return 'Selected '..object.name..' in Fusion Node Editor/Inspector.'
     end)
   end
