@@ -121,6 +121,14 @@ function M.load_feature(data_root,entry,json)
   if feature.type~='Feature' or type(feature.geometry)~='table' then fail('invalid feature at index offset') end
   local copy={};for k,v in pairs(entry) do copy[k]=v end
   copy.geometry=feature.geometry
+  if feature.geometry.type=='Point' then
+    local coord=feature.geometry.coordinates
+    if type(coord)~='table' or type(coord[1])~='number' or type(coord[2])~='number'
+      or coord[1]~=coord[1] or coord[2]~=coord[2] or math.abs(coord[1])>180 or math.abs(coord[2])>90 then
+      fail('invalid geographic point at catalogue offset')
+    end
+    copy.point={lon=coord[1],lat=coord[2]}
+  end
   return copy
 end
 return M
