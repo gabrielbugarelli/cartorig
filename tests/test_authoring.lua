@@ -27,6 +27,10 @@ local comp=mock();local engine=A.new(comp,m,bridge)
 local scene=engine:initialize('fresh-2026-0001','natural-earth-local')
 assert(scene.hostInitialized and scene.lastLayerRef)
 assert(engine:current().id=='fresh-2026-0001')
+local pinned=A.new(comp,m,bridge,'new-dataset-id')
+local foreign={id='foreign:point',name='Other Point',kind='City',geometryType='Point',point={lon=10,lat=20}}
+assert(not pcall(function() pinned:add_location(foreign,'Marker') end))
+assert(engine:current().serial==2)
 local city={id='point:BR:Rio',name='Rio de Janeiro',kind='City',source={dataset='NE',version='10m'},geometryType='Point',point={lon=-43.2,lat=-22.9}}
 local new,marker=engine:add_location(city,'Marker')
 assert(marker.hostToolRef and engine:current().objects[3].id==marker.id)
