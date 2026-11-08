@@ -13,9 +13,13 @@ Fresh source code aligned to `CR-PS-2.0`: `Scene` owns structure in UIManager; t
 - Fusion UIManager Scene bootstrap supports initialization, typed search/filter, adding Regions, Markers, Labels, choosing explicit Route endpoints, creating Routes and selecting a node in the Fusion Inspector.
 - No network or external process is required for playback of *already-created native Fusion nodes*; the Scene window is not the render engine.
 
+## Experimental Inspector controls (Fuse host gate)
+
+`fuses/CartoRigOpacity.fuse` is a new, functional pass-through image-processing Fuse with **Control** and **Motion** Inspector pages. `Control → Object Opacity` and `Motion → Fade Factor` are separate native numeric inputs; their product multiplies premultiplied RGBA in `Process(req)`. Both channels are intended to be manually keyframeable in the native Spline Editor. This is a **host-gated prototype**, not the completed object-specific Inspector or a catalog preset launcher. It is installed in the per-user Fusion Fuses folder by the preview installer, and can be tested as `CartoRig Opacity (Experimental)` on a copy of a Fusion composition. The test harness mocks the Fuse SDK callbacks; **actual loading/rendering/keyframing in Resolve 20 is NOT YET VERIFIED**.
+
 ## Explicit preview limitations
 
-1. **The full `Control`/`Motion` pages in the Fusion Inspector are NOT implemented.** Native tool inputs are editable but do not represent the final object-specific Inspector design. The Scene window does **not** create an extra animation timeline.
+1. **The full object-specific `Control`/`Motion` pages in the Fusion Inspector are NOT implemented.** Native tool inputs are editable but do not represent the final object-specific Inspector design. The Scene window does **not** create an extra animation timeline.
 2. **Renderer is NOT production-complete.** Base Map currently starts with a flat Background preview; native Region masks do not support polygons with interior holes, high-fragmentation geometry or seam-crossing boundaries. Such input fails with a diagnostic instead of rendering inaccurately. Lines that cross the antimeridian are rejected until a proper geometry-splitting renderer is installed.
 3. **Screen-space marker/label/route widths are not preserved under the downstream Transform's zoom.** This is a known limitation of the interim graph; final geoanchor and compositing needs a projection-aware render layer.
 4. **Not all 16 presets execute.** The 16 planner definitions exist; only channels with native tool bindings are written, with host behavior subject to validation. No claim of Step interpolation, shape masks or full Spline compatibility on Resolve 20 is made until a real host run.
