@@ -18,6 +18,12 @@ if exist "%SOURCE%\dist\natural-earth-10m\catalog_index.json" (
   echo Installing complete Natural Earth 10m offline data pack...
   xcopy "%SOURCE%\dist\natural-earth-10m\*" "%TARGET%\CartoRig\data\" /E /I /Q /Y >nul
 )
+set "FUSE_DIR=%APPDATA%\Blackmagic Design\DaVinci Resolve\Support\Fusion\Fuses"
+if not exist "%FUSE_DIR%" mkdir "%FUSE_DIR%"
+if exist "%SOURCE%\fuses\CartoRigOpacity.fuse" (
+  copy /Y "%SOURCE%\fuses\CartoRigOpacity.fuse" "%FUSE_DIR%\CartoRigOpacity.fuse" >nul
+  echo Installed experimental Control/Motion opacity Fuse in Fusion Fuses folder.
+)
 if not exist "%TARGET%\CartoRig\fusion_host.lua" (
   echo Installation incomplete.
   pause & exit /b 1
