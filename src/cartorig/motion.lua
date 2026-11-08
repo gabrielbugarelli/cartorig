@@ -62,7 +62,10 @@ function M.prepare(object,preset_id,opts,existing)
     ramp('fill',object.style.fill,opts.targetColor)
   elseif preset_id=='MO-REG-04' then
     if not opts.targetColor or not opts.targetColor:match('^#%x%x%x%x%x%x$') then fail('targetColor required') end
-    plan_channel(channels,'fill',{key(first,opts.targetColor,'Step')})
+    local keys={}
+    if first>0 then keys[#keys+1]=key(first-1,object.style.fill,'Step') end
+    keys[#keys+1]=key(first,opts.targetColor,'Step')
+    plan_channel(channels,'fill',keys)
   elseif preset_id=='MO-REG-05' then ramp('strokeProgress',0,100)
   elseif preset_id=='MO-REG-06' then
     local count=opts.pulseCount or 2
