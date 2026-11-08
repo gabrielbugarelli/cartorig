@@ -89,8 +89,20 @@ function A:motion(id,preset,opts)
   if not object then fail('object missing') end
   local plan=self.m.Motion.prepare(object,preset,opts,object.motion or {})
   self.m.Writer.apply(self.host,object,plan)
-  -- Metadata only: native Fusion tool is the authoritative source of time evaluation.
-  -- A future fingerprint adapter must detect external tangents/keys before Update/Remove.
+  -- Persist only binding *provenance*, not a second evaluatable keyframe timeline.
+  -- The real time-dependent value remains the Fusion-native spline.
+  local draft=self.m.Scene.snapshot(state)
+  local target=self.m.Scene.get(draft,id)
+  target.motion=target.motion or {}
+  for channel in pairs(plan.channels) do
+    target.motion[channel]={{presetId=preset,first=plan.first,last=plan.last,state='ANIMATED_PRESET'}}
+  end
+  local ok,err=pcall(function()self.m.Repository.write(self.comp,draft,self.m.Scene,self.m.Json)end)
+  if not ok then
+    local tool=self.host:tool_for(object)
+    if tool then pcall(function()tool:SetData('CartoRig.V2.MotionNeedsRepair',true)end) end
+    fail('keys were written to Fusion but binding metadata could not be saved; manual repair required: '..tostring(err))
+  end
   return plan
 end
 return A
