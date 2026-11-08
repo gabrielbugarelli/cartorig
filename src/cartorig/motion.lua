@@ -24,7 +24,8 @@ local function fail(s) error('CartoRig motion: '..s,2) end
 local function key(at,value,interpolation) return {frame=at,value=value,interpolation=interpolation or 'Bezier'} end
 local function plan_channel(channels,name,keys) channels[name]=keys end
 local function value_or(target,key,default) local v=target[key];if v==nil then return default end;return v end
-local function valid_integer(x) return type(x)=='number' and x%1==0 and x==x end
+local function valid_integer(x) return type(x)=='number' and x%1==0 and x==x and x~=math.huge and x~=-math.huge end
+local function finite(x) return type(x)=='number' and x==x and x~=math.huge and x~=-math.huge end
 local function validate_frame(start,duration,frameCount)
   if not valid_integer(start) or start<0 then fail('invalid playhead frame') end
   if not valid_integer(duration) or duration<0 then fail('invalid duration') end
@@ -46,7 +47,7 @@ function M.prepare(object,preset_id,opts,existing)
   local delay=opts.delay or 0
   if not valid_integer(delay) or delay<0 then fail('invalid delay') end
   local duration=opts.duration or d.duration
-  if preset_id=='MO-REG-04' then duration=0 end
+  if preset_id=='MO-REG-04' then duration=0 elseif not valid_integer(duration) or duration<1 then fail('duration must be positive') end
   local first=start+delay
   validate_frame(first,duration,opts.frameCount)
   local last=first+duration
@@ -70,7 +71,7 @@ function M.prepare(object,preset_id,opts,existing)
   elseif preset_id=='MO-REG-06' then
     local count=opts.pulseCount or 2
     local cycle=opts.cycle or 18
-    if not valid_integer(count) or count<1 or count>8 or not valid_integer(cycle) or cycle<2 then fail('invalid pulse parameters') end
+    if not valid_integer(count) or count<1 or count>8 or not valid_integer(cycle) or cycle<2 or cycle>120 or not finite(opts.peak or 35) or (opts.peak or 35)<0 or (opts.peak or 35)>100 then fail('invalid pulse parameters') end
     duration=count*cycle;validate_frame(first,duration,opts.frameCount);last=first+duration
     local keys={}
     for i=0,count-1 do
@@ -89,14 +90,20 @@ function M.prepare(object,preset_id,opts,existing)
     plan_channel(channels,'size',{key(first,0),key(first+math.floor(duration*0.7),size*1.15),key(last,size)})
   elseif preset_id=='MO-CAM-01' or preset_id=='MO-CAM-03' then
     local endpose=opts.targetPose
-    if not endpose or type(endpose.longitude)~='number' or type(endpose.latitude)~='number' or type(endpose.zoom)~='number' then fail('targetPose required') end
-    for _,name in ipairs({'longitude','latitude','zoom'}) do ramp(name,object.style[name],endpose[name]) end
+    if not endpose or not finite(endpose.longitude) or math.abs(endpose.longitude)>180 or not finite(endpose.latitude) or math.abs(endpose.latitude)>85 or not finite(endpose.zoom) or endpose.zoom<=0 or endpose.zoom>50 then fail('valid targetPose required') end
+    local oldlon=object.style.longitude
+    local delta=(endpose.longitude-oldlon+180)%360-180
+    if delta==-180 and endpose.longitude-oldlon>0 then delta=180 end
+    ramp('longitude',oldlon,oldlon+delta)
+    ramp('latitude',object.style.latitude,endpose.latitude)
+    ramp('zoom',object.style.zoom,endpose.zoom)
   elseif preset_id=='MO-CAM-02' then
-    if type(opts.targetZoom)~='number' or opts.targetZoom<=0 then fail('targetZoom required') end
+    if not finite(opts.targetZoom) or opts.targetZoom<0.1 or opts.targetZoom>50 then fail('targetZoom must be within 0.1..50') end
     ramp('zoom',object.style.zoom,opts.targetZoom)
   elseif preset_id=='MO-MAP-01' then
-    if not opts.layer then fail('base layer required') end
-    ramp('layerOpacity',0,100)
+    local allowed={Ocean=true,Land=true,Coastline=true,CountryBorders=true,StateBorders=true}
+    if not allowed[opts.layer] then fail('valid base layer required') end
+    ramp('layerOpacity.'..opts.layer,0,100)
   else fail('preset implementation missing') end
   check_conflicts(channels,existing)
   return {presetId=preset_id,objectId=object.id,channels=channels,first=first,last=last,

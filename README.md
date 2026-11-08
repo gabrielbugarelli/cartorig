@@ -14,7 +14,7 @@ New codebase aligned to `CR-PS-2.0`: Fusion is the authoring host, `Scene` is a 
 
 ## Data limitations
 
-The included GeoJSON is an **178-feature Natural Earth Admin-0 1:110m preview**. It is not a complete 10m pack. Official Natural Earth 10m Admin-0/Admin-1/populated places/land/coast/lakes/boundary data are converted by the separate `build-natural-earth.yml` workflow. Its initial seven-family build passed in GitHub Actions; a new indexed/lazy-loading revision has its own tests and requires a fresh workflow pass. The full data pack is a build artifact, not included in this small repository source snapshot. To make it available to the preview installer, place the downloaded artifact contents in `dist/natural-earth-10m/` before installation. User runtime never fetches data. No municipal boundary is fabricated from a city point.
+The included GeoJSON is an **178-feature Natural Earth Admin-0 1:110m preview**. It is not a complete 10m pack. Official Natural Earth 10m Admin-0/Admin-1/populated places/land/coast/lakes/boundary data are converted by the separate `build-natural-earth.yml` workflow. The indexed/lazy-loading seven-family 10m build passed GitHub Actions, and a versioned offline data-pack artifact is available from the workflow run. The full data pack is a build artifact, not included in this small repository source snapshot. To make it available to the preview installer, place the downloaded artifact contents in `dist/natural-earth-10m/` before installation. User runtime never fetches data. No municipal boundary is fabricated from a city point.
 
 ## Local tests
 

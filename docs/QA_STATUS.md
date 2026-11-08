@@ -13,7 +13,7 @@ This is **not a release approval**. The unit-test suite and GitHub Actions verif
 | Region PolygonMask native loader | PASS (mock) | NOT RUN | OPEN |
 | Fusion UIManager Scene bootstrap | Source written; syntax tested | NOT RUN | OPEN |
 | Inspector Control / Motion pages | NOT IMPLEMENTED | NOT RUN | OPEN |
-| 10m offline Natural Earth data (7 families) | Initial build PASS in GitHub Actions; indexed revision under test | NOT RUN | OPEN |
+| 10m offline Natural Earth data (7 families) | Indexed seven-family 10m data pack PASS in GitHub Actions; Resolve runtime NOT RUN | NOT RUN | OPEN |
 | Geometry topology / 4K renderer / alpha / export | NOT IMPLEMENTED | NOT RUN | OPEN |
 | QA-01 to QA-60, HOST-01 to HOST-10 | NOT RUN | NOT RUN | OPEN |
 
