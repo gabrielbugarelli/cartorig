@@ -19,4 +19,18 @@ local start=g.point_at_progress(route,0);local finish=g.point_at_progress(route,
 near(start.lon,route.from.lon);near(finish.lon,route.to.lon)
 local focus=g.fit({{lon=179,lat=0},{lon=-179,lat=2}},1920,1080,8)
 assert(math.abs(math.abs(focus.longitude)-180)<0.01,focus.longitude)
+-- A city is a point, not a microscopic polygon: Fit uses a documented 4x zoom.
+local city=g.fit({{lon=-46.626966,lat=-23.556734}},1920,1080,8)
+near(city.zoom,4);near(city.longitude,-46.626966);near(city.latitude,-23.556734)
+local city_dupe=g.fit({{lon=-46.626966,lat=-23.556734},{lon=-46.626966,lat=-23.556734}},1080,1920,8)
+near(city_dupe.zoom,4)
+-- Repeated waypoints must never create division by zero/NaN in follower travel.
+local repeated={from={lon=-47,lat=-15},to={lon=-52,lat=0},waypoints={{lon=-47,lat=-15},{lon=-49,lat=-9},{lon=-49,lat=-9},{lon=-52,lat=0}},pathType='Straight',curvature=0}
+for _,progress in ipairs({0,0.01,25,50,75,99.99,100}) do
+  local v=g.point_at_progress(repeated,progress)
+  assert(g.valid_point(v),'follower yielded non-finite point at '..progress)
+end
+local zero_seg={from={lon=0,lat=0},to={lon=0,lat=0},waypoints={{lon=0,lat=0}},pathType='Straight'}
+local start_of_zero=g.point_at_progress(zero_seg,0)
+assert(g.valid_point(start_of_zero))
 print('PASS geo: equirectangular projection, dateline seam, polygon holes, routes, camera fit')
