@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <cstring>
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
@@ -460,8 +461,10 @@ OfxPlugin plugins[]={
  {kOfxImageEffectPluginApi,1,"com.cartorig.fusionrc1.camera",1,0,setHost,cameraAction},
 };
 }
+extern "C" {
 OfxExport int OfxGetNumberOfPlugins(void){return 5;}
 OfxExport OfxPlugin*OfxGetPlugin(int index){
  if(index<0||index>=5)return nullptr;
  return &plugins[index];
 }
+} // extern "C"
