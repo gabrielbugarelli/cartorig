@@ -28,3 +28,36 @@ jobs:
           name: CartoRig-Natural-Earth-10m-Data-Pack
           path: dist/natural-earth-10m
           retention-days: 30
+      - name: Build offline Windows preview installer bundle
+        shell: bash
+        run: |
+          set -euo pipefail
+          target=dist/cartorig-windows-preview
+          mkdir -p "$target/data"
+          cp -a fusion src fuses packaging "$target/"
+          cp README.md "$target/"
+          cp -a dist/natural-earth-10m/. "$target/data/"
+          python3 - <<'PY_VERIFY'
+          import hashlib,json,pathlib
+          root=pathlib.Path('dist/cartorig-windows-preview')
+          manifest=json.loads((root/'data/manifest.json').read_text())
+          assert len(manifest['datasets'])==7
+          assert len(manifest['index_files'])==3
+          for record in manifest['datasets']:
+              p=root/'data'/record['filename']
+              assert p.is_file() and hashlib.sha256(p.read_bytes()).hexdigest()==record['output_sha256'],p
+          for record in manifest['index_files']+[manifest['catalog_index']]:
+              p=root/'data'/record['filename']
+              assert p.is_file() and hashlib.sha256(p.read_bytes()).hexdigest()==record['sha256'],p
+          index=json.loads((root/'data/catalog_index.json').read_text())
+          assert index['schema']=='cartorig.offline.catalog/1'
+          assert len(index['locations'])==manifest['catalog_index']['location_count']
+          for required in ('packaging/Install-CartoRig.cmd','fusion/CartoRig Scene.lua','fuses/CartoRigOpacity.fuse','src/cartorig/authoring.lua'):
+              assert (root/required).is_file(),required
+          print('PASS: self-contained offline preview package, seven datasets, SHA256 and indexed search')
+          PY_VERIFY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: CartoRig-Fusion-Preview-Windows-With-NaturalEarth-10m
+          path: dist/cartorig-windows-preview/
+          retention-days: 30
