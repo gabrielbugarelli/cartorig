@@ -3,7 +3,7 @@ on:
   push:
     branches: ['rewrite/fusion-v2-from-scratch']
   pull_request:
-    paths: ['src/**', 'fusion/**', 'data/**', 'tests/**', 'tools/**', '.github/workflows/ci.yml']
+    paths: ['src/**', 'fusion/**', 'fuses/**', 'data/**', 'tests/**', 'tools/**', '.github/workflows/ci.yml']
   workflow_dispatch:
 permissions:
   contents: read
@@ -30,6 +30,8 @@ jobs:
             count=$((count+1))
           done
           echo "Executed $count Lua test files successfully"
+      - name: Python conversion fixture contracts
+        run: python3 -m unittest discover -s tests -p 'test_builder_*.py'
       - name: Validate bundled preview GeoJSON / provenance
         run: |
           python3 - <<'PY'
