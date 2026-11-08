@@ -6,18 +6,19 @@ local function gethost(comp)
   if type(comp)~='table' and type(comp)~='userdata' then fail('Fusion Composition required') end
   return comp
 end
-function A.new(comp,modules,bridge)
+function A.new(comp,modules,bridge,expected_manifest)
   gethost(comp)
   for _,k in ipairs({'Scene','Repository','Json','Host','Objects','Geo','Motion','Writer'}) do
     if not modules[k] then fail('missing module '..k) end
   end
-  return setmetatable({comp=comp,m=modules,host=modules.Host.new(comp,bridge)},A)
+  return setmetatable({comp=comp,m=modules,host=modules.Host.new(comp,bridge),expectedManifestId=expected_manifest},A)
 end
 function A:current()
   return self.m.Repository.read(self.comp,self.m.Scene,self.m.Json)
 end
 function A:initialize(id,manifest)
   if self:current() then fail('scene already initialized') end
+  if self.expectedManifestId and manifest~=self.expectedManifestId then fail('initialization requested with a different geographic dataset') end
   local draft=self.m.Scene.new(id,manifest)
   self.host:init_base(draft)
   local ok,err=pcall(function() self.m.Repository.write(self.comp,draft,self.m.Scene,self.m.Json) end)
@@ -43,6 +44,7 @@ local function rollback_new_owned(comp,object_id,previous_name,scene_id)
 end
 function A:add_location(feature,kind)
   local original=self:current()
+  if original and self.expectedManifestId and original.manifestId~=self.expectedManifestId then fail('installed geographic dataset differs from the saved scene; mutation blocked') end
   if not original then fail('initialize map scene first') end
   local draft=self.m.Scene.snapshot(original)
   local object=self.m.Scene.add_location(draft,feature_struct(feature),kind)
@@ -60,6 +62,7 @@ function A:add_location(feature,kind)
 end
 function A:add_route(from,to)
   local original=self:current()
+  if original and self.expectedManifestId and original.manifestId~=self.expectedManifestId then fail('installed geographic dataset differs from the saved scene; mutation blocked') end
   if not original then fail('initialize map scene first') end
   local draft=self.m.Scene.snapshot(original)
   local object=self.m.Scene.add_route(draft,from,to)
@@ -84,6 +87,7 @@ function A:select(id)
 end
 function A:motion(id,preset,opts)
   local state=self:current()
+  if state and self.expectedManifestId and state.manifestId~=self.expectedManifestId then fail('installed geographic dataset differs from the saved scene; mutation blocked') end
   if not state then fail('no scene') end
   local object=self.m.Scene.get(state,id)
   if not object then fail('object missing') end
