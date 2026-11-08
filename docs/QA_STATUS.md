@@ -1,20 +1,21 @@
-# CartoRig rewrite — evidence register
+# CartoRig rewrite — evidence status
 
-This is **not a release approval**. The unit-test suite and GitHub Actions verify mathematical, model, and mock-host contracts, **not** actual DaVinci Resolve Studio 20 functionality.
+**Engineering preview only.** A successful unit test suite is not product release approval.
 
-| Area | Local contract tests | Real Windows Resolve 20 | Product acceptance |
+| Scope | Automated tests | Windows Resolve Studio 20 | Product acceptance |
 | --- | --- | --- | --- |
-| Scene model / objects / style | PASS (local) | NOT RUN | OPEN |
-| Geo: projection, antimeridian, fit, polygon holes | PASS (local) | NOT RUN | OPEN |
-| Geo catalog: name/type lookup | PASS (fixtures) | NOT RUN | OPEN |
-| Scene JSON persistence | PASS (mock) | NOT RUN | OPEN |
-| Motion 16-preset plan definitions | PASS (unit) | NOT RUN | OPEN |
-| Native keyframe writing in Fusion | PASS (mock for RGB only) | NOT RUN | OPEN |
-| Region PolygonMask native loader | PASS (mock) | NOT RUN | OPEN |
-| Fusion UIManager Scene bootstrap | Source written; syntax tested | NOT RUN | OPEN |
-| Inspector Control / Motion pages | NOT IMPLEMENTED | NOT RUN | OPEN |
-| 10m offline Natural Earth data (7 families) | Indexed seven-family 10m data pack PASS in GitHub Actions; Resolve runtime NOT RUN | NOT RUN | OPEN |
-| Geometry topology / 4K renderer / alpha / export | NOT IMPLEMENTED | NOT RUN | OPEN |
-| QA-01 to QA-60, HOST-01 to HOST-10 | NOT RUN | NOT RUN | OPEN |
+| Scene model, group/route edits, identity, styles | PASS locally | NOT RUN | OPEN |
+| Offline GeoJSON, lazy point/polygon loading | PASS locally | NOT RUN | OPEN |
+| Projection, seam math, fit, polygon ring semantics | PASS locally | NOT RUN | OPEN |
+| Fusion Scene metadata JSON roundtrip | PASS with mock | NOT RUN | OPEN |
+| Fusion Scene UI + search, create Region/Marker/Label/Route | Lua syntax / host mock components | NOT RUN | OPEN |
+| Region/Marker/Label/Route native tools | PASS mock host | NOT RUN | OPEN |
+| Persistence-failure rollback without touching other nodes | PASS mock host | NOT RUN | OPEN |
+| RGB/Opacity/Size/Draw/Camera native keys (supported channels) | PASS mock host | NOT RUN | OPEN |
+| All 16 Motion plan definitions | PASS unit plan contracts | NOT RUN | OPEN |
+| All 16 preset execution in Inspector Control/Motion | **NOT IMPLEMENTED** | NOT RUN | OPEN |
+| Real 10m data and geometry source inventory | Offline build workflow separate | NOT RUN | OPEN |
+| Production renderer: polygons with holes, antimeridian, 4K, alpha, screen-space symbols | **NOT IMPLEMENTED** | NOT RUN | OPEN |
+| HOST-01…HOST-10 and QA-01…QA-60 | NOT RUN | NOT RUN | OPEN |
 
-**Never label QA as 100% of the product from green GitHub Actions.** A green workflow means only that its declared checks passed. Production requires Windows Resolve 20 host evidence and accepted visual QA.
+**Acceptance rule:** marks of `PASS` cover only the explicitly executed test contracts and do not imply user-visible behavior in the Resolve host. `BLOCKED`/`NOT RUN` are not success.
