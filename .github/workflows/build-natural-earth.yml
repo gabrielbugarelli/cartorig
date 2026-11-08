@@ -2,6 +2,10 @@ name: CartoRig — build full Natural Earth 10m data pack
 on:
   workflow_dispatch:
   workflow_call:
+  pull_request:
+    paths:
+      - 'tools/build_natural_earth.py'
+      - '.github/workflows/build-natural-earth.yml'
 permissions:
   contents: read
 jobs:
