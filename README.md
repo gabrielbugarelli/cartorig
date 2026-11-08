@@ -1,44 +1,45 @@
 # CartoRig — Fusion rewrite (engineering preview)
 
-New codebase aligned to `CR-PS-2.0`: Fusion is the authoring host, `Scene` is a UIManager window, native Fusion Inspector and Spline own property animation. **No legacy CartoRig implementation code is included.** Natural Earth data assets are public domain, not legacy application code.
+Fresh source code aligned to `CR-PS-2.0`: `Scene` owns structure in UIManager; the Fusion host owns keyframes and render evaluation. This is a **pre-release prototype** and is **not host-certified** on DaVinci Resolve Studio 20.
 
-## Current functionality
+## Implemented and covered by automated contract tests
 
-- Scene model: typed objects, stable IDs, independent styles, CRUD, groups, route editing, locks, draw order, follower dependency checks, safe snapshot/revert.
-- Motion **planning** for all 16 proposed presets with independent channel conflicts, frame bounds, instant color changes and deterministic keyframe plans. These plans are not all wired to the Fusion Inspector yet.
-- Offline GeoJSON catalog and a lazy-loading indexed 10m data format with search, administrative polygon/point distinction, alias and accent matching, plus equirectangular camera, antimeridian splitting, route samples, polygon hole semantics and Fit calculations.
-- Scene persistence using non-executable JSON via Fusion Composition metadata.
-- Fusion adapter (experimental): create Background/Camera, create a Region with native polygon mask, bind RGB keys to BezierSpline, select object in FlowView. Needs real Resolve Studio 20 host test.
-- Script entry `fusion/CartoRig Scene.lua` with Scene window (initialize, search, Add Region, reveal selected object). This is a limited preview, **not** the full UI.
-- Windows preview installer and uninstall script; does not change older plugin branches.
+- Canonical Scene: typed objects, stable IDs, styles, CRUD, group and follower reference validation, draw order, locks, copy/snapshot.
+- Safe Scene authoring orchestration: initialize, add Region, Marker, Label or Route, persist back into Fusion Composition metadata, and remove only the newly-created CartoRig nodes when an operation fails before commit.
+- Offline GeoJSON search/index: country/state/city distinction, Unicode/aliases, on-demand point and polygon geometry loading. A City with point geometry does not become an invented municipal polygon.
+- Native Fusion authoring adapter: Background/Transform/MediaOut base **preview**, Region via PolylineMask, Marker via EllipseMask, Label via TextPlus, Route via PolylineMask, each with a separate user-facing tool and a shared downstream Transform.
+- Native motion-key writer for currently backed channels: Region color/opacity, Marker opacity/size, Label opacity, Route opacity/Draw Progress, Camera Zoom and synchronized Center/Zoom. The 16-preset **plan catalogue** is separately unit-tested. Presets requiring region stroke/highlight, follower, and multiple base layers fail safely until the corresponding renderer and Inspector integration exist; no fictitious success.
+- Offline route sampling, curved paths, geographic camera-fit math, antimeridian math and topology predicates independent of Fusion.
+- Fusion UIManager Scene bootstrap supports initialization, typed search/filter, adding Regions, Markers, Labels, choosing explicit Route endpoints, creating Routes and selecting a node in the Fusion Inspector.
+- No network or external process is required for playback of *already-created native Fusion nodes*; the Scene window is not the render engine.
 
-## Data limitations
+## Explicit preview limitations
 
-The included GeoJSON is an **178-feature Natural Earth Admin-0 1:110m preview**. It is not a complete 10m pack. Official Natural Earth 10m Admin-0/Admin-1/populated places/land/coast/lakes/boundary data are converted by the separate `build-natural-earth.yml` workflow. The indexed/lazy-loading seven-family 10m build passed GitHub Actions, and a versioned offline data-pack artifact is available from the workflow run. The full data pack is a build artifact, not included in this small repository source snapshot. To make it available to the preview installer, place the downloaded artifact contents in `dist/natural-earth-10m/` before installation. User runtime never fetches data. No municipal boundary is fabricated from a city point.
+1. **The full `Control`/`Motion` pages in the Fusion Inspector are NOT implemented.** Native tool inputs are editable but do not represent the final object-specific Inspector design. The Scene window does **not** create an extra animation timeline.
+2. **Renderer is NOT production-complete.** Base Map currently starts with a flat Background preview; native Region masks do not support polygons with interior holes, high-fragmentation geometry or seam-crossing boundaries. Such input fails with a diagnostic instead of rendering inaccurately. Lines that cross the antimeridian are rejected until a proper geometry-splitting renderer is installed.
+3. **Screen-space marker/label/route widths are not preserved under the downstream Transform's zoom.** This is a known limitation of the interim graph; final geoanchor and compositing needs a projection-aware render layer.
+4. **Not all 16 presets execute.** The 16 planner definitions exist; only channels with native tool bindings are written, with host behavior subject to validation. No claim of Step interpolation, shape masks or full Spline compatibility on Resolve 20 is made until a real host run.
+5. Current bundled data are a **Natural Earth Admin-0 1:110m preview**. The official build workflow can produce a separate 10m archive; it must be installed and tested before claiming the R1.0 catalogue.
+6. Existing comp with arbitrary user-owned graph is intentionally not modified by the preview initializer: use an empty Fusion Composition. Preserve-user-graph handling remains open.
+7. All Windows UI Manager and Fusion tool behavior requires testing on a real Resolve Studio 20 installation. Mock-host tests and green GitHub Actions do not satisfy the spec's QA-01…QA-60 or HOST-01…HOST-10.
 
-## Local tests
+## Tests
 
 ```sh
-for test in tests/test_*.lua; do texlua "$test" . || exit 1; done
+for test in tests/test_*.lua; do lua5.4 "$test" . || exit 1; done
+python -m unittest discover -s tests -p 'test_*.py'
 ```
 
-The automated workflow installs Lua 5.4 and additionally parses every source Lua file, validates GeoJSON SHA256 and executes all test files. See `docs/QA_STATUS.md` for precise evidence limits.
+`.github/workflows/ci.yml` runs Lua 5.4 syntax, all Lua contract tests and preview dataset hash/integrity checks. Source is explicitly classified as engineering preview, with separate host evidence status in `docs/QA_STATUS.md`.
 
-## Windows integration preview
+## Windows integration (experimental)
 
-1. Extract the full source tree and close DaVinci Resolve.
-2. Run `packaging/Install-CartoRig.cmd` from that extracted tree.
-3. Restart DaVinci Resolve Studio 20, put a Fusion Composition in a test project, open Fusion.
-4. Run `CartoRig Scene` under Scripts. Click **Initialize Map Scene** in an empty Fusion Composition.
-5. Search a country such as Brazil, select the country and click **Add as Region**; select it in Scene and click **Reveal in Fusion**.
-6. On error, consult `%TEMP%\CartoRig_Rewrite_v2.log` and the Resolve Console. Do not use this preview on an irreplaceable project.
+1. Download the **entire branch**; close DaVinci Resolve.
+2. Run `packaging/Install-CartoRig.cmd` from the extracted branch root.
+3. Restart Resolve 20 Studio, insert a fresh Fusion Composition on a **disposable project** and open the Fusion page.
+4. Run `CartoRig Scene` from Fusion Scripts. Click `Initialize Map Scene`.
+5. Search for a country (for example Brazil), select `Country`, click `Add as Region`. For a city point, use `Add Marker` or `Add Label`. To make a Route, choose two explicit City points with `Route From` / `Route To`, then `Create Route`.
+6. Click an object in Scene to select its corresponding native tool in the Node Editor/Inspector. Fusion native controls can be inspected and manually animated; the complete contextual `Control / Motion` pages are future implementation work.
+7. Errors: inspect `%TEMP%\CartoRig_Rewrite_v2.log` or Resolve's Console.
 
-**No guarantee of working native polygon parsing or correct image output is claimed until Resolve host testing.** The scene window is independent from rendering, but its interaction with Resolve has not been verified.
-
-## Missing product requirements
-
-The complete Control/Motion Inspector UX, all 16 *executing* presets, full-resolution geography, city/marker/label/route host tools, style overrides in the Inspector, safe arbitrary host node coexistence, 4K renderer optimizations, GUI installer, migrations, and QA-01…QA-60 are not yet complete.
-
-## Specification governance
-
-The v2 document is the immutable functional reference for this rewrite, not a performance claim. No arbitrary UX change will be silently introduced to accommodate implementation shortcuts. This repository branch is pre-release engineering work.
+This code does not inherit prior CartoRig implementation branches. The v2.0 specification remains the product contract, not a claim of implemented features.
