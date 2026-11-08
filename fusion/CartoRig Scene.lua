@@ -21,6 +21,7 @@ local function run()
   local Motion=module('motion')
   local Writer=module('motion_apply')
   local Authoring=module('authoring')
+  local Manifest=module('manifest')
   local fus=rawget(_G,'fusion') or rawget(_G,'fu')
   local comp=rawget(_G,'comp')
   if not comp and fus and fus.GetCurrentComp then comp=fus:GetCurrentComp() end
@@ -28,7 +29,8 @@ local function run()
   local bridge=rawget(_G,'bmd')
   local ui=fus and fus.UIManager
   if not ui or not bridge or type(bridge.UIDispatcher)~='function' then error('Resolve Fusion UIManager is unavailable') end
-  local engine=Authoring.new(comp,{Scene=Scene,Repository=Repository,Json=Json,Host=Host,Objects=Objects,Geo=Geo,Motion=Motion,Writer=Writer},bridge)
+  local bundleId=Manifest.load(dir..'/CartoRig/data/manifest.json',Json).id
+  local engine=Authoring.new(comp,{Scene=Scene,Repository=Repository,Json=Json,Host=Host,Objects=Objects,Geo=Geo,Motion=Motion,Writer=Writer},bridge,bundleId)
   local host=engine.host
   local entries={};local results={};local displayed={}
   local state=engine:current()
@@ -115,7 +117,7 @@ local function run()
   win.On.CR_Initialize.Clicked=function()
     guarded(function()
       if state then return 'Scene already initialized' end
-      local new_scene=Scene.new('cr2-'..tostring(os.time())..'-'..tostring(math.random(100000,999999)),'natural-earth-110m-preview')
+      local new_scene=Scene.new('cr2-'..tostring(os.time())..'-'..tostring(math.random(100000,999999)),bundleId)
       engine:initialize(new_scene.id,new_scene.manifestId)
       state=new_scene;refresh_objects()
       return 'Initialized Map Scene; select a country and Add as Region.'
@@ -193,6 +195,7 @@ local function run()
   win.On.CartoRigSceneWindow.Close=function()dispatcher:ExitLoop()end
   if not ok_data then status('Offline location bundle missing or invalid; see diagnostics.') end
   refresh_objects();search()
+  if state and state.manifestId~=bundleId then status('Source mismatch: installed Natural Earth data differ from saved scene. Editing blocked.') end
   win:Show();dispatcher:RunLoop();win:Hide()
 end
 local ok,err=xpcall(run,debug.traceback)
