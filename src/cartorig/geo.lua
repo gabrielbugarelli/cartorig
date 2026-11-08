@@ -128,10 +128,11 @@ function M.point_at_progress(route,progress)
     len=len+sqrt(dx*dx+dy*dy)
     totals[i]=len
   end
-  if len==0 then return pts[1] end
+  if len==0 or progress==0 then return pts[1] end
+  if progress==100 then return pts[#pts] end
   local target=len*progress/100
   for i=2,#pts do
-    if totals[i]>=target then
+    if totals[i]>=target and totals[i]>totals[i-1] then
       local fraction=(target-totals[i-1])/(totals[i]-totals[i-1])
       return {lon=M.normalize_lon(pts[i-1].lon+M.shortest_delta(pts[i-1].lon,pts[i].lon)*fraction),lat=pts[i-1].lat+(pts[i].lat-pts[i-1].lat)*fraction}
     end
@@ -142,7 +143,7 @@ function M.fit(points,width,height,padding)
   assert(type(points)=='table' and #points>0,'no geometry to fit')
   assert(finite(width) and width>0 and finite(height) and height>0,'invalid viewport')
   padding=padding or 8;assert(finite(padding) and padding>=0 and padding<49,'invalid padding')
-  local lons={},latmin,latmax
+  local lons,latmin,latmax={},nil,nil
   for _,p in ipairs(points) do
     assert(M.valid_point(p),'invalid fit point')
     lons[#lons+1]=(p.lon+360)%360
@@ -157,6 +158,12 @@ function M.fit(points,width,height,padding)
   local start=lons[idx%#lons+1];local span=360-gap
   local mid=M.normalize_lon(start+span/2)
   local spanlat=latmax-latmin
+  -- Single points (including repeated equal points) have no area extent. The
+  -- R1.0 Camera contract defines an explicit 4x reference zoom instead of
+  -- silently zooming to the maximum 50x based on a zero-sized bounding box.
+  if span<1e-10 and spanlat<1e-10 then
+    return {longitude=mid,latitude=(latmin+latmax)/2,zoom=4,bearing=0}
+  end
   local pad=1-2*padding/100
   local zoom_x=span>0 and (width/height)*180*pad/span or 50
   local zoom_y=spanlat>0 and 180*pad/spanlat or 50
