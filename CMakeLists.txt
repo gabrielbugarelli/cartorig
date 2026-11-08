@@ -3,6 +3,7 @@ project(CartoRigFusionRC1 LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
+set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 add_library(cartorig_geo STATIC src/geo.cpp src/motion.cpp)
 target_include_directories(cartorig_geo PUBLIC include)
 if(MSVC)
@@ -17,3 +18,13 @@ add_test(NAME geo_offline_core COMMAND cartorig_geo_test)
 add_executable(cartorig_motion_test tests/test_motion.cpp)
 target_link_libraries(cartorig_motion_test PRIVATE cartorig_geo)
 add_test(NAME motion_contracts COMMAND cartorig_motion_test)
+
+# Official OpenFX 1.4 headers are fetched at build time and pinned to the
+# ASWF official 1.4 release tag. No SDK download happens in the editor.
+if(EXISTS "sdk/openfx/include/ofxCore.h")
+  add_library(CartoRigFusionOFX SHARED src/ofx.cpp)
+  target_include_directories(CartoRigFusionOFX PRIVATE sdk/openfx/include include)
+  target_link_libraries(CartoRigFusionOFX PRIVATE cartorig_geo)
+  set_target_properties(CartoRigFusionOFX PROPERTIES
+    PREFIX "" OUTPUT_NAME "CartoRigFusion" SUFFIX ".ofx")
+endif()
