@@ -36,6 +36,8 @@ local routed,route=engine:add_route({lon=-47.9,lat=-15.8},{lon=-51.5,lat=1.5})
 assert(route.hostToolRef and engine:current().objects[5].id==route.id)
 local plan=engine:motion(marker.id,'MO-MRK-02',{start=20,frameCount=400})
 assert(plan.channels.size and #plan.channels.size==3)
+assert(engine:current().objects[3].motion.size[1].presetId=='MO-MRK-02')
+assert(not pcall(function()engine:motion(marker.id,'MO-MRK-02',{start=50,frameCount=400})end), 'repeated preset on same channel must trigger conflict')
 assert(comp:FindTool(marker.maskToolRef).inputs.Width[38])
 local before=#comp:GetToolList()
 comp.failMetadata=true
