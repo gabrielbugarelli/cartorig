@@ -49,9 +49,47 @@ def convert_zip(content: bytes, stem: str) -> dict:
         raise ValueError(f"empty Natural Earth feature set {stem}")
     return {'type': 'FeatureCollection', 'name': stem, 'features': features}
 
+def search_metadata(feature: dict, dataset_id: str, item_index: int, dataset_version: str) -> dict | None:
+    """Create a small search record without embedding a megabyte-scale polygon."""
+    p = feature.get('properties') or {}
+    geo = feature.get('geometry') or {}
+    kind = {'admin0':'Country','admin1':'State','cities':'City'}.get(dataset_id)
+    if kind is None:
+        return None
+    def text(*names):
+        for name in names:
+            value = p.get(name)
+            if value is not None and str(value).strip() and str(value) != '-99':
+                return str(value).strip()
+        return None
+    name = text('NAME','name','NAME_EN','NAME_LONG','ADMIN')
+    if not name:
+        return None
+    country = text('ADMIN','ADM0NAME','SOV0NAME','SOVEREIGNT')
+    state = text('ADM1NAME','name_adm1')
+    parent = 'World' if kind=='Country' else country or 'Unknown'
+    if kind=='City' and state:
+        parent = state + ', ' + parent
+    coords = geo.get('coordinates')
+    point = None
+    if geo.get('type')=='Point' and isinstance(coords,(list,tuple)) and len(coords)>=2:
+        point = {'lon':coords[0],'lat':coords[1]}
+    else:
+        lon,lat=p.get('LABEL_X'),p.get('LABEL_Y')
+        if isinstance(lon,(float,int)) and isinstance(lat,(float,int)):
+            point={'lon':lon,'lat':lat}
+    aliases = list(dict.fromkeys(str(v) for v in [name,p.get('NAMEASCII'),p.get('NAME_EN'),p.get('NAME_LONG'),p.get('NAME_ALT')] if isinstance(v,str) and v))
+    if name=='Brazil' and 'Brasil' not in aliases:
+        aliases.append('Brasil')
+    return {'id':f'natural-earth:{dataset_id}:{text("NE_ID","ne_id") or item_index}',
+            'kind':kind,'name':name,'parent':parent,'aliases':aliases,
+            'geometryType':geo.get('type'),'point':point,
+            'source':{'dataset':dataset_id,'version':dataset_version,'scale':'10m'}}
+
 def build(out: Path, selected, pins: dict[str, str]) -> dict:
     out.mkdir(parents=True, exist_ok=True)
     manifest = {'bundle': 'natural-earth-10m', 'release_type': 'data-pack', 'online_runtime': False, 'datasets': []}
+    searchable = []
     for name in selected:
         group, stem = DATASETS[name]
         url = f'https://naturalearth.s3.amazonaws.com/{group}/{stem}.zip'
@@ -66,12 +104,32 @@ def build(out: Path, selected, pins: dict[str, str]) -> dict:
         filename = f'{stem}.geojson'
         content = json.dumps(feature_collection, ensure_ascii=False, separators=(',', ':'), allow_nan=False).encode('utf-8')
         (out / filename).write_bytes(content)
+        if name in ('admin0','admin1','cities'):
+            geo_linefile = out / f'features_{name}.jsonl'
+            with geo_linefile.open('wb') as stream:
+                for index, feature in enumerate(feature_collection['features']):
+                    encoded = (json.dumps(feature, ensure_ascii=False, separators=(',',':'),allow_nan=False)+'\n').encode('utf-8')
+                    offset=stream.tell()
+                    stream.write(encoded)
+                    metadata=search_metadata(feature,name,index,digest)
+                    if metadata:
+                        metadata['featureFile']=geo_linefile.name
+                        metadata['featureOffset']=offset
+                        metadata['featureBytes']=len(encoded)
+                        searchable.append(metadata)
+            manifest.setdefault('index_files', []).append({'filename':geo_linefile.name,'sha256':hashlib.sha256(geo_linefile.read_bytes()).hexdigest()})
         manifest['datasets'].append({'id': name, 'filename': filename, 'scale': '10m',
                                      'feature_count': len(feature_collection['features']),
                                      'source': url, 'source_zip_sha256': digest,
                                      'output_sha256': hashlib.sha256(content).hexdigest(),
                                      'license': 'Natural Earth public domain'})
         print(f'{stem}: {len(feature_collection["features"])} features / {len(content):,} bytes', flush=True)
+    index_file=out / 'catalog_index.json'
+    index_raw=json.dumps({'schema':'cartorig.offline.catalog/1','bundle':'natural-earth-10m','locations':searchable},
+                         ensure_ascii=False,separators=(',',':'),allow_nan=False).encode('utf-8')
+    index_file.write_bytes(index_raw)
+    manifest['catalog_index']={'filename':index_file.name,'sha256':hashlib.sha256(index_raw).hexdigest(),
+                               'location_count':len(searchable)}
     (out / 'manifest.json').write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding='utf-8')
     return manifest
 

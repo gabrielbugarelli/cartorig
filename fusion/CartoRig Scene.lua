@@ -26,10 +26,17 @@ local function run()
   local host=Host.new(comp,bridge)
   local entries={};local results={};local displayed={}
   local state=Repository.read(comp,Scene,Json)
-  local bundle_path=dir..'/CartoRig/data/ne_110m_admin_0_countries.geojson'
+  local dataDir=dir..'/CartoRig/data'
+  local bundle_path=dataDir..'/ne_110m_admin_0_countries.geojson'
   local ok_data,load_error=pcall(function()
-    local doc=Catalog.load_bundle(bundle_path,Json)
-    entries=Catalog.from_geojson(doc,'Country',{dataset='Natural Earth Admin 0',version='110m-preview',scale='110m'})
+    local index=io.open(dataDir..'/catalog_index.json','rb')
+    if index then
+      index:close()
+      entries=Catalog.load_index(dataDir,Json)
+    else
+      local doc=Catalog.load_bundle(bundle_path,Json)
+      entries=Catalog.from_geojson(doc,'Country',{dataset='Natural Earth Admin 0',version='110m-preview',scale='110m'})
+    end
   end)
   if not ok_data then log('BUNDLE ERROR: '..tostring(load_error)) end
   local dispatcher=bridge.UIDispatcher(ui)
@@ -39,7 +46,7 @@ local function run()
       ui:Label{ID='CR_Context',Text='Fusion Composition'},
       ui:Button{ID='CR_Initialize',Text='Initialize Map Scene'},
       ui:HGroup{ui:LineEdit{ID='CR_Search',PlaceholderText='Search location'},ui:Button{ID='CR_SearchBtn',Text='Find'}},
-      ui:Label{Text='OFFLINE LOCATIONS (Admin-0 preview)'},
+      ui:Label{Text='OFFLINE LOCATIONS (installed Natural Earth bundle)'},
       ui:Tree{ID='CR_Results',ColumnCount=1,SortingEnabled=false,MinimumSize={320,160}},
       ui:Button{ID='CR_AddRegion',Text='Add as Region'},
       ui:Label{Text='SCENE OBJECTS'},
@@ -122,7 +129,8 @@ local function run()
       local draft=Scene.snapshot(state)
       local object=Scene.add_location(draft,{id=chosen.id,name=chosen.name,type=chosen.kind,geometryType=chosen.geometryType,
         version=chosen.source.version,dataset=chosen.source.dataset},'Region')
-      host:add_region(draft,object,chosen)
+      local feature=Catalog.load_feature(dataDir,chosen,Json)
+      host:add_region(draft,object,feature)
       Repository.write(comp,draft,Scene,Json)
       state=draft;refresh_objects()
       return 'Added '..chosen.name..'; select its Fusion node to edit native properties.'

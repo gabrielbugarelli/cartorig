@@ -6,7 +6,7 @@ New codebase aligned to `CR-PS-2.0`: Fusion is the authoring host, `Scene` is a 
 
 - Scene model: typed objects, stable IDs, independent styles, CRUD, groups, route editing, locks, draw order, follower dependency checks, safe snapshot/revert.
 - Motion **planning** for all 16 proposed presets with independent channel conflicts, frame bounds, instant color changes and deterministic keyframe plans. These plans are not all wired to the Fusion Inspector yet.
-- Offline GeoJSON catalog with search, administrative polygon/point distinction, alias and accent matching, plus equirectangular camera, antimeridian splitting, route samples, polygon hole semantics and Fit calculations.
+- Offline GeoJSON catalog and a lazy-loading indexed 10m data format with search, administrative polygon/point distinction, alias and accent matching, plus equirectangular camera, antimeridian splitting, route samples, polygon hole semantics and Fit calculations.
 - Scene persistence using non-executable JSON via Fusion Composition metadata.
 - Fusion adapter (experimental): create Background/Camera, create a Region with native polygon mask, bind RGB keys to BezierSpline, select object in FlowView. Needs real Resolve Studio 20 host test.
 - Script entry `fusion/CartoRig Scene.lua` with Scene window (initialize, search, Add Region, reveal selected object). This is a limited preview, **not** the full UI.
@@ -14,7 +14,7 @@ New codebase aligned to `CR-PS-2.0`: Fusion is the authoring host, `Scene` is a 
 
 ## Data limitations
 
-The included GeoJSON is an **178-feature Natural Earth Admin-0 1:110m preview**. It is not a complete 10m pack. Official Natural Earth 10m Admin-0/Admin-1/populated places/land/coast/lakes/boundary data must be acquired in build time, validated, and bundled before the product can claim offline global coverage. The separate GitHub Actions `build-natural-earth.yml` is intended to generate this downloadable build artifact; it has not been host-validated. User runtime never fetches data. No municipal boundary is fabricated from a city point.
+The included GeoJSON is an **178-feature Natural Earth Admin-0 1:110m preview**. It is not a complete 10m pack. Official Natural Earth 10m Admin-0/Admin-1/populated places/land/coast/lakes/boundary data are converted by the separate `build-natural-earth.yml` workflow. Its initial seven-family build passed in GitHub Actions; a new indexed/lazy-loading revision has its own tests and requires a fresh workflow pass. The full data pack is a build artifact, not included in this small repository source snapshot. To make it available to the preview installer, place the downloaded artifact contents in `dist/natural-earth-10m/` before installation. User runtime never fetches data. No municipal boundary is fabricated from a city point.
 
 ## Local tests
 

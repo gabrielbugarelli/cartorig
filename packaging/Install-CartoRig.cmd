@@ -14,6 +14,10 @@ copy /Y "%SOURCE%\fusion\CartoRig Scene.lua" "%TARGET%\CartoRig Scene.lua" >nul
 xcopy "%SOURCE%\src\cartorig\*" "%TARGET%\CartoRig\" /E /I /Q /Y >nul
 if not exist "%TARGET%\CartoRig\data" mkdir "%TARGET%\CartoRig\data"
 xcopy "%SOURCE%\data\*" "%TARGET%\CartoRig\data\" /E /I /Q /Y >nul
+if exist "%SOURCE%\dist\natural-earth-10m\catalog_index.json" (
+  echo Installing complete Natural Earth 10m offline data pack...
+  xcopy "%SOURCE%\dist\natural-earth-10m\*" "%TARGET%\CartoRig\data\" /E /I /Q /Y >nul
+)
 if not exist "%TARGET%\CartoRig\fusion_host.lua" (
   echo Installation incomplete.
   pause & exit /b 1

@@ -1,0 +1,1 @@
+{"schema":"cartorig.offline.catalog/1","bundle":"test","locations":[{"id":"NE:City:SP","kind":"City","name":"São Paulo","parent":"Brazil","aliases":["São Paulo","Sao Paulo"],"geometryType":"Point","featureFile":"features_cities.jsonl","featureOffset":0,"featureBytes":116,"source":{"dataset":"test"}}]}

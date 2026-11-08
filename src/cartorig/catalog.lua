@@ -92,4 +92,35 @@ function M.load_bundle(path,json)
   local raw=file:read('*a');file:close()
   return json.decode(raw)
 end
+function M.load_index(data_root,json)
+  if type(data_root)~='string' or type(json)~='table' then fail('invalid offline catalog directory') end
+  local f,err=io.open(data_root..'/catalog_index.json','rb')
+  if not f then fail('cannot open offline index: '..tostring(err)) end
+  local raw=f:read('*a');f:close()
+  local parsed=json.decode(raw,30000000)
+  if parsed.schema~='cartorig.offline.catalog/1' or type(parsed.locations)~='table' then fail('invalid catalog index schema') end
+  local seen={}
+  for _,v in ipairs(parsed.locations) do
+    if type(v.id)~='string' or seen[v.id] then fail('invalid/duplicate catalog feature ID') end
+    if type(v.featureFile)~='string' or not v.featureFile:match('^features_%w+%.jsonl$') then fail('invalid feature file name') end
+    if type(v.featureOffset)~='number' or v.featureOffset<0 or type(v.featureBytes)~='number' or v.featureBytes<=0 or v.featureBytes>30000000 then fail('invalid feature offset') end
+    seen[v.id]=true
+  end
+  return parsed.locations
+end
+function M.load_feature(data_root,entry,json)
+  if not entry or not entry.featureFile then return entry end
+  if not entry.featureFile:match('^features_%w+%.jsonl$') then fail('untrusted feature path') end
+  local f,err=io.open(data_root..'/'..entry.featureFile,'rb')
+  if not f then fail('geographic feature source unavailable: '..tostring(err)) end
+  local ok=f:seek('set',entry.featureOffset)
+  if not ok then f:close();fail('geographic feature offset unavailable') end
+  local content=f:read(entry.featureBytes);f:close()
+  if not content or #content~=entry.featureBytes then fail('geographic feature truncated') end
+  local feature=json.decode(content,30000000)
+  if feature.type~='Feature' or type(feature.geometry)~='table' then fail('invalid feature at index offset') end
+  local copy={};for k,v in pairs(entry) do copy[k]=v end
+  copy.geometry=feature.geometry
+  return copy
+end
 return M

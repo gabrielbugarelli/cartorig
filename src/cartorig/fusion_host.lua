@@ -88,7 +88,7 @@ function H:init_base(scene)
       if object.kind=='BaseMap' then self:tag(base,scene.id,object.id,object.kind);object.hostToolRef=attr(base).TOOLS_Name or base.Name
       elseif object.kind=='Camera' then self:tag(camera,scene.id,object.id,object.kind);object.hostToolRef=attr(camera).TOOLS_Name or camera.Name end
     end
-    scene.hostInitialized=true;scene.lastLayerRef=object and object.hostToolRef or (attr(base).TOOLS_Name or base.Name)
+    scene.hostInitialized=true
     -- Last layer is BaseMap, not camera. It is the input to camera.
     scene.lastLayerRef=attr(base).TOOLS_Name or base.Name
   end,debug.traceback)
