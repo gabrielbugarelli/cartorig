@@ -164,6 +164,38 @@ function M.validate(scene)
   end
   if scene.objects[1].kind~='BaseMap' or scene.objects[2].kind~='Camera' then fail('structural objects missing') end
   if scene.selected and not seen[scene.selected] then fail('dangling selection') end
+  local indexed={};for _,o in ipairs(scene.objects) do indexed[o.id]=o end
+  local followers={}
+  for _,o in ipairs(scene.objects) do
+    if o.groupId then
+      local parent=indexed[o.groupId]
+      if not parent or parent.kind~='Group' then fail('dangling group reference') end
+      local cursor=o.groupId;local path={[o.id]=true}
+      while cursor do
+        if path[cursor] then fail('group cycle detected') end
+        path[cursor]=true
+        local node=indexed[cursor]
+        cursor=node and node.groupId
+      end
+    end
+    if o.kind=='Route' then
+      if not o.route then fail('Route geometry missing') end
+      assert_point(o.route.from);assert_point(o.route.to)
+      if type(o.route.waypoints)~='table' then fail('Route waypoint list missing') end
+      for _,p in ipairs(o.route.waypoints) do assert_point(p) end
+      if o.route.followerId then
+        local marker=indexed[o.route.followerId]
+        if not marker or marker.kind~='Marker' or followers[marker.id] then fail('invalid or duplicate route follower') end
+        followers[marker.id]=true
+      end
+    end
+    if o.motion~=nil then
+      if type(o.motion)~='table' then fail('invalid Motion binding metadata') end
+      for channel,binding in pairs(o.motion) do
+        if type(channel)~='string' or type(binding)~='table' or #binding>1 then fail('invalid Motion binding') end
+      end
+    end
+  end
   return true
 end
 return M
