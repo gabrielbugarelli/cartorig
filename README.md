@@ -23,7 +23,7 @@ Fresh source code aligned to `CR-PS-2.0`: `Scene` owns structure in UIManager; t
 2. **Renderer is NOT production-complete.** Base Map currently starts with a flat Background preview; native Region masks do not support polygons with interior holes, high-fragmentation geometry or seam-crossing boundaries. Such input fails with a diagnostic instead of rendering inaccurately. Lines that cross the antimeridian are rejected until a proper geometry-splitting renderer is installed.
 3. **Screen-space marker/label/route widths are not preserved under the downstream Transform's zoom.** This is a known limitation of the interim graph; final geoanchor and compositing needs a projection-aware render layer.
 4. **Not all 16 presets execute.** The 16 planner definitions exist; only channels with native tool bindings are written, with host behavior subject to validation. No claim of Step interpolation, shape masks or full Spline compatibility on Resolve 20 is made until a real host run.
-5. Current bundled data are a **Natural Earth Admin-0 1:110m preview**. The official build workflow can produce a separate 10m archive; it must be installed and tested before claiming the R1.0 catalogue.
+5. Current bundled data are a **Natural Earth Admin-0 1:110m preview**. The official build workflow produces a separate 10m data archive and a **single offline Windows preview bundle** containing editor code, Fuse, installer and the seven 10m datasets, with SHA-256 validation. This is still not a certified R1.0 catalogue or GUI installer.
 6. Existing comp with arbitrary user-owned graph is intentionally not modified by the preview initializer: use an empty Fusion Composition. Preserve-user-graph handling remains open.
 7. All Windows UI Manager and Fusion tool behavior requires testing on a real Resolve Studio 20 installation. Mock-host tests and green GitHub Actions do not satisfy the spec's QA-01…QA-60 or HOST-01…HOST-10.
 
@@ -35,6 +35,10 @@ python -m unittest discover -s tests -p 'test_*.py'
 ```
 
 `.github/workflows/ci.yml` runs Lua 5.4 syntax, all Lua contract tests and preview dataset hash/integrity checks. Source is explicitly classified as engineering preview, with separate host evidence status in `docs/QA_STATUS.md`.
+
+## Offline Windows preview bundle from GitHub Actions
+
+Run `.github/workflows/build-natural-earth.yml` on the rewrite branch (or retrieve the latest successful PR run) and download `CartoRig-Fusion-Preview-Windows-With-NaturalEarth-10m`. It includes `packaging/Install-CartoRig.cmd`, `fusion`, `fuses`, `src` and all installed datasets under `data`. The **entire** bundle is usable without additional download at editor runtime; SHA256 is checked at packaging time. Always extract the entire artifact before running the installer. The data pack workflow may take substantial CI time due to the official Natural Earth downloads.
 
 ## Windows integration (experimental)
 
