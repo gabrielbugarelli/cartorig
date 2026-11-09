@@ -173,12 +173,19 @@ ScreenPoint project(GeoPoint p,const Camera&camera,int w,int h){
  return ring.at(0);
 }
 Camera fit(const Bounds& b,int width,int height,double pad){
- if(width<1||height<1||pad<0||pad>.35||b.west>b.east||
-    b.south>b.north||std::abs(b.west)>180.01||std::abs(b.east)>180.01)
+ if(width<1||height<1||!finite(pad)||pad<0||pad>.35||
+    !finite(b.west)||!finite(b.east)||!finite(b.south)||!finite(b.north)||
+    b.south>b.north||std::abs(b.west)>180.||std::abs(b.east)>180.||
+    std::abs(b.south)>90.||std::abs(b.north)>90.)
   throw std::invalid_argument("Invalid fit bounds");
+ // A wrapped WGS84 envelope (west > east) spans the antimeridian,
+ // e.g. [170,-10,-170,10] is 20 degrees wide, never 340 degrees.
+ const double east=b.east<b.west?b.east+360.:b.east;
+ const double longitudeSpan=east-b.west;
  Camera camera;
- camera.center={(b.west+b.east)*.5,(b.south+b.north)*.5};
- const double dx=std::max(.001,(b.east-b.west)/360.);
+ camera.center={std::remainder((b.west+east)*.5,360.),
+                (b.south+b.north)*.5};
+ const double dx=std::max(.001,longitudeSpan/360.);
  const double dy=std::max(.001,(equiLatitude(b.north)-equiLatitude(b.south))/360.);
  const double use=1.-2.*pad;
  camera.zoom=std::clamp(std::min(use/dx,use*height/(width*dy)),.1,50.);
