@@ -655,6 +655,55 @@ OfxStatus applyInspectorMotion(OfxImageEffectHandle effect,
   }else channel("Zoom","MotionTargetZoom");
  }
  require(!writes.empty(),"Motion preset has no supported channels");
+ int easing=0;
+ if(auto e=parameter(effect,"Easing"))param->paramGetValueAtTime(e,time,&easing);
+ require(easing>=0&&easing<=2,"Unknown Motion easing mode");
+ // An OFX host owns the actual splines. Add deterministic interpolation
+ // samples as host-native keyframes, rather than calculating a hidden
+ // timeline inside CartoRig's renderer. The keys remain editable in Fusion.
+ // Hold is approximated by a final one-frame transition, not invented as
+ // native stepped tangents on hosts where the OFX API cannot set handles.
+ const auto anchors=writes;
+ std::vector<KeyOperation> expanded;
+ std::vector<std::string> channels;
+ for(const auto&key:anchors){
+  if(std::find(channels.begin(),channels.end(),key.channel)==channels.end())
+   channels.push_back(key.channel);
+ }
+ for(const auto&channel:channels){
+  std::vector<KeyOperation> sequence;
+  for(const auto&key:anchors)if(key.channel==channel)sequence.push_back(key);
+  if(sequence.empty())continue;
+  expanded.push_back(sequence.front());
+  for(std::size_t k=1;k<sequence.size();++k){
+   const auto&from=sequence[k-1];
+   const auto&to=sequence[k];
+   const double length=to.at-from.at;
+   if(length<=0)continue;
+   int samples=std::min(12,static_cast<int>(std::floor(length)));
+   int behavior=preset=="Instant Color Change"?2:easing;
+   for(int i=1;i<samples;++i){
+    const double at=std::round(from.at+length*i/samples);
+    if(at<=expanded.back().at||at>=to.at)continue;
+    const double f=(at-from.at)/length;
+    double phase=behavior==0?f*f*(3.-2.*f):behavior==1?f:0.;
+    KeyOperation next=from;
+    next.at=at;
+    if(from.color){
+     for(int component=0;component<4;++component)
+      next.rgba[component]=from.rgba[component]+
+                          (to.rgba[component]-from.rgba[component])*phase;
+    }else next.value=from.value+(to.value-from.value)*phase;
+    expanded.push_back(next);
+   }
+   if(behavior==2&&length>=2){
+    KeyOperation before=from;before.at=to.at-1;
+    if(before.at>expanded.back().at)expanded.push_back(before);
+   }
+   expanded.push_back(to);
+  }
+ }
+ writes=std::move(expanded);
 
  // Check all affected native OFX channels BEFORE writing any key. This
  // includes manually authored keyframes that CartoRig does not own.
