@@ -392,6 +392,47 @@ int main(){
   assertKey(flight,"CenterLongitude",145,181);
   check(flight.params.params.at("Bearing")->keys.empty(),
         "Fly To preserves Camera Bearing unless user opts into rotation");
+  // Render through the same C++ OpenFX entrypoint used by Resolve,
+  // not merely through cartorig::Surface unit tests.
+  TestEffect overlay;
+  check(map->mainEntry(kOfxImageEffectActionDescribeInContext,
+                       &overlay,nullptr,nullptr)==kOfxStatOK,"map image setup");
+  select(overlay,"DisplayMode",1);
+  overlay.images["Source"]=std::make_unique<TestImage>(64,64,255);
+  overlay.images["Output"]=std::make_unique<TestImage>(64,64);
+  for(std::size_t i=0;i<overlay.images["Source"]->pixels.size();i+=4){
+   overlay.images["Source"]->pixels[i]=200;
+   overlay.images["Source"]->pixels[i+1]=100;
+   overlay.images["Source"]->pixels[i+2]=30;
+  }
+  Props renderArgs;
+  put(renderArgs.doubles,kOfxPropTime,0,0.);
+  check(map->mainEntry(kOfxImageEffectActionRender,
+       &overlay,reinterpret_cast<OfxPropertySetHandle>(&renderArgs),nullptr)
+       ==kOfxStatOK,"render transparent map with opaque source");
+  for(std::size_t i=3;i<overlay.images["Output"]->pixels.size();i+=4)
+   check(overlay.images["Output"]->pixels[i]==0,
+         "QA-56: transparent Map must not leak any source alpha");
+
+  TestEffect upstream;
+  check(camera->mainEntry(kOfxImageEffectActionDescribeInContext,
+                          &upstream,nullptr,nullptr)==kOfxStatOK,
+        "camera passthrough setup");
+  upstream.images["Source"]=std::make_unique<TestImage>(32,32,128);
+  upstream.images["Output"]=std::make_unique<TestImage>(32,32);
+  auto&rgba=upstream.images["Source"]->pixels;
+  for(std::size_t i=0;i<rgba.size();i+=4){
+   rgba[i]=128;rgba[i+1]=0;rgba[i+2]=0;
+  }
+  put(upstream.images["Source"]->props.strings,
+      kOfxImageEffectPropPreMultiplication,0,
+      std::string(kOfxImagePreMultiplied));
+  check(camera->mainEntry(kOfxImageEffectActionRender,
+         &upstream,reinterpret_cast<OfxPropertySetHandle>(&renderArgs),nullptr)
+         ==kOfxStatOK,"premultiplied source passthrough");
+  const auto&decoded=upstream.images["Output"]->pixels;
+  check(decoded[0]>=253&&decoded[3]==128,
+        "Input 128 red/128 alpha must convert to straight RGB≈255, A=128");
   std::cout<<"PASS OpenFX mock: all 6 host plugin descriptors, pages, "
            <<"native Highlight Pulse, Instant Color, Layer Fade and conflicts\n";
   return 0;
