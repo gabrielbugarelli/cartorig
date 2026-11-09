@@ -68,10 +68,12 @@ jobs:
           luac5.4 -p "fusion/CartoRig Scene.lua"
           luac5.4 -p tests/test_scene.lua
           luac5.4 -p tests/test_scene_tree.lua
+          luac5.4 -p tests/test_scene_ui.lua
       - name: Mock-host Scene contract tests
         run: |
           lua5.4 tests/test_scene.lua
           lua5.4 tests/test_scene_tree.lua
+          lua5.4 tests/test_scene_ui.lua
   sanitizers:
     runs-on: ubuntu-24.04
     steps:
