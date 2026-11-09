@@ -39,18 +39,18 @@ Motion::Motion(){
  add("MO-REG-02","Region",{"ObjectOpacity"});
  add("MO-REG-03","Region",{"FillR","FillG","FillB"});
  add("MO-REG-04","Region",{"FillR","FillG","FillB"},1);
- add("MO-REG-05","Region",{"StrokeProgress"});
- add("MO-REG-06","Region",{"HighlightStrength"},32);
- add("MO-RTE-01","Route",{"DrawProgress"});
- add("MO-RTE-02","Route",{"DrawProgress"});
- add("MO-RTE-03","Route",{"FollowerProgress"});
- add("MO-MRK-01","Marker",{"ObjectOpacity"});
- add("MO-MRK-02","Marker",{"Size"});
- add("MO-CAM-01","Camera",{"Longitude","Latitude","Zoom","Bearing"});
- add("MO-CAM-02","Camera",{"Zoom"});
- add("MO-CAM-03","Camera",{"Longitude","Latitude","Zoom"});
- add("MO-LBL-01","Label",{"ObjectOpacity"});
- add("MO-MAP-01","Base Map",{"LayerOpacity"});
+ add("MO-REG-05","Region",{"StrokeProgress"},36);
+ add("MO-REG-06","Region",{"HighlightStrength"},36);
+ add("MO-RTE-01","Route",{"DrawProgress"},30);
+ add("MO-RTE-02","Route",{"DrawProgress"},30);
+ add("MO-RTE-03","Route",{"FollowerProgress"},60);
+ add("MO-MRK-01","Marker",{"ObjectOpacity"},18);
+ add("MO-MRK-02","Marker",{"Size"},18);
+ add("MO-CAM-01","Camera",{"CenterLongitude","CenterLatitude","Zoom","Bearing"},45);
+ add("MO-CAM-02","Camera",{"Zoom"},30);
+ add("MO-CAM-03","Camera",{"CenterLongitude","CenterLatitude","Zoom"},45);
+ add("MO-LBL-01","Label",{"ObjectOpacity"},18);
+ add("MO-MAP-01","Base Map",{"CountryBorderLayerOpacity"},18);
 }
 const Preset& Motion::preset(const std::string&id)const{
  auto it=std::find_if(catalog_.begin(),catalog_.end(),
@@ -85,7 +85,8 @@ std::vector<std::string> Motion::conflicts(const std::string&id,int first,int la
 }
 void Motion::install(const Preset&p,const Request&req){
  const int start=req.start+req.delay;
- const int end=start+(p.id=="MO-REG-04"?1:req.duration);
+ const int end=start+(p.id=="MO-REG-04"?0:
+     p.id=="MO-REG-06"?req.pulseCount*req.pulseCycle:req.duration);
  const auto put=[&](const std::string&channel,int frame,double value,Easing easing){
   valid(std::isfinite(value),"Invalid Motion key value");
   tracks_[channel].keys[frame]={value,easing,p.id};
@@ -115,11 +116,16 @@ void Motion::install(const Preset&p,const Request&req){
   put(channel,start,lo,req.easing);
   put(channel,end,hi,req.easing);
  }else if(p.id=="MO-REG-06"){
-  double peak=requested("HighlightStrength",1);
-  valid(peak>=0&&peak<=1,"Highlight pulse strength outside [0,1]");
+  valid(req.pulseCount>=1&&req.pulseCount<=8&&
+        req.pulseCycle>=2&&req.pulseCycle<=120&&
+        std::isfinite(req.pulsePeak)&&req.pulsePeak>=0&&req.pulsePeak<=1,
+        "Invalid Highlight Pulse count, cycle or peak");
   put("HighlightStrength",start,0,req.easing);
-  put("HighlightStrength",start+req.duration/2,peak,req.easing);
-  put("HighlightStrength",end,0,req.easing);
+  for(int i=0;i<req.pulseCount;++i){
+   const int begin=start+i*req.pulseCycle;
+   put("HighlightStrength",begin+req.pulseCycle/2,req.pulsePeak,req.easing);
+   put("HighlightStrength",begin+req.pulseCycle,0,req.easing);
+  }
  }else if(p.id=="MO-MRK-02"){
   double target=requested("Size",value("Size"));
   valid(target>=0&&target<=128,"Marker target size outside limits");
@@ -134,39 +140,74 @@ void Motion::install(const Preset&p,const Request&req){
    bool required=(p.id=="MO-CAM-01"||p.id=="MO-CAM-03"||
                   p.id=="MO-REG-03"||p.id=="MO-REG-04");
    double finish=requested(channel,base,required);
-   if(channel=="Longitude"){
+   if(channel=="CenterLongitude"){
     finish=base+std::remainder(finish-base,360.);
    }
-   put(channel,start,base,p.id=="MO-REG-04"?Easing::Hold:req.easing);
-   put(channel,end,finish,req.easing);
+   if(p.id=="MO-REG-04"){
+    if(start>0)put(channel,start-1,base,Easing::Hold);
+    put(channel,start,finish,Easing::Hold);
+   }else{
+    put(channel,start,base,req.easing);
+    put(channel,end,finish,req.easing);
+   }
   }
  }
 }
+std::vector<std::string> Motion::activePresets() const {
+ std::vector<std::string> result;
+ for(const auto&entry:snapshots_)result.push_back(entry.first);
+ std::sort(result.begin(),result.end());
+ return result;
+}
 void Motion::apply(const std::string&id,const Request&req){
- const auto&p=preset(id);
- valid(req.duration>=1&&req.duration<=100000&&req.delay>=0&&
-       inRange(req.start,req.start+req.delay+req.duration+1),
+ Preset selected=preset(id);
+ valid(req.duration>=1&&req.duration<=100000&&req.delay>=0&&req.start>=0,
        "Invalid Motion time window");
- valid(active_.empty(),"Remove or update the existing Motion preset first");
- auto conflict=conflicts(id,req.start+req.delay,
-                              req.start+req.delay+req.duration+1);
- valid(conflict.empty()||req.conflict==Conflict::ReplaceAffected,
-       "Existing animated channel conflicts with preset");
- auto previous=tracks_;
+ const int span=id=="MO-REG-06"?req.pulseCount*req.pulseCycle:req.duration;
+ valid(span>=1&&inRange(req.start,req.start+req.delay+span+1),
+       "Motion extends outside supported frame interval");
+ if(id=="MO-MAP-01"){
+  const std::vector<std::string> allowed{
+   "OceanLayerOpacity","LandLayerOpacity","CoastlineLayerOpacity",
+   "CountryBorderLayerOpacity","StateBorderLayerOpacity"};
+  valid(std::find(allowed.begin(),allowed.end(),req.layerChannel)!=allowed.end(),
+        "Layer Fade requires one explicit enabled Base Map layer");
+  selected.channels={req.layerChannel};
+ }
+ valid(snapshots_.find(id)==snapshots_.end(),
+       "This preset is already applied; use Update or Remove");
+ for(const auto&[activeId,snapshot]:snapshots_){
+  for(const auto&channel:selected.channels){
+   if(snapshot.find(channel)!=snapshot.end())
+    throw std::invalid_argument("Existing preset owns the same animation channel");
+  }
+ }
+ int begin=req.start+req.delay;
+ if(id=="MO-REG-04"&&begin>0)--begin;
+ for(const auto&name:selected.channels){
+  const auto it=tracks_.find(name);
+  if(it==tracks_.end())continue;
+  const auto first=it->second.keys.lower_bound(begin);
+  valid(first==it->second.keys.end()||first->first>req.start+req.delay+span||
+        req.conflict==Conflict::ReplaceAffected,
+        "Existing native or manual keyframes overlap Motion interval");
+ }
+ auto oldTracks=tracks_;
  try{
   if(req.conflict==Conflict::ReplaceAffected){
-   for(const auto&name:p.channels){
+   for(const auto&name:selected.channels){
     auto&keys=tracks_[name].keys;
-    auto first=keys.lower_bound(req.start+req.delay);
-    auto last=keys.upper_bound(req.start+req.delay+req.duration+1);
+    auto first=keys.lower_bound(begin);
+    auto last=keys.upper_bound(req.start+req.delay+span);
     keys.erase(first,last);
    }
   }
-  install(p,req);
- }catch(...){tracks_=std::move(previous);throw;}
+  install(selected,req);
+ }catch(...){tracks_=std::move(oldTracks);throw;}
+ Snapshot snapshot;
+ for(const auto&name:selected.channels)snapshot[name]=tracks_[name].keys;
+ snapshots_[id]=std::move(snapshot);
  active_=id;lastRequest_=req;
- ownedSnapshot_.clear();
- for(const auto&name:p.channels)ownedSnapshot_[name]=tracks_[name].keys;
 }
 void Motion::editManualKey(const std::string&channel,int frame,double v,Easing e){
  valid(inRange(frame,frame)&&std::isfinite(v),"Invalid manual key");
@@ -174,7 +215,9 @@ void Motion::editManualKey(const std::string&channel,int frame,double v,Easing e
 }
 bool Motion::customized()const{
  if(active_.empty())return false;
- for(const auto&[name,snapshot]:ownedSnapshot_){
+ auto owner=snapshots_.find(active_);
+ if(owner==snapshots_.end())return false;
+ for(const auto&[name,snapshot]:owner->second){
   auto it=tracks_.find(name);
   if(it==tracks_.end()||it->second.keys.size()!=snapshot.size())return true;
   auto jt=it->second.keys.begin();
@@ -205,6 +248,8 @@ void Motion::remove(Removal mode){
    }else ++it;
   }
  }
- active_.clear();ownedSnapshot_.clear();
+ snapshots_.erase(active_);
+ active_.clear();
+ if(!snapshots_.empty())active_=activePresets().back();
 }
 } // namespace cartorig::rc1
