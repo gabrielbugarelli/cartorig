@@ -75,6 +75,15 @@ struct MarkerOptions {
   Color fill{224,232,237,255},stroke{20,38,55,255};
   double opacity=1;
 };
+struct RegionStyle {
+ Color fill{130,150,164,255},stroke{215,224,231,255};
+ Color highlight{230,198,107,255};
+ double fillAlpha=1,strokeAlpha=1,objectOpacity=1;
+ double strokeWidth=1.5,strokeProgress=1,highlightStrength=0;
+ bool strokeVisible=true,highlightStroke=false,outerContoursOnly=false;
+};
+void drawRegion(Surface& canvas,const Geometry& geom,const Camera& camera,
+                const RegionStyle& style);
 void drawGeometry(Surface& canvas,const Geometry& geom,const Camera& camera,
                   Color fill,Color stroke,double strokeWidth=1.5,
                   double opacity=1);
