@@ -57,7 +57,11 @@ local window=dispatcher:AddWindow({
         ui:Button{ID="AddLabel",Text="+ Label",Weight=0.20},
         ui:Button{ID="CustomMarker",Text="+ Point",Weight=0.17}
     },
-    ui:Label{Text="SCENE OBJECTS — select to edit Control | Motion in Fusion"},
+    ui:HGroup{
+        ui:Label{Text="SCENE OBJECTS",Weight=0.30},
+        ui:LineEdit{ID="ObjectFilter",PlaceholderText="Filter objects...",Weight=0.48},
+        ui:Button{ID="CollapseAll",Text="Collapse all",Weight=0.22}
+    },
     ui:Tree{ID="ObjectTree",ColumnCount=3,HeaderHidden=false,
             SortingEnabled=false,RootIsDecorated=true,
             SelectionMode="ExtendedSelection",Weight=1.4,
@@ -141,7 +145,8 @@ item.AuthoringTabs:AddTab("Route")
 item.AuthoringTabs.CurrentIndex=0
 item.AuthoringStack.CurrentIndex=0
 local choices,objects,groups={},{},{}
-local treeIds,treeRows={},{}
+local treeIds,treeRows,treeBranches={},{},{}
+local allCollapsed=false
 local rendering=false
 local context=nil
 local locked=false
@@ -238,10 +243,25 @@ local function refresh()
     local tree=item.ObjectTree
     rendering=true
     tree:Clear()
-    treeIds={};treeRows={}
+    treeIds={};treeRows={};treeBranches={}
     tree.ColumnCount=3
     tree:SetHeaderLabels({"Scene object","Draw order","Status"})
-    local function createNode(node,parent)
+    local filter=tostring(item.ObjectFilter.Text or ""):lower()
+    filter=filter:match("^%s*(.-)%s*$")
+    local function contains(node)
+        return filter=="" or
+               tostring(node.name or ""):lower():find(filter,1,true)~=nil
+    end
+    local function hasMatch(node)
+        if contains(node) then return true end
+        for _,child in ipairs(node.children or {}) do
+            if hasMatch(child) then return true end
+        end
+        return false
+    end
+    local function createNode(node,parent,ancestorMatched)
+        local match=ancestorMatched or contains(node)
+        if not match and not hasMatch(node) then return end
         if node.kind=="category" and #node.children==0 then return end
         local row=tree:NewItem()
         row.Text[0]=node.name
@@ -256,11 +276,18 @@ local function refresh()
         end
         if parent then parent:AddChild(row)
         else tree:AddTopLevelItem(row)end
-        for _,child in ipairs(node.children or {})do createNode(child,row)end
-        if node.kind=="category" or node.kind=="group" then row.Expanded=true end
+        for _,child in ipairs(node.children or {})do
+            createNode(child,row,match)
+        end
+        if node.kind=="category" or node.kind=="group" then
+            treeBranches[#treeBranches+1]=row
+            row.Expanded=not allCollapsed
+        end
     end
     if state=="SCENE_READY" or state=="SCENE_EMPTY" then
-        for _,node in ipairs(treeModel.build(objects))do createNode(node,nil)end
+        for _,node in ipairs(treeModel.build(objects))do
+            createNode(node,nil,false)
+        end
     end
     rendering=false
     groups={}
@@ -329,6 +356,16 @@ local function perform(action)
     locked=false
 end
 perform(refresh)
+function window.On.ObjectFilter.TextChanged(_)
+    if not locked and not rendering then perform(refresh)end
+end
+function window.On.CollapseAll.Clicked(_)
+    allCollapsed=not allCollapsed
+    for _,branch in ipairs(treeBranches)do
+        branch.Expanded=not allCollapsed
+    end
+    item.CollapseAll.Text=allCollapsed and "Expand all" or "Collapse all"
+end
 function window.On.AuthoringTabs.CurrentChanged(_)
     local index=tonumber(item.AuthoringTabs.CurrentIndex)or 0
     item.AuthoringStack.CurrentIndex=math.max(0,math.min(1,index))
