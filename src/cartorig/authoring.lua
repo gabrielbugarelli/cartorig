@@ -92,6 +92,28 @@ local function mutation_draft(self)
   end
   return current,self.m.Scene.snapshot(current)
 end
+-- Organizational groups are persistent Scene entities, not image passes.
+-- Their creation/removal must not change the Fusion render graph or timeline.
+function A:create_group(name,ids)
+  local previous,draft=mutation_draft(self)
+  if not self.m.SceneOps or type(self.m.SceneOps.create_group)~='function' then
+    fail('Scene grouping module is unavailable')
+  end
+  local group=self.m.SceneOps.create_group(draft,self.m.Scene,name,ids)
+  self.m.Scene.validate(draft)
+  self.m.Repository.write(self.comp,draft,self.m.Scene,self.m.Json)
+  return draft,group
+end
+function A:ungroup(id)
+  local previous,draft=mutation_draft(self)
+  if not self.m.SceneOps or type(self.m.SceneOps.ungroup)~='function' then
+    fail('Scene grouping module is unavailable')
+  end
+  self.m.SceneOps.ungroup(draft,id)
+  self.m.Scene.validate(draft)
+  self.m.Repository.write(self.comp,draft,self.m.Scene,self.m.Json)
+  return draft
+end
 function A:rename(id,new_name)
   local previous,draft=mutation_draft(self)
   self.m.Scene.rename(draft,id,new_name)
@@ -357,6 +379,7 @@ function A:select(id)
   if not state then fail('no scene') end
   local object=self.m.Scene.get(state,id)
   if not object then fail('selected object no longer exists') end
+  if object.kind=='Group' then return nil end -- organization-only, not a renderer node
   return self.host:select(object)
 end
 function A:motion(id,preset,opts)

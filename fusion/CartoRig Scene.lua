@@ -76,6 +76,7 @@ local function run()
       ui:HGroup{ui:LineEdit{ID='CR_RenameField',PlaceholderText='New object name'},ui:Button{ID='CR_Rename',Text='Rename'}},
       ui:HGroup{ui:Button{ID='CR_MoveUp',Text='Move Up'},ui:Button{ID='CR_MoveDown',Text='Move Down'},ui:Button{ID='CR_Delete',Text='Delete Selected'}},
       ui:HGroup{ui:Button{ID='CR_Visibility',Text='Hide / Show'},ui:Button{ID='CR_Lock',Text='Lock / Unlock'}},
+      ui:HGroup{ui:LineEdit{ID='CR_GroupName',PlaceholderText='Group name'},ui:Button{ID='CR_GroupSelected',Text='Group Selected'},ui:Button{ID='CR_Ungroup',Text='Ungroup'}},
       ui:Label{ID='CR_Status',Text='Ready'},
       ui:Button{ID='CR_Close',Text='Close Scene'},
     })
@@ -149,7 +150,11 @@ local function run()
     pendingDelete=nil
     local index=item_index(w.CR_Objects.CurrentItem)
     selected_id=index and displayed[index] and displayed[index].id or nil
-    if selected_id then guarded(function()engine:select(selected_id);return 'Selected object in Fusion Inspector' end) end
+    if selected_id then guarded(function()
+      local selected=Scene.get(engine:current(),selected_id)
+      if selected and selected.kind=='Group' then return 'Organizational Group selected in Scene (no render tool)' end
+      engine:select(selected_id);return 'Selected object in Fusion Inspector'
+    end) end
   end
   win.On.CR_AddRegion.Clicked=function()
     guarded(function()
@@ -303,6 +308,26 @@ local function run()
       state=engine:set_lock(selected_id,not obj.locked)
       refresh_objects()
       return obj.locked and 'Unlocked in CartoRig Scene' or 'Locked for CartoRig operations'
+    end)
+  end
+  win.On.CR_GroupSelected.Clicked=function()
+    guarded(function()
+      if not selected_id then error('Select an object to place in a group') end
+      local groupName=w.CR_GroupName.Text
+      if not groupName or groupName=='' then error('Enter a group name') end
+      local draft,group=engine:create_group(groupName,{selected_id})
+      state=draft;refresh_objects()
+      return 'Created group '..group.name..' and placed the selected object inside.'
+    end)
+  end
+  win.On.CR_Ungroup.Clicked=function()
+    guarded(function()
+      if not selected_id then error('Select an organizational Group') end
+      local selected=Scene.get(engine:current(),selected_id)
+      if not selected or selected.kind~='Group' then error('Selection is not a Group') end
+      state=engine:ungroup(selected_id)
+      refresh_objects()
+      return 'Ungrouped; children, styles, Fusion nodes and keyframes preserved.'
     end)
   end
   win.On.CR_Refresh.Clicked=function()guarded(function()refresh_objects();return 'Scene refreshed' end)end
