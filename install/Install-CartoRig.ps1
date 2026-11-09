@@ -1,7 +1,7 @@
 #requires -version 5.1
 # Offline RC1 installer; only CartoRig-owned paths are modified.
 [CmdletBinding()]
-param([switch] $Elevated)
+param([switch] $Elevated, [switch] $VerifyPackageOnly)
 $ErrorActionPreference='Stop'
 $root=Split-Path -Parent $MyInvocation.MyCommand.Path
 $bundle=Join-Path $root 'CartoRigFusion.ofx.bundle'
@@ -16,9 +16,6 @@ foreach($path in @($manifest,$geometry,$catalog,$plugin,$script,$support)){
         throw "Incomplete CartoRig package: $path"
     }
 }
-if(Get-Process -Name 'Resolve' -ErrorAction SilentlyContinue){
-    throw 'Close DaVinci Resolve completely before installing CartoRig.'
-}
 $meta=Get-Content -LiteralPath $manifest -Raw -Encoding UTF8 | ConvertFrom-Json
 if($meta.format -ne 'CRG1' -or $meta.network_required_by_runtime -ne $false){
     throw 'CartoRig offline data manifest is invalid.'
@@ -28,6 +25,15 @@ $catHash=(Get-FileHash -LiteralPath $catalog -Algorithm SHA256).Hash.ToLowerInva
 if($geoHash -ne [string]$meta.geometry_sha256 -or
    $catHash -ne [string]$meta.catalog_sha256){
     throw 'Natural Earth data integrity check failed. Obtain a complete RC package.'
+}
+# A no-write preflight, usable by CI without UAC or administrator access.
+# It validates the exact same package schema/hashes used for installation.
+if($VerifyPackageOnly){
+    Write-Host "CartoRig offline package verified ($($meta.features) features)."
+    exit 0
+}
+if(Get-Process -Name 'Resolve' -ErrorAction SilentlyContinue){
+    throw 'Close DaVinci Resolve completely before installing CartoRig.'
 }
 $identity=[Security.Principal.WindowsIdentity]::GetCurrent()
 $principal=New-Object Security.Principal.WindowsPrincipal($identity)
