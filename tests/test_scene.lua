@@ -198,6 +198,22 @@ local route=api.addRoute({lon=-47.88,lat=-15.79,name="Brasília"},
                          {lon=-51.3,lat=.7,name="Amapá chosen point"})
 check(#api.objects()==5,"route created with explicit coordinates")
 check(#api.waypoints(route)==0,"new route has no editorial waypoints")
+local savedUndos=comp.undos
+local savedObjects=#api.objects()
+local invalidCases={
+    function()api.addCustomPoint(math.huge,0,"Invalid")end,
+    function()api.addCustomPoint(0,0/0,"Invalid")end,
+    function()api.addRoute({lon=0,lat=0},{lon=math.huge,lat=0})end,
+    function()api.addWaypoint(route,math.huge,1)end,
+    function()api.addWaypoint(route,-50,-8,1.5)end,
+    function()api.removeWaypoint(route,1.5)end
+}
+for i,action in ipairs(invalidCases) do
+    local accepted=pcall(action)
+    check(not accepted and comp.undos==savedUndos and
+          #api.objects()==savedObjects and #api.waypoints(route)==0,
+          "invalid coordinate/index must fail before Fusion mutation: "..i)
+end
 api.addWaypoint(route,-50,-8)
 api.addWaypoint(route,-49,-3)
 check(#api.waypoints(route)==2,"two real WGS84 waypoints saved")
