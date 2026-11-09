@@ -137,6 +137,27 @@ function M.state(composition)
     if meta(map,"Initialized")~=true or meta(map,"SchemaVersion")~=1 then
         return "SCENE_BROKEN"
     end
+    -- The registry is an independent persisted ledger on Base Map. It
+    -- detects authoring nodes physically removed by an external Node Editor
+    -- action, instead of silently accepting a smaller object list.
+    local registry=meta(map,"ObjectRegistry")
+    if registry~=nil then
+        if type(registry)~="table" then return "SCENE_BROKEN" end
+        local actual={}
+        eachTool(composition,function(tool)
+            local id=meta(tool,"ObjectId")
+            local role=meta(tool,"Role")
+            if id and role~="Base Map" and role~="Camera" then
+                actual[id]=role
+            end
+        end)
+        for id,role in pairs(registry) do
+            if type(id)~="string" or type(role)~="string" or
+               actual[id]~=role then return "SCENE_BROKEN" end
+            actual[id]=nil
+        end
+        if next(actual)~=nil then return "SCENE_BROKEN" end
+    end
     local authored=0
     eachTool(composition,function(tool)
         local role=meta(tool,"Role")
@@ -263,6 +284,19 @@ local function maxOrder(composition)
     for _,entry in ipairs(owned(composition)) do order=math.max(entry.z,order) end
     return order+1
 end
+local function persistRegistry(composition,tool,role,remove)
+    local map=select(1,coreNodes(composition))
+    if not map then error("Base Map registry unavailable",3) end
+    local stored=meta(map,"ObjectRegistry")
+    if stored==nil then return end -- legacy development composition
+    if type(stored)~="table" then error("Invalid Scene registry",3) end
+    local registry={}
+    for id,kind in pairs(stored) do registry[id]=kind end
+    local id=meta(tool,"ObjectId")
+    if not id or id=="" then error("Cannot register object without ID",3) end
+    if remove then registry[id]=nil else registry[id]=role end
+    stamp(map,"ObjectRegistry",registry)
+end
 local function setObjectData(composition,tool,role,name,feature,kind)
     stamp(tool,"ObjectId",newid(composition))
     stamp(tool,"Role",role)
@@ -278,6 +312,7 @@ local function setObjectData(composition,tool,role,name,feature,kind)
     stamp(tool,"Locked",false)
     stamp(tool,"Visible",true)
     stamp(tool,"Order",maxOrder(composition))
+    persistRegistry(composition,tool,role,false)
 end
 local function bindCamera(node)
     for _,pair in ipairs({
@@ -349,6 +384,7 @@ function M.initialize()
         stamp(map,"Initialized",true)
         stamp(map,"SceneId",newid(composition))
         stamp(map,"SchemaVersion",1)
+        stamp(map,"ObjectRegistry",{})
         stamp(map,"Projection","Equirectangular")
         bindCamera(map)
         connect(stack,map)
@@ -990,6 +1026,7 @@ function M.delete(id)
         end
         connect(output,next)
         assertHost(item.node:Delete(),"Delete CartoRig owned node")
+        persistRegistry(composition,item.node,item.role,true)
         return true
     end)
 end
@@ -1046,6 +1083,7 @@ function M.ungroup(id)
             end
         end
         assertHost(entry.node:Delete(),"Remove Group after moving its children")
+        persistRegistry(composition,entry.node,"Group",true)
         return true
     end)
 end
