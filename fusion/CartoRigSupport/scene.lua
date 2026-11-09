@@ -620,31 +620,58 @@ function M.addCustomPoint(lon,lat,label)
         bounds={lon,lat,lon,lat}
     })
 end
+local function finiteNumber(value)
+    return type(value)=="number" and value==value and
+           value~=math.huge and value~=-math.huge
+end
+local function cameraBounds(bounds)
+    if type(bounds)~="table" then
+        error("Location has no geographic bounds",3)
+    end
+    local west,south,east,north=bounds[1],bounds[2],bounds[3],bounds[4]
+    if not (finiteNumber(west) and finiteNumber(south) and
+            finiteNumber(east) and finiteNumber(north)) or
+       math.abs(west)>180 or math.abs(east)>180 or
+       math.abs(south)>90 or math.abs(north)>90 or south>north then
+        error("Location has invalid WGS84 bounds",3)
+    end
+    -- Longitude bounds crossing the date line have west > east.
+    -- Preserve the 20-degree 170 -> -170 envelope, not a 340-degree view.
+    local unwrappedEast=east<west and east+360 or east
+    local center=((west+unwrappedEast)/2+180)%360-180
+    local latitude=(south+north)/2
+    if math.abs(latitude)>85 then
+        error("Location center exceeds supported camera latitude",3)
+    end
+    return center,latitude,unwrappedEast-west,north-south
+end
 function M.focus(loc,fit)
-    if type(loc)~="table"or not loc.bounds then
+    if type(loc)~="table" then
         error("Select a valid geographic location",2)
     end
+    -- Validate before opening an Undo transaction or editing any camera key.
+    local lon,lat,spanLon,spanLat=cameraBounds(loc.bounds)
     local composition=current()
     local base,camera=getCore(composition)
-    local b=loc.bounds
-    local lon=(b[1]+b[3])/2
-    local lat=(b[2]+b[4])/2
+    local zoom=nil
+    if fit then
+        local attributes=composition:GetAttrs() or {}
+        local width=tonumber(attributes.COMPN_RenderWidth) or 1920
+        local height=tonumber(attributes.COMPN_RenderHeight) or 1080
+        if not finiteNumber(width) or not finiteNumber(height) or
+           width<=0 or height<=0 then
+            error("Invalid Fusion render dimensions for Fit",2)
+        end
+        local usable=.84 -- 8% padding on each side
+        local spanX=math.max(.001,spanLon/360)
+        local spanY=math.max(.001,spanLat/360)
+        zoom=math.min(usable/spanX,usable*height/(width*spanY))
+        zoom=math.min(50,math.max(.1,zoom))
+    end
     return transaction(composition,"CartoRig: Focus camera",function()
         input(camera,"CenterLongitude",lon)
         input(camera,"CenterLatitude",lat)
-        if fit then
-            local westEast=math.max(.001,b[3]-b[1])
-            local northSouth=math.max(.001,b[4]-b[2])
-            local attributes=composition:GetAttrs() or {}
-            local width=tonumber(attributes.COMPN_RenderWidth) or 1920
-            local height=tonumber(attributes.COMPN_RenderHeight) or 1080
-            local padding=.08
-            -- Same equirectangular transform as the C++ renderer.
-            local zoom=math.min((1-2*padding)*360/westEast,
-                (1-2*padding)*360*height/(width*northSouth))
-            zoom=math.min(50,math.max(.1,zoom))
-            input(camera,"Zoom",zoom)
-        end
+        if fit then input(camera,"Zoom",zoom) end
         trySelect(composition,camera)
         return true
     end)
