@@ -373,6 +373,13 @@ function H:add_region(scene,object,feature)
     blank:SetInput('TopLeftAlpha',0)
     self:tag(blank,scene.id,object.id,'InternalRegionCanvas')
     local matte=blank
+    -- A separate transparent stroke matte carries all outer and inner ring
+    -- contours; one authorial Region Fuse controls its style and opacity.
+    local strokeCanvas=new('Background','CR2_STROKE_EMPTY_'..object.id,-3,6)
+    strokeCanvas:SetInput('TopLeftRed',0);strokeCanvas:SetInput('TopLeftGreen',0)
+    strokeCanvas:SetInput('TopLeftBlue',0);strokeCanvas:SetInput('TopLeftAlpha',0)
+    self:tag(strokeCanvas,scene.id,object.id,'InternalStrokeCanvas')
+    local strokeMatte=strokeCanvas
     for i,polygon in ipairs(polygons) do
       local mask,maskNodes=self:_make_polygon_mask(polygon,'CR2_MASK_'..object.id..'_'..i)
       for _,part in ipairs(maskNodes) do
@@ -389,10 +396,33 @@ function H:add_region(scene,object,feature)
       connect(piece,'Background',matte)
       connect(piece,'Foreground',white)
       matte=piece
+      for ringIndex,ring in ipairs(polygon) do
+        local contour=self:_make_polyline_mask(ring,
+          'CR2_STROKE_MASK_'..object.id..'_'..i..'_'..ringIndex,true)
+        created[#created+1]=contour
+        self:tag(contour,scene.id,object.id,'InternalStrokeMask')
+        contour:SetInput('Solid',0)
+        contour:SetInput('BorderWidth',(object.style.strokeWidth or 1.5)/1080)
+        local strokeWhite=new('Background','CR2_STROKE_WHITE_'..object.id..'_'..i..'_'..ringIndex,-1,i)
+        strokeWhite:SetInput('TopLeftRed',1);strokeWhite:SetInput('TopLeftGreen',1)
+        strokeWhite:SetInput('TopLeftBlue',1);strokeWhite:SetInput('TopLeftAlpha',1)
+        self:tag(strokeWhite,scene.id,object.id,'InternalStrokeFill')
+        connect(strokeWhite,'EffectMask',contour)
+        local borderPiece=new('Merge','CR2_STROKE_COMPOSITE_'..object.id..'_'..i..'_'..ringIndex,2,i)
+        self:tag(borderPiece,scene.id,object.id,'InternalStrokeComposite')
+        connect(borderPiece,'Background',strokeMatte)
+        connect(borderPiece,'Foreground',strokeWhite)
+        strokeMatte=borderPiece
+      end
     end
     local region=new('CartoRigRegion','CR2_REGION_'..object.id,3,4)
     self:tag(region,scene.id,object.id,'Region')
     connect(region,'Input',matte)
+    connect(region,'StrokeInput',strokeMatte)
+    local sr,sg,sb=hex(object.style.stroke or '#D7E0E7')
+    region:SetInput('StrokeRed',sr);region:SetInput('StrokeGreen',sg);region:SetInput('StrokeBlue',sb)
+    region:SetInput('StrokeAlpha',(object.style.strokeAlpha or 100)/100)
+    region:SetInput('StrokeVisible',object.style.strokeVisible==false and 0 or 1)
     local r,g,b=hex(object.style.fill or '#8296A4')
     region:SetInput('FillRed',r);region:SetInput('FillGreen',g);region:SetInput('FillBlue',b)
     region:SetInput('FillAlpha',(object.style.fillAlpha or 100)/100)
@@ -478,7 +508,8 @@ end
 -- per-input snapshots. The caller commits Scene JSON only after Fusion accepts
 -- every change; if persistence fails, rollback restores original native inputs.
 local styleBinding={
-  Region={fill={'color','Fill'},fillAlpha={'scalar','FillAlpha',0.01},opacity={'scalar','ObjectOpacity',0.01}},
+  Region={fill={'color','Fill'},fillAlpha={'scalar','FillAlpha',0.01},opacity={'scalar','ObjectOpacity',0.01},
+    stroke={'color','Stroke'},strokeAlpha={'scalar','StrokeAlpha',0.01},strokeVisible={'bool','StrokeVisible'}},
   Marker={fill={'color','Fill'},fillAlpha={'scalar','FillAlpha',0.01},opacity={'scalar','ObjectOpacity',0.01},size={'masksize','Width','Height',1/1080}},
   Route={stroke={'color','Stroke'},strokeAlpha={'scalar','StrokeAlpha',0.01},opacity={'scalar','ObjectOpacity',0.01},
     drawProgress={'maskscalar','WriteLength',0.01},strokeWidth={'maskscalar','BorderWidth',1/1080}},
@@ -569,6 +600,9 @@ function H:prepare_style(scene,object,key,value)
   elseif mode=='enum' then
     if value~='Full Map' and value~='Transparent Overlay' then fail('invalid display mode') end
     values={{binding[2],value=='Transparent Overlay' and 1 or 0}}
+  elseif mode=='bool' then
+    if type(value)~='boolean' then fail('expected boolean native Control value') end
+    values={{binding[2],value and 1 or 0}}
   elseif mode=='masksize' then
     values={{binding[2],value*binding[4]},{binding[3],value*binding[4]}}
   else

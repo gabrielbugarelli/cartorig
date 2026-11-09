@@ -13,7 +13,7 @@ end
 M.copy = copy
 local types = { BaseMap=true, Camera=true, Region=true, Route=true, Marker=true, Label=true, Group=true }
 local style = {
-  Region={ fill='#8296A4', fillAlpha=100, stroke='#D7E0E7', strokeWidth=1.5, strokeAlpha=100, opacity=100 },
+  Region={ fill='#8296A4', fillAlpha=100, stroke='#D7E0E7', strokeWidth=1.5, strokeAlpha=100, strokeVisible=true, opacity=100 },
   Route={ stroke='#D6DFE6', strokeWidth=3, strokeAlpha=100, opacity=100, drawProgress=100, trimStart=0, trimEnd=100, arrowhead=false },
   Marker={ fill='#E0E8ED', fillAlpha=100, stroke='#142637', size=14, strokeWidth=1.5, opacity=100 },
   Label={ color='#F0F5F8', fontSize=32, halo=true, opacity=100 },
@@ -31,7 +31,7 @@ local function valid_style(key, value)
   if key=='longitude' or key=='bearing' then return type(value)=='number' and value==value and value>=-180 and value<=180 end
   if key=='latitude' then return type(value)=='number' and value==value and value>=-85 and value<=85 end
   if key=='displayMode' then return value=='Full Map' or value=='Transparent Overlay' end
-  if key=='halo' or key=='arrowhead' then return type(value)=='boolean' end
+  if key=='halo' or key=='arrowhead' or key=='strokeVisible' then return type(value)=='boolean' end
   return value~=nil
 end
 local function find(scene,id)

@@ -38,13 +38,21 @@ assert(style and style.ID=='CartoRigRegion' and style:GetData('CartoRig.V2.Kind'
 assert(style.inputs.FillAlpha.static==1, 'independent Fill Alpha from canonical Region style')
 assert(style.inputs.ObjectOpacity.static==1)
 assert(style.links.Input and style.links.Input.ID=='Merge')
+assert(style.links.StrokeInput and style.links.StrokeInput.ID=='Merge')
+assert(style.inputs.StrokeRed.static and style.inputs.StrokeAlpha.static==1)
 assert(obj.compositeToolRef and comp:FindTool(obj.compositeToolRef).links.Foreground==style)
 assert(comp:FindTool('CR2_CAMERA_'..scene.id).links.Input==comp:FindTool(obj.compositeToolRef))
-local fragments=0
+local fragments,strokeMasks=0,0
 for _,t in ipairs(comp:GetToolList())do
-  if t.ID=='PolylineMask' and t:GetData('CartoRig.V2.ObjectId')==obj.id then fragments=fragments+1 end
+  if t.ID=='PolylineMask' and t:GetData('CartoRig.V2.ObjectId')==obj.id then
+    if t:GetData('CartoRig.V2.Kind')=='InternalMask' then fragments=fragments+1 end
+    if t:GetData('CartoRig.V2.Kind')=='InternalStrokeMask' then
+      strokeMasks=strokeMasks+1
+      assert(t.inputs.Solid.static==0 and math.abs(t.inputs.BorderWidth.static-1.5/1080)<1e-9)
+    end
+  end
 end
-assert(fragments==2,'all islands must share one style Fuse')
+assert(fragments==2 and strokeMasks==2,'all islands require independent fill and stroke masks')
 local color=Motion.prepare(obj,'MO-REG-03',{start=0,frameCount=90,targetColor='#00FF00'}, {})
 assert(Writer.apply(host,obj,color))
 assert(style.inputs.FillRed[24]==0 and style.inputs.FillGreen[24]==1)

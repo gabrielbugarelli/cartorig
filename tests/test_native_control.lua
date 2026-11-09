@@ -105,9 +105,16 @@ assert(comp:FindTool(cam.hostToolRef):GetInput('Zoom')==3)
 local bas=author:current().objects[1]
 author:set_style(bas.id,'displayMode','Transparent Overlay')
 assert(comp:FindTool(bas.hostToolRef):GetInput('DisplayMode')==1)
--- An unsupported style fails BEFORE mutating the Scene metadata.
+-- Region Stroke is now a separate Color/Alpha/Visibility channel.
+author:set_style(r.id,'stroke','#112233')
+assert(math.abs(tool(r):GetInput('StrokeBlue')-51/255)<1e-9)
+author:set_style(r.id,'strokeAlpha',45)
+assert(tool(r):GetInput('StrokeAlpha')==0.45)
+author:set_style(r.id,'strokeVisible',false)
+assert(tool(r):GetInput('StrokeVisible')==0)
+-- An unsupported property must fail before mutating the Scene metadata.
 local s=author:current()
-assert(not pcall(function()author:set_style(r.id,'stroke','#112233')end))
+assert(not pcall(function()author:set_style(r.id,'unknownStrokeMode','double')end))
 assert(author:current().objects[3].style.stroke==s.objects[3].style.stroke)
 -- A persisted spline must not be overwritten by a static Control operation.
 tool(r):SetData('CartoRig.V2.Animated.FillRed',true)
