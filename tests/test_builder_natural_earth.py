@@ -36,6 +36,19 @@ class NaturalEarthBuildTests(unittest.TestCase):
             self.assertIn('Brasil',item['aliases'])
             self.assertIn('natural-earth:admin0',item['id'])
 
+    def test_continent_records_are_derived_without_invented_geometry(self):
+        entries=[{'kind':'Country','continent':'South America','id':'br'},
+                 {'kind':'Country','continent':'South America','id':'cl'},
+                 {'kind':'Country','continent':'Europe','id':'fr'},
+                 {'kind':'State','continent':'Europe','id':'state-do-not-count'}]
+        groups=module.continent_records(entries,'dataset-test')
+        self.assertEqual([g['name'] for g in groups],['Europe','South America'])
+        south=groups[1]
+        self.assertEqual(south['memberIds'],['br','cl'])
+        self.assertEqual(south['geometryType'],'Composite')
+        self.assertNotIn('geometry',south)
+        self.assertNotIn('featureFile',south)
+
     def test_wrong_shapefile_name_is_rejected(self):
         with zipfile.ZipFile(io.BytesIO(), 'w') as z:
             pass

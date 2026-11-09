@@ -46,7 +46,13 @@ local function run()
       entries=Catalog.from_geojson(doc,'Country',{dataset='Natural Earth Admin 0',version='110m-preview',scale='110m'})
     end
   end)
-  if not ok_data then log('BUNDLE ERROR: '..tostring(load_error)) end
+  if ok_data then
+    local existing={}
+    for _,e in ipairs(entries) do existing[e.id]=true end
+    for _,continent in ipairs(Catalog.continent_groups(entries)) do
+      if not existing[continent.id] then entries[#entries+1]=continent;existing[continent.id]=true end
+    end
+  else log('BUNDLE ERROR: '..tostring(load_error)) end
   local dispatcher=bridge.UIDispatcher(ui)
   local win=dispatcher:AddWindow({ID='CartoRigSceneWindow',WindowTitle='CartoRig — Scene (Rewrite Preview)',Geometry={120,120,470,680}},
     ui:VGroup{Spacing=7,

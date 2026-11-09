@@ -84,7 +84,22 @@ def search_metadata(feature: dict, dataset_id: str, item_index: int, dataset_ver
     return {'id':f'natural-earth:{dataset_id}:{text("NE_ID","ne_id") or item_index}',
             'kind':kind,'name':name,'parent':parent,'aliases':aliases,
             'geometryType':geo.get('type'),'point':point,
+            'continent':text('CONTINENT','continent'),
             'source':{'dataset':dataset_id,'version':dataset_version,'scale':'10m'}}
+
+def continent_records(searchable: list[dict], dataset_version: str) -> list[dict]:
+    """Composite country groupings only, never invented continent geometry."""
+    continents = {}
+    for feature in searchable:
+        if feature['kind'] == 'Country' and feature.get('continent'):
+            continents.setdefault(feature['continent'], []).append(feature['id'])
+    return [
+        {'id':'natural-earth:continent:'+''.join(c for c in name.lower() if c.isascii() and c.isalnum()),
+         'name':name,'kind':'Continent','parent':'World','aliases':[name],
+         'geometryType':'Composite','memberIds':sorted(members),
+         'source':{'dataset':'admin0-continent-composite','version':dataset_version,'scale':'10m'}}
+        for name,members in sorted(continents.items())
+    ]
 
 def build(out: Path, selected, pins: dict[str, str]) -> dict:
     out.mkdir(parents=True, exist_ok=True)
@@ -124,6 +139,7 @@ def build(out: Path, selected, pins: dict[str, str]) -> dict:
                                      'output_sha256': hashlib.sha256(content).hexdigest(),
                                      'license': 'Natural Earth public domain'})
         print(f'{stem}: {len(feature_collection["features"])} features / {len(content):,} bytes', flush=True)
+    searchable.extend(continent_records(searchable, manifest['bundle']))
     index_file=out / 'catalog_index.json'
     index_raw=json.dumps({'schema':'cartorig.offline.catalog/1','bundle':'natural-earth-10m','locations':searchable},
                          ensure_ascii=False,separators=(',',':'),allow_nan=False).encode('utf-8')

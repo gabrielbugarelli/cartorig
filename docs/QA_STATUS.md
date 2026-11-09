@@ -7,6 +7,7 @@
 | Scene model, group/route edits, identity, styles | PASS locally | NOT RUN | OPEN |
 | Scene UI authorial Rename / Hide-Show / Lock, owned node validation, failure rollback | PASS command + mock-Fusion tests | NOT RUN | OPEN |
 | Offline GeoJSON, lazy point/polygon loading | PASS locally | NOT RUN | OPEN |
+| Continent classification as source-derived composite index; no invented polygon | PASS Lua synthetic + Python converter contracts | NOT RUN | OPEN |
 | Projection, seam math, fit, polygon ring semantics | PASS locally | NOT RUN | OPEN |
 | Fusion Scene metadata JSON roundtrip | PASS with mock | NOT RUN | OPEN |
 | Fusion Scene UI + search, create Region/Marker/Label/Route | Lua syntax / host mock components | NOT RUN | OPEN |

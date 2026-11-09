@@ -46,17 +46,45 @@ function M.from_geojson(document,kind,source)
         seen[id]=true
         local country=field(p,{'ADMIN','SOVEREIGNT','admin','ADM0NAME','SOV0NAME'})
         local region=field(p,{'name_adm1','ADM1NAME','REGION','region'})
+        local continent=field(p,{'CONTINENT','continent'})
         local parent=(kind=='State' and country or kind=='City' and ((region and region..', ' or '')..(country or ''))) or 'World'
         local pt=geom=='Point' and point(geo.coordinates) or nil
         local lon,lat=tonumber(p.LABEL_X or p.label_x or p.LONGITUDE or p.longitude),tonumber(p.LABEL_Y or p.label_y or p.LATITUDE or p.latitude)
         if not pt and lon and lat then pt={lon=lon,lat=lat} end
         result[#result+1]={id=id,name=name,kind=kind,parent=parent,aliases=list_aliases(p,name),code=iso,
-          geometryType=geom,geometry=geo,point=pt,source={dataset=source.dataset,version=source.version,scale=source.scale,license=source.license or 'Natural Earth public domain'}}
+          geometryType=geom,geometry=geo,point=pt,continent=continent,source={dataset=source.dataset,version=source.version,scale=source.scale,license=source.license or 'Natural Earth public domain'}}
       end
     end
   end
   table.sort(result,function(a,b)return a.name<b.name end)
   return result
+end
+-- Natural Earth does not publish an independent administrative continent
+-- polygon. Present a composite of listed countries with stable member refs,
+-- without claiming a precise source geometry that does not exist.
+function M.continent_groups(entries)
+  if type(entries)~='table' then fail('country entries required') end
+  local groups={}
+  for _,e in ipairs(entries) do
+    if e.kind=='Country' and type(e.continent)=='string' and e.continent~='' then
+      local g=groups[e.continent]
+      if not g then
+        g={id='natural-earth:continent:'..e.continent:lower():gsub('[^a-z0-9]',''),
+          name=e.continent,kind='Continent',parent='World',geometryType='Composite',
+          aliases={e.continent},memberIds={},source={dataset='admin0-continent-composite',
+          version=e.source and e.source.version,scale=e.source and e.source.scale}}
+        groups[e.continent]=g
+      end
+      g.memberIds[#g.memberIds+1]=e.id
+    end
+  end
+  local list={}
+  for _,g in pairs(groups)do
+    table.sort(g.memberIds)
+    list[#list+1]=g
+  end
+  table.sort(list,function(a,b)return a.name<b.name end)
+  return list
 end
 function M.search(entries,query,kind,limit)
   assert(type(entries)=='table','catalog entries required')
@@ -102,8 +130,14 @@ function M.load_index(data_root,json)
   local seen={}
   for _,v in ipairs(parsed.locations) do
     if type(v.id)~='string' or seen[v.id] then fail('invalid/duplicate catalog feature ID') end
-    if type(v.featureFile)~='string' or not v.featureFile:match('^features_%w+%.jsonl$') then fail('invalid feature file name') end
-    if type(v.featureOffset)~='number' or v.featureOffset<0 or type(v.featureBytes)~='number' or v.featureBytes<=0 or v.featureBytes>30000000 then fail('invalid feature offset') end
+    if v.kind=='Continent' then
+      if v.geometryType~='Composite' or v.featureFile~=nil or type(v.memberIds)~='table' then
+        fail('invalid continent composite record')
+      end
+    else
+      if type(v.featureFile)~='string' or not v.featureFile:match('^features_%w+%.jsonl$') then fail('invalid feature file name') end
+      if type(v.featureOffset)~='number' or v.featureOffset<0 or type(v.featureBytes)~='number' or v.featureBytes<=0 or v.featureBytes>30000000 then fail('invalid feature offset') end
+    end
     seen[v.id]=true
   end
   return parsed.locations
