@@ -58,12 +58,15 @@ struct Surface {
 };
 struct RouteOptions {
   GeoPoint from,to;
+  std::vector<GeoPoint> waypoints; // ordered authoring points, max 64
+  bool curved=false;             // Straight is baseline
   double curvature=0;      // -100...100; no implied road routing
   double width=3;          // screen pixels
   double progress=1;       // draw progress, 0...1
   double trimStart=0,trimEnd=1;
-  bool arrowhead=false;
+  bool arrowhead=false,reverseArrowhead=false;
   double arrowheadSize=12;
+  double followerProgress=0; // optional linked marker controller
   Color stroke{214,223,230,255};
   double opacity=1;
 };
