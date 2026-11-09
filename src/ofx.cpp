@@ -200,11 +200,24 @@ OfxStatus describeContext(OfxImageEffectHandle e,Type type){
  std::vector<std::string> controls,motion;
  if(type!=Type::Camera)commonCamera(ps,controls);
  if(type==Type::Map){
-  color(ps,controls,"Ocean","Ocean",.043,.10,.15);
-  color(ps,controls,"Land","Land",.14,.23,.32);
-  color(ps,controls,"Border","Border",.37,.47,.57);
-  number(ps,controls,"LayerOpacity","Layer Opacity",1,0,1);
-  boolean(ps,controls,"Transparent","Transparent Ocean",false);
+  choice(ps,controls,"DisplayMode","Display Mode",
+          {"Full Map","Transparent Overlay"});
+  color(ps,controls,"Ocean","Ocean Fill",16./255,40./255,60./255);
+  color(ps,controls,"Land","Land Fill",57./255,76./255,89./255);
+  color(ps,controls,"Coastline","Coastline Color",181./255,193./255,204./255);
+  number(ps,controls,"CoastlineWidth","Coastline Width (px)",1,0,12);
+  color(ps,controls,"Border","Country Border Color",150./255,170./255,185./255);
+  number(ps,controls,"CountryBorderWidth","Country Border Width (px)",1,0,12);
+  boolean(ps,controls,"StateBorderVisible","State Borders",false);
+  color(ps,controls,"StateBorder","State Border Color",130./255,149./255,164./255);
+  number(ps,controls,"StateBorderWidth","State Border Width (px)",.6,0,8);
+  number(ps,controls,"LayerOpacity","Base Opacity",1,0,1);
+  number(ps,controls,"OceanLayerOpacity","Ocean Layer Opacity",1,0,1);
+  number(ps,controls,"LandLayerOpacity","Land Layer Opacity",1,0,1);
+  number(ps,controls,"CoastlineLayerOpacity","Coastline Layer Opacity",1,0,1);
+  number(ps,controls,"CountryBorderLayerOpacity","Country Border Layer Opacity",1,0,1);
+  number(ps,controls,"StateBorderLayerOpacity","State Border Layer Opacity",1,0,1);
+  boolean(ps,controls,"Visible","Base Visible",true);
  }else if(type==Type::Region){
   string(ps,controls,"FeatureId","Publisher Region ID");
   color(ps,controls,"Fill","Fill",.79,.165,.165);
@@ -244,7 +257,7 @@ OfxStatus describeContext(OfxImageEffectHandle e,Type type){
   number(ps,controls,"Bearing","Bearing",0,-180,180);
   number(ps,controls,"FitPadding","Fit Padding",.08,0,.35,false);
  }
- if(type!=Type::Camera){
+ if(type!=Type::Camera&&type!=Type::Map){
   number(ps,controls,"ObjectOpacity","Object Opacity",1,0,1);
   boolean(ps,controls,"Visible","Visibility",true);
  }
@@ -365,19 +378,48 @@ OfxStatus render(OfxImageEffectHandle effect,OfxPropertySetHandle args,Type type
  const double opacity=numberAt(effect,"ObjectOpacity",t,1);
  const bool enabled=flagAt(effect,"Visible",t,true);
  if(type==Type::Map){
-  auto ocean=colorAt(effect,"Ocean",t,{11,25,38,255});
-  if(flagAt(effect,"Transparent",t,false))ocean.a=0;
-  if(!source.usable())canvas.clear(ocean);
-  else if(ocean.a)canvas.clear(ocean); // Map is authoritative background.
-  const auto land=colorAt(effect,"Land",t,{35,59,82,255});
-  const auto border=colorAt(effect,"Border",t,{90,120,147,255});
-  const auto&cat=getCatalog();
-  for(const auto&entry:cat.all("land"))
-   drawGeometry(canvas,*getGeometry(entry.id),camera,land,{0,0,0,0},0,
-                numberAt(effect,"LayerOpacity",t,1));
-  for(const auto&entry:cat.all("country"))
-   drawGeometry(canvas,*getGeometry(entry.id),camera,{0,0,0,0},border,.8,
-                numberAt(effect,"LayerOpacity",t,1));
+  int displayMode=0;
+  if(auto h=parameter(effect,"DisplayMode"))
+   param->paramGetValueAtTime(h,t,&displayMode);
+  const double baseOpacity=numberAt(effect,"LayerOpacity",t,1);
+  if(displayMode==0&&flagAt(effect,"Visible",t,true)){
+   auto ocean=colorAt(effect,"Ocean",t,{16,40,60,255});
+   ocean.a=static_cast<uint8_t>(std::lround(ocean.a*baseOpacity*
+                       numberAt(effect,"OceanLayerOpacity",t,1)));
+   canvas.clear(ocean);
+   auto land=colorAt(effect,"Land",t,{57,76,89,255});
+   auto coast=colorAt(effect,"Coastline",t,{181,193,204,255});
+   auto border=colorAt(effect,"Border",t,{150,170,185,255});
+   auto stateBorder=colorAt(effect,"StateBorder",t,{130,149,164,255});
+   const double landOpacity=baseOpacity*
+       numberAt(effect,"LandLayerOpacity",t,1);
+   const double coastOpacity=baseOpacity*
+       numberAt(effect,"CoastlineLayerOpacity",t,1);
+   const double countryOpacity=baseOpacity*
+       numberAt(effect,"CountryBorderLayerOpacity",t,1);
+   const double stateOpacity=baseOpacity*
+       numberAt(effect,"StateBorderLayerOpacity",t,1);
+   const auto&cat=getCatalog();
+   const double coastWidth=numberAt(effect,"CoastlineWidth",t,1);
+   const double countryWidth=numberAt(effect,"CountryBorderWidth",t,1);
+   const double stateWidth=numberAt(effect,"StateBorderWidth",t,.6);
+   for(const auto&entry:cat.all("land")){
+    auto geometry=getGeometry(entry.id);
+    drawGeometry(canvas,*geometry,camera,land,{0,0,0,0},0,landOpacity);
+    if(coastWidth>0&&coastOpacity>0)
+      drawGeometry(canvas,*geometry,camera,{0,0,0,0},coast,
+                   coastWidth,coastOpacity);
+   }
+   if(countryWidth>0&&countryOpacity>0)
+    for(const auto&entry:cat.all("country"))
+     drawGeometry(canvas,*getGeometry(entry.id),camera,{0,0,0,0},border,
+                   countryWidth,countryOpacity);
+   if(flagAt(effect,"StateBorderVisible",t,false) &&
+      stateWidth>0&&stateOpacity>0)
+    for(const auto&entry:cat.all("state"))
+     drawGeometry(canvas,*getGeometry(entry.id),camera,{0,0,0,0},stateBorder,
+                   stateWidth,stateOpacity);
+  }
  }else if(type==Type::Region&&enabled&&opacity>0){
   auto id=textAt(effect,"FeatureId",t);
   if(id.empty())throw std::invalid_argument("Region source ID is missing");
