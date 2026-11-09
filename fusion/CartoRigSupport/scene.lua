@@ -257,6 +257,48 @@ function M.initialize()
         return true,"Scene initialized. Select CR_Stack_Output if not connected."
     end)
 end
+-- Explicit output integration. Initializing CartoRig never disconnects an
+-- existing MediaOut input. The user must choose this operation.
+function M.connectOutput()
+    local composition=current()
+    local base,camera,stack=getCore(composition)
+    local media=composition:FindTool("MediaOut1")
+                    or composition:FindToolByID("MediaOut")
+    if not media then
+        error("No MediaOut in this composition; add one before connecting",2)
+    end
+    if not media.Input or type(media.Input.GetConnectedOutput)~="function" then
+        error("Cannot inspect MediaOut input safely; existing connection preserved",2)
+    end
+    local old=media.Input:GetConnectedOutput()
+    if old then
+        -- Resolve may return an Output object whose owner is unavailable.
+        -- We only operate on it by passing the original Output to Fusion.
+        return transaction(composition,"CartoRig: Connect above existing MediaOut",function()
+            local merge=assertHost(composition:AddTool("Merge",7,0),
+                                   "Fusion Merge tool")
+            local ok,result=pcall(function()
+                rename(merge,unique(composition,"CR_Output_Merge"))
+                assertHost(merge:ConnectInput("Background",old),
+                           "Preserve existing MediaOut image")
+                connect(merge,stack)
+                assertHost(media:ConnectInput("Input",merge),
+                           "Connect composited output to MediaOut")
+            end)
+            if not ok then
+                pcall(function()media:ConnectInput("Input",old)end)
+                pcall(function()merge:Delete()end)
+                error(result)
+            end
+            return "CartoRig output merged over existing MediaOut source."
+        end)
+    end
+    return transaction(composition,"CartoRig: Connect output",function()
+        assertHost(media:ConnectInput("Input",stack),
+                   "Connect empty MediaOut to CartoRig output")
+        return "CartoRig connected to previously empty MediaOut."
+    end)
+end
 function M.rebuild()
     local composition=current()
     return transaction(composition,"CartoRig: Rebuild object stack",function()
