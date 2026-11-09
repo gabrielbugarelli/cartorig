@@ -105,8 +105,9 @@ local window=dispatcher:AddWindow({
         ui:Button{ID="AddRoute",Text="Add Route"}
     },
     ui:HGroup{
-        ui:Label{ID="Status",Text="Status: Ready.",WordWrap=true,Weight=0.78},
-        ui:Button{ID="Copy",Text="Copy status",Weight=0.22}
+        ui:Button{ID="InspectScene",Text="Inspect scene",Weight=0.24},
+        ui:Label{ID="Status",Text="Status: Ready.",WordWrap=true,Weight=0.54},
+        ui:Button{ID="Copy",Text="Copy diagnostics",Weight=0.22}
     },
     ui:HGroup{
         ui:Label{Text="Offline · Fusion-only · no independent timeline",Weight=0.72},
@@ -226,6 +227,18 @@ local function refresh()
         end
     end
     setItems(item.Groups,groupLabels)
+    -- Disable dangerous actions while uninitialized or corrupt. The backend
+    -- independently rechecks state, so a stale UI cannot bypass this guard.
+    local canEdit=(state=="SCENE_READY" or state=="SCENE_EMPTY")
+    local controls={"AddRegion","AddMarker","AddLabel","CustomMarker",
+        "Focus","Fit","ConnectOutput","Show","Hide","Lock","Unlock",
+        "MoveUp","MoveDown","CreateGroup","SetGroup","Ungroup","Rename",
+        "Duplicate","Delete","UseFrom","UseTo","AddRoute","AddWaypoint",
+        "WayUp","WayDown","WayRemove","ReverseRoute","Select","Reveal"}
+    for _,name in ipairs(controls) do
+        pcall(function()item[name].Enabled=canEdit end)
+    end
+    pcall(function()item.Initialize.Enabled=state=="COMP_WITHOUT_CARTORIG"end)
     if state=="SCENE_BROKEN" then
         return "SCENE_BROKEN: inspect diagnostics; authoring disabled."
     end
@@ -572,14 +585,24 @@ function window.On.AddRoute.Clicked(_)
             ". Draw animation is optional in the native Motion tab."
     end)
 end
+function window.On.InspectScene.Clicked(_)
+    perform(function()
+        local report=scene.inspect()
+        if #report.issues==0 then
+            return "Scene integrity: "..report.state.."; no issues detected."
+        end
+        return report.state.." ("..#report.issues.." issue(s)): "..
+               report.issues[1]..". Copy diagnostics for the complete report."
+    end)
+end
 function window.On.Copy.Clicked(_)
     perform(function()
-        local message=tostring(item.Status.Text)
+        local report=scene.diagnosticsText()
         if not bmd or not bmd.setclipboard then
-            return "Clipboard API unavailable. Diagnostic: "..message
+            return "Clipboard API unavailable. Inspect scene to view diagnostics."
         end
-        bmd.setclipboard(message)
-        return "Status copied."
+        bmd.setclipboard(report)
+        return "Scene diagnostics copied. No private project paths included."
     end)
 end
 function window.On.Close.Clicked(_)dispatcher:ExitLoop()end
