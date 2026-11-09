@@ -1,7 +1,5 @@
--- CartoRig Base Map surface (ocean-only preview). The authorial BaseMap tool
--- keeps full-map and transparent-overlay output in native Fusion RGBA.
--- Land and boundary layers require a dedicated geographic renderer and are
--- intentionally NOT advertised as implemented here.
+-- CartoRig Base Map compositor: ocean plus optional land/line mattes.
+-- Missing geographic mattes are not fabricated. The renderer supplies them.
 FuRegisterClass('CartoRigBase',CT_Tool,{
   REGS_Name='CartoRig Base Map',
   REGS_Category='CartoRig\\Map Objects',
@@ -41,7 +39,40 @@ function Create()
     LINKID_DataType='Number',INPID_InputControl='SliderControl',INP_Default=1,
     INP_MinScale=0,INP_MaxScale=1,INP_MinAllowed=0,INP_MaxAllowed=1,
   })
+  -- Land/coastline/admin borders each have independent RGBA color and opacity.
+  -- Source masks must be white, premultiplied geographic coverage.
+  LayerInputs={}
+  local definitions={
+    {'Land','Land',57/255,76/255,89/255,33},
+    {'Coastline','Coastline',181/255,193/255,204/255,34},
+    {'CountryBorders','Country Borders',150/255,170/255,185/255,35},
+    {'StateBorders','State Borders',130/255,149/255,164/255,36},
+  }
+  for _,row in ipairs(definitions) do
+    local id,label=row[1],row[2]
+    local color={}
+    for i,component in ipairs({'Red','Green','Blue'}) do
+      color[i]=self:AddInput(label..' '..component,id..component,{
+        LINKID_DataType='Number',INPID_InputControl='ColorControl',
+        INP_Default=row[i+2],INP_MinScale=0,INP_MaxScale=1,
+        IC_ControlGroup=row[6],IC_ControlID=i-1,
+      })
+    end
+    local opacity=self:AddInput(label..' Layer Opacity',id..'LayerOpacity',{
+      LINKID_DataType='Number',INPID_InputControl='SliderControl',
+      INP_Default=1,INP_MinScale=0,INP_MaxScale=1,INP_MinAllowed=0,INP_MaxAllowed=1,
+    })
+    local matte=self:AddInput(label..' White Matte',id..'Input',{
+      LINKID_DataType='Image',INP_Required=false,
+    })
+    LayerInputs[#LayerInputs+1]={id=id,colors=color,opacity=opacity,matte=matte}
+  end
   self:AddControlPage('Motion')
+  for _,layer in ipairs(LayerInputs) do
+    self:CloneInput(layer.opacity,'Motion'..layer.id..'LayerOpacity',{
+      INP_DoNotifyChanged=false,INP_InteractivePassive=true,
+    })
+  end
   self:CloneInput(InOceanLayerOpacity,'MotionOceanLayerOpacity',{
     INP_DoNotifyChanged=false,INP_InteractivePassive=true,
   })
@@ -59,5 +90,20 @@ function Process(req)
   local out=img:Copy()
   out:Gain(v(InOceanR,req)*opacity,v(InOceanG,req)*opacity,
            v(InOceanB,req)*opacity,opacity)
+  if mode~=1 then
+    for _,layer in ipairs(LayerInputs) do
+      local matte=layer.matte:GetValue(req)
+      if matte then
+        local fraction=v(layer.opacity,req)*v(InBaseOpacity,req)
+        if fraction>0 then
+          local styled=matte:Copy()
+          styled:Gain(v(layer.colors[1],req)*fraction,
+            v(layer.colors[2],req)*fraction,
+            v(layer.colors[3],req)*fraction,fraction)
+          out:Merge(styled,{MO_ApplyMode='Merge',MO_ApplyOperator='Over'})
+        end
+      end
+    end
+  end
   OutImage:Set(req,out)
 end
