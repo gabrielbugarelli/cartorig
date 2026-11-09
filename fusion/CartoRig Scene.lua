@@ -14,7 +14,7 @@ local ui=fusion.UIManager
 local dispatcher=bmd.UIDispatcher(ui)
 local window=dispatcher:AddWindow({
     ID="CartoRigSceneWindow",WindowTitle="CartoRig — Scene",
-    Geometry={140,120,470,680},Spacing=7,Margin=12
+    Geometry={140,80,515,840},Spacing=7,Margin=12
 },ui:VGroup{
     ID="Root",Spacing=8,
     ui:HGroup{
@@ -38,6 +38,11 @@ local window=dispatcher:AddWindow({
         ui:Button{ID="Focus",Text="Focus"},
         ui:Button{ID="Fit",Text="Fit"}
     },
+    ui:HGroup{
+        ui:LineEdit{ID="LabelText",PlaceholderText="Label text (default: place name)",Weight=0.63},
+        ui:Button{ID="AddLabel",Text="+ Label",Weight=0.20},
+        ui:Button{ID="CustomMarker",Text="+ Point",Weight=0.17}
+    },
     ui:Label{Text="SCENE OBJECTS — select to edit Control | Motion in Fusion"},
     ui:ComboBox{ID="Objects"},
     ui:HGroup{
@@ -46,6 +51,16 @@ local window=dispatcher:AddWindow({
         ui:Button{ID="Hide",Text="Hide"},
         ui:Button{ID="Lock",Text="Lock"},
         ui:Button{ID="Unlock",Text="Unlock"}
+    },
+    ui:HGroup{
+        ui:Button{ID="MoveUp",Text="Move Up"},
+        ui:Button{ID="MoveDown",Text="Move Down"},
+        ui:Button{ID="CreateGroup",Text="+ Group"},
+        ui:Button{ID="Ungroup",Text="Ungroup"}
+    },
+    ui:HGroup{
+        ui:ComboBox{ID="Groups",Weight=0.60},
+        ui:Button{ID="SetGroup",Text="Move into Group",Weight=0.40}
     },
     ui:HGroup{
         ui:LineEdit{ID="RenameValue",PlaceholderText="Rename selected object",Weight=0.63},
@@ -80,7 +95,7 @@ local window=dispatcher:AddWindow({
     }
 })
 local item=window:GetItems()
-local choices,objects={},{}
+local choices,objects,groups={},{},{}
 local context=nil
 local locked=false
 local kinds={"all","continent","country","state","city"}
@@ -135,6 +150,15 @@ local function refresh()
             entry.locked and " [Locked]" or "")
     end
     setItems(item.Objects,labels)
+    groups={}
+    local groupLabels={"Select destination group..."}
+    for _,entry in ipairs(objects) do
+        if entry.role=="Group" then
+            groups[#groups+1]=entry
+            groupLabels[#groupLabels+1]=entry.name
+        end
+    end
+    setItems(item.Groups,groupLabels)
     return tostring(#objects).." CartoRig objects in current composition."
 end
 local function perform(action)
@@ -196,6 +220,26 @@ function window.On.AddMarker.Clicked(_)
         local id=scene.addMarker(loc)
         refresh()
         return "Added Marker "..loc.name.." ("..id..")"
+    end)
+end
+function window.On.AddLabel.Clicked(_)
+    perform(function()
+        verifyContext()
+        local loc=selectedResult()
+        local text=tostring(item.LabelText.Text or "")
+        if text=="" then text=loc.name end
+        local id=scene.addLabel(loc,text)
+        refresh()
+        return "Added independent georeferenced Label ("..id..")"
+    end)
+end
+function window.On.CustomMarker.Clicked(_)
+    perform(function()
+        verifyContext()
+        local lon,lat=item.FromLon.Text,item.FromLat.Text
+        local id=scene.addCustomPoint(lon,lat,"Custom Point")
+        refresh()
+        return "Added manually chosen geographic point ("..id..")"
     end)
 end
 function window.On.Focus.Clicked(_)
@@ -260,6 +304,51 @@ function window.On.Unlock.Clicked(_)
         local o=chooseObject("unlock")
         scene.lock(o.id,false);refresh()
         return "Object unlocked."
+    end)
+end
+function window.On.MoveUp.Clicked(_)
+    perform(function()
+        local o=chooseObject("move")
+        scene.move(o.id,-1)
+        refresh()
+        return "Draw order moved one position up."
+    end)
+end
+function window.On.MoveDown.Clicked(_)
+    perform(function()
+        local o=chooseObject("move")
+        scene.move(o.id,1)
+        refresh()
+        return "Draw order moved one position down."
+    end)
+end
+function window.On.CreateGroup.Clicked(_)
+    perform(function()
+        verifyContext()
+        local name=tostring(item.RenameValue.Text or "")
+        if name=="" then name="New Group" end
+        scene.addGroup(name)
+        refresh()
+        return "New organizational group. No extra render layer."
+    end)
+end
+function window.On.SetGroup.Clicked(_)
+    perform(function()
+        local o=chooseObject("group")
+        local group=groups[(tonumber(item.Groups.CurrentIndex) or -1)]
+        if not group then error("Choose a destination group in the dropdown")end
+        scene.setParent(o.id,group.id)
+        refresh()
+        return o.name.." added to "..group.name.." without changing its draw order."
+    end)
+end
+function window.On.Ungroup.Clicked(_)
+    perform(function()
+        local o=chooseObject("ungroup")
+        if o.role~="Group" then error("Select an organizational Group") end
+        scene.ungroup(o.id)
+        refresh()
+        return "Group removed. All authored children preserved."
     end)
 end
 function window.On.Rename.Clicked(_)
