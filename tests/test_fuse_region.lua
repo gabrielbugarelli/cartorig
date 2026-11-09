@@ -38,6 +38,7 @@ assert(#clones==2 and clones[1].source=='ObjectOpacity' and clones[2].source=='H
 assert(inputs.FillRed.attrs.INPID_InputControl=='ColorControl')
 for i,n in ipairs({'FillRed','FillGreen','FillBlue'}) do assert(inputs[n].attrs.IC_ControlID==i-1) end
 assert(inputs.ObjectOpacity.attrs.INP_Default==1)
+assert(inputs.FillAlpha.attrs.INP_Default==1)
 local img={}
 function img:Copy()
   local out={}
@@ -60,6 +61,12 @@ assert(math.abs(blend[1]-0.2)<1e-9)
 assert(math.abs(blend[2]-0.34)<1e-9)
 assert(math.abs(blend[3]-0.15)<1e-9)
 assert(blend[4]==0.5)
+-- Fill alpha is independent of Object Opacity and highlight strength.
+inputs.FillAlpha.value=0.4;inputs.ObjectOpacity.value=0.5
+inputs.HighlightStrength.value=0;env.Process({})
+assert(math.abs(outs[#outs].gain[4]-0.2)<1e-9)
+assert(math.abs(outs[#outs].gain[1]-0.2)<1e-9)
+assert(inputs.ObjectOpacity.value==0.5 and inputs.FillAlpha.value==0.4)
 inputs.ObjectOpacity.value=0;env.Process({})
 assert(outs[#outs].gain[4]==0 and outs[#outs].gain[1]==0)
 inputs.Input.image=nil;env.Process({});assert(outs[#outs]=='NIL')

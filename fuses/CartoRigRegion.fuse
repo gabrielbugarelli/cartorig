@@ -32,6 +32,12 @@ function Create()
     LINKID_DataType='Number',INPID_InputControl='ColorControl',INP_Default=0.64,
     INP_MinScale=0,INP_MaxScale=1,IC_ControlGroup=21,IC_ControlID=2,
   })
+  -- Independent fill alpha: changing region fill transparency must not
+  -- overwrite a user-authored Object Opacity spline or another Region.
+  InFillAlpha=self:AddInput('Fill Alpha','FillAlpha',{
+    LINKID_DataType='Number',INPID_InputControl='SliderControl',INP_Default=1,
+    INP_MinScale=0,INP_MaxScale=1,INP_MinAllowed=0,INP_MaxAllowed=1,
+  })
   InOpacity=self:AddInput('Object Opacity','ObjectOpacity',{
     LINKID_DataType='Number',INPID_InputControl='SliderControl',INP_Default=1,
     INP_MinScale=0,INP_MaxScale=1,INP_MinAllowed=0,INP_MaxAllowed=1,
@@ -65,7 +71,9 @@ end
 function Process(req)
   local image=InImage:GetValue(req)
   if not image then OutImage:Set(req,nil);return end
-  local opacity=number(InOpacity,req)
+  -- The white input is premultiplied by polygon coverage. FillAlpha and
+  -- ObjectOpacity multiply this coverage without altering geometric masks.
+  local opacity=number(InOpacity,req)*number(InFillAlpha,req)
   local strength=number(InHighlightStrength,req)
   local inverse=1-strength
   local r=(number(InFillR,req)*inverse+number(InHighlightR,req)*strength)*opacity
