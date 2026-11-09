@@ -148,6 +148,8 @@ check(derivedEntry.locationKind=="continent" and
 api.delete(derived)
 local id=api.addRegion(state[1])
 check(#api.objects()==3,"region appended without editing other objects")
+check(persistedMap:GetData("CartoRig.Fusion.RC1.ObjectRegistry")[id]=="Region",
+      "Base Map ledger persists exact authored Region identity")
 local selected=api.select(id)
 check(comp.active==selected.node,"node selected for native Inspector")
 local hostSelection=api.selectedInHost()
@@ -295,6 +297,20 @@ brokenCamera:Delete()
 check(api.state()=="SCENE_BROKEN","missing CartoRig Camera triggers SCENE_BROKEN")
 local noRepair=pcall(api.initialize)
 check(not noRepair,"Initialize cannot silently overwrite damaged CartoRig objects")
+local manuallyDeleted=C.new()
+comp=manuallyDeleted
+api.initialize()
+local lost=api.addMarker(api.search("São Paulo","city")[1])
+check(api.state()=="SCENE_READY","valid tracked scene")
+api.select(lost).node:Delete() -- external Node Editor removal, no Scene delete
+check(api.state()=="SCENE_BROKEN",
+      "external deletion mismatches persisted object ledger (QA-26/52)")
+check(#api.objects()==0,"broken scene must not present incomplete object list")
+local recoveryDenied=pcall(function()
+    api.addRegion(api.search("Rio de Janeiro","state")[1])
+end)
+check(not recoveryDenied,
+      "broken scene must reject further authoring rather than overwriting nodes")
 comp=other
 check(not api.isInitialized(),"second composition does not inherit first")
 check(#api.objects()==0,"no cross-composition scene leak")
