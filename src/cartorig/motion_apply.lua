@@ -50,12 +50,36 @@ local function native_keys_exist(tool,input)
   if tool:GetData('CartoRig.V2.Animated.'..input)==true then return true end
   if type(tool.GetInputList)~='function' then return false end
   local ok,fields=pcall(function()return tool:GetInputList()end)
-  if not ok or type(fields)~='table' then return false end
+  if not ok or type(fields)~='table' then fail('could not inspect Fusion inputs before writing '..input) end
   local field=fields[input]
-  if field and type(field.GetKeyFrames)=='function' then
+  if not field then
+    -- Fusion input lists can be indexed numerically rather than by LINKID.
+    for key,candidate in pairs(fields) do
+      if type(candidate)=='table' or type(candidate)=='userdata' then
+        local id=(type(key)=='string') and key or nil
+        if type(candidate.GetAttrs)=='function' then
+          local good,attrs=pcall(function()return candidate:GetAttrs()end)
+          if not good then fail('could not inspect Fusion input identity') end
+          if type(attrs)=='table' then id=attrs.INPS_ID or attrs.INPS_Name or id end
+        end
+        if id==input then field=candidate;break end
+      end
+    end
+  end
+  if not field then
+    if next(fields)~=nil then fail('Fusion input '..input..' not discoverable for safe animation check') end
+    return false
+  end
+  if type(field.GetKeyFrames)=='function' then
     local success,keys=pcall(function()return field:GetKeyFrames()end)
     if not success then fail('could not inspect existing Fusion keyframes on '..input) end
     if type(keys)=='table' and next(keys)~=nil then return true end
+  end
+  -- Linked expressions and modifiers are user-authored animations as well.
+  if type(field.GetConnectedOutput)=='function' then
+    local success,source=pcall(function()return field:GetConnectedOutput()end)
+    if not success then fail('could not inspect existing Fusion connection on '..input) end
+    if source then return true end
   end
   return false
 end
