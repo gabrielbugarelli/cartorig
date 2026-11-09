@@ -254,7 +254,15 @@ OfxStatus describeContext(OfxImageEffectHandle e,Type type){
  number(ps,motion,"Duration","Duration (frames)",24,1,100000,false);
  choice(ps,motion,"Easing","Easing",{"Ease In/Out","Linear","Hold"});
  choice(ps,motion,"ConflictPolicy","Existing keys",{"Cancel","Replace affected"});
+ color(ps,motion,"MotionTargetFill","Target Fill",.83,.69,.22);
+ number(ps,motion,"MotionTargetOpacity","Target Opacity",1,0,1,false);
+ number(ps,motion,"MotionTargetZoom","Target Zoom",4,.1,50,false);
+ number(ps,motion,"MotionTargetLongitude","Target Longitude",0,-180,180,false);
+ number(ps,motion,"MotionTargetLatitude","Target Latitude",0,-85,85,false);
+ number(ps,motion,"MotionTargetBearing","Target Bearing",0,-180,180,false);
+ number(ps,motion,"MotionTargetSize","Target Marker Size",14,0,128,false);
  button(ps,motion,"ApplyMotion","Apply Motion");
+ string(ps,motion,"MotionStatus","Motion status");
  page(ps,"ControlPage","Control",controls);
  page(ps,"MotionPage","Motion",motion);
  return kOfxStatOK;
@@ -411,6 +419,162 @@ OfxStatus render(OfxImageEffectHandle effect,OfxPropertySetHandle args,Type type
   output.put(output.x0+x,output.y1-1-y,canvas.pixel(x,y));
  return kOfxStatOK;
 }
+
+void logFailure(const std::string&reason) noexcept;
+struct KeyOperation {
+ std::string channel;
+ double at=0;
+ bool color=false;
+ std::array<double,4> rgba{0,0,0,1};
+ double value=0;
+};
+OfxStatus applyInspectorMotion(OfxImageEffectHandle effect,
+                              OfxPropertySetHandle input,Type type){
+ if(!input)return kOfxStatReplyDefault;
+ char *name=nullptr,*reason=nullptr;
+ if(prop->propGetString(input,kOfxPropName,0,&name)!=kOfxStatOK
+    ||!name||std::string(name)!="ApplyMotion")return kOfxStatReplyDefault;
+ if(prop->propGetString(input,kOfxPropChangeReason,0,&reason)!=kOfxStatOK
+    ||!reason||std::string(reason)!=kOfxChangeUserEdited)
+  return kOfxStatReplyDefault;
+
+ double time=0;
+ prop->propGetDouble(input,kOfxPropTime,0,&time);
+ int chosen=0,policy=0;
+ {
+  auto p=parameter(effect,"MotionPreset");
+  if(!p||param->paramGetValueAtTime(p,time,&chosen)!=kOfxStatOK)
+   throw std::runtime_error("Motion preset not available in Inspector");
+  p=parameter(effect,"ConflictPolicy");
+  if(p)param->paramGetValueAtTime(p,time,&policy);
+ }
+ const auto names=presetNames(type);
+ require(chosen>=0&&static_cast<std::size_t>(chosen)<names.size(),
+         "Invalid Motion selection");
+ const auto preset=names[static_cast<std::size_t>(chosen)];
+ const int start=static_cast<int>(numberAt(effect,"StartFrame",time,0))
+       +static_cast<int>(numberAt(effect,"Delay",time,0));
+ const int duration=static_cast<int>(numberAt(effect,"Duration",time,24));
+ require(start>=0&&duration>=1&&duration<=100000&&start+duration<1000000000,
+         "Invalid Motion timing");
+ const double first=static_cast<double>(start),last=first+duration;
+ std::vector<KeyOperation> writes;
+ auto scalar=[&](const char*id,double startValue,double endValue){
+  writes.push_back({id,first,false,{},startValue});
+  writes.push_back({id,last,false,{},endValue});
+ };
+ auto pulse=[&](const char*id,double a,double peak,double b){
+  writes.push_back({id,first,false,{},a});
+  writes.push_back({id,first+duration*.5,false,{},peak});
+  writes.push_back({id,last,false,{},b});
+ };
+ const auto base=[&](const char*id,double fallback){
+  return numberAt(effect,id,time,fallback);
+ };
+ const auto opacity=base("ObjectOpacity",1.);
+ if(type==Type::Map){
+  scalar("LayerOpacity",0,base("LayerOpacity",1));
+ }else if(type==Type::Region){
+  if(chosen==0)scalar("ObjectOpacity",0,opacity);
+  else if(chosen==1)scalar("ObjectOpacity",opacity,0);
+  else if(chosen==2||chosen==3){
+   const auto from=colorAt(effect,"Fill",time,{130,150,164,255});
+   const auto target=colorAt(effect,"MotionTargetFill",time,{212,175,55,255});
+   auto convert=[](Color c)->std::array<double,4>{
+    return {c.r/255.,c.g/255.,c.b/255.,c.a/255.};
+   };
+   writes.push_back({"Fill",first,true,convert(from),0});
+   writes.push_back({"Fill",chosen==3?first+1:last,true,convert(target),0});
+  }else if(chosen==4)scalar("StrokeProgress",0,1);
+  else if(chosen==5)pulse("HighlightStrength",0,1,0);
+ }else if(type==Type::Route){
+  if(chosen==0)scalar("DrawProgress",0,1);
+  else if(chosen==1)scalar("DrawProgress",1,0);
+  else scalar("FollowerProgress",0,1);
+ }else if(type==Type::Marker){
+  if(chosen==0)scalar("ObjectOpacity",0,opacity);
+  else {
+   const double size=base("Size",14);
+   pulse("Size",0,size*1.12,size);
+  }
+ }else if(type==Type::Camera){
+  const auto channel=[&](const char*id,const char*target){
+   scalar(id,base(id,0),base(target,0));
+  };
+  if(chosen==0||chosen==2){
+   channel("CenterLongitude","MotionTargetLongitude");
+   channel("CenterLatitude","MotionTargetLatitude");
+   channel("Zoom","MotionTargetZoom");
+   if(chosen==0)channel("Bearing","MotionTargetBearing");
+  }else channel("Zoom","MotionTargetZoom");
+ }
+ require(!writes.empty(),"Motion preset has no supported channels");
+
+ // Check all affected native OFX channels BEFORE writing any key. This
+ // includes manually authored keyframes that CartoRig does not own.
+ std::vector<OfxParamHandle> targets;
+ for(const auto&write:writes){
+  auto handle=parameter(effect,write.channel.c_str());
+  require(handle!=nullptr,"Motion parameter is not published");
+  targets.push_back(handle);
+ }
+ std::vector<OfxParamHandle> unique;
+ for(auto h:targets)
+  if(std::find(unique.begin(),unique.end(),h)==unique.end())
+   unique.push_back(h);
+ for(auto h:unique){
+  unsigned int count=0;
+  require(param->paramGetNumKeys(h,&count)==kOfxStatOK,
+          "Host cannot inspect existing native spline keys");
+  for(unsigned int i=0;i<count;++i){
+   OfxTime existingTime=0;
+   require(param->paramGetKeyTime(h,i,&existingTime)==kOfxStatOK,
+           "Host cannot inspect existing key time");
+   if(existingTime>=first&&existingTime<=last&&policy==0){
+    logFailure("Motion conflict: existing native keyframes. Cancelled.");
+    return kOfxStatFailed;
+   }
+  }
+ }
+ OfxParamSetHandle ps=nullptr;
+ require(fx->getParamSet(effect,&ps)==kOfxStatOK,"Motion param set missing");
+ require(param->paramEditBegin(ps,"CartoRig Apply Motion")==kOfxStatOK,
+         "Host cannot start Motion undo group");
+ bool good=false;
+ try{
+  if(policy!=0){
+   for(auto h:unique){
+    unsigned int count=0;
+    require(param->paramGetNumKeys(h,&count)==kOfxStatOK,
+            "Cannot enumerate key collisions");
+    for(int i=static_cast<int>(count)-1;i>=0;--i){
+     OfxTime old=0;
+     require(param->paramGetKeyTime(h,static_cast<unsigned int>(i),&old)==kOfxStatOK,
+             "Cannot inspect existing spline point");
+     if(old>=first&&old<=last)
+      require(param->paramDeleteKey(h,old)==kOfxStatOK,
+              "Cannot safely remove affected key");
+    }
+   }
+  }
+  for(std::size_t i=0;i<writes.size();++i){
+   const auto&key=writes[i];
+   OfxStatus status;
+   if(key.color){
+    status=param->paramSetValueAtTime(targets[i],key.at,
+       key.rgba[0],key.rgba[1],key.rgba[2],key.rgba[3]);
+   }else status=param->paramSetValueAtTime(targets[i],key.at,key.value);
+   require(status==kOfxStatOK,"Host rejected Motion spline key");
+  }
+  good=true;
+ }catch(...){
+  param->paramEditEnd(ps);
+  throw;
+ }
+ require(param->paramEditEnd(ps)==kOfxStatOK&&good,
+         "Failed to close native host Motion undo group");
+ return kOfxStatOK;
+}
 OfxStatus onLoad(){
  if(!host||!host->fetchSuite)return kOfxStatErrMissingHostFeature;
  fx=static_cast<const OfxImageEffectSuiteV1*>(host->fetchSuite(
@@ -436,6 +600,8 @@ OfxStatus action(Type type,const char*name,const void*handle,
    return describeContext((OfxImageEffectHandle)handle,type);
   if(!std::strcmp(name,kOfxImageEffectActionRender))
    return render((OfxImageEffectHandle)handle,input,type);
+  if(!std::strcmp(name,kOfxActionInstanceChanged))
+   return applyInspectorMotion((OfxImageEffectHandle)handle,input,type);
   if(!std::strcmp(name,kOfxActionCreateInstance)||
      !std::strcmp(name,kOfxActionDestroyInstance))return kOfxStatOK;
   return kOfxStatReplyDefault;
