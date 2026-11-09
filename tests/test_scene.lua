@@ -76,7 +76,11 @@ function C:AddTool(k,x,y)
     local node=T.new(k);self.nodes[#self.nodes+1]=node
     return node
 end
-function C:StartUndo(title)self.undos=self.undos+1;return true end
+function C:StartUndo(title)
+    if self.rejectStartUndo then return false end
+    self.undos=self.undos+1
+    return true
+end
 function C:EndUndo(ok)return true end
 function C:SetActiveTool(node)self.active=node;return true end
 function C:GetAttrs()return {COMPS_Name="Test composition"}end
@@ -106,6 +110,15 @@ check(api.isInitialized(),"renaming a CartoRig node must retain its stable role/
 check(api.state()=="SCENE_EMPTY","manual node rename does not break scene state")
 persistedMap:SetAttrs({TOOLS_Name="CR_Base_Map"})
 check(#api.objects()==2,"Base Map and Camera are sole defaults")
+local initialNodes=#comp:GetToolList()
+local initialUndoCount=comp.undos
+comp.rejectStartUndo=true
+local admitted,undoError=pcall(function()api.addGroup("Must not be created")end)
+comp.rejectStartUndo=false
+check(not admitted and tostring(undoError):find("refused to start Undo") and
+      #comp:GetToolList()==initialNodes and
+      #api.objects()==2 and comp.undos==initialUndoCount,
+      "Fusion Undo rejection blocks edits and does not leave orphan nodes")
 check(comp:FindTool("CR_Stack_Output")~=nil,"output created")
 local mediaOut=comp:FindTool("MediaOut1")
 local stack=comp:FindTool("CR_Stack_Output")
