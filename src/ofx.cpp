@@ -105,7 +105,11 @@ OfxPropertySetHandle def(OfxParamSetHandle ps,const char*type,
  OfxPropertySetHandle d=nullptr;
  require(param->paramDefine(ps,type,name,&d)==kOfxStatOK,"OFX parameter definition failed");
  setString(d,kOfxPropLabel,label);
- setInt(d,kOfxParamPropAnimates,animate?1:0);
+ // Pages and buttons are layout/actions rather than animation channels.
+ // Do not write kOfxParamPropAnimates on descriptors that are not animatable.
+ if(std::strcmp(type,kOfxParamTypeDouble)==0||
+    std::strcmp(type,kOfxParamTypeRGBA)==0)
+  setInt(d,kOfxParamPropAnimates,animate?1:0);
  return d;
 }
 void number(OfxParamSetHandle ps,std::vector<std::string>&names,
@@ -311,6 +315,13 @@ OfxStatus describeContext(OfxImageEffectHandle e,Type type){
  string(ps,motion,"MotionStatus","Motion status");
  page(ps,"ControlPage","Control",controls);
  page(ps,"MotionPage","Motion",motion);
+ // Explicitly order the two native Inspector tabs per OpenFX page contract.
+ // Declaring two Page parameters alone does not guarantee host page order.
+ OfxPropertySetHandle pageOrder=nullptr;
+ require(param->paramSetGetPropertySet(ps,&pageOrder)==kOfxStatOK,
+         "OFX parameter set descriptor properties unavailable");
+ setString(pageOrder,kOfxPluginPropParamPageOrder,"ControlPage",0);
+ setString(pageOrder,kOfxPluginPropParamPageOrder,"MotionPage",1);
  return kOfxStatOK;
 }
 OfxParamHandle parameter(OfxImageEffectHandle e,const char*name){
