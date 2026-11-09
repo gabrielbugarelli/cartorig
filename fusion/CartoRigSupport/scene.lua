@@ -209,7 +209,10 @@ end
 function M.select(id)
     local composition=current()
     local entry=objectFor(composition,id)
-    trySelect(composition,entry.node)
+    if not trySelect(composition,entry.node) then
+        error("Fusion could not activate the selected CartoRig node. "..
+              "Use Reveal Node or select it directly in the Node Editor.",2)
+    end
     return entry
 end
 local function maxOrder(composition)
