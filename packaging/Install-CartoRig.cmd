@@ -8,6 +8,16 @@ if not exist "%SOURCE%\src\cartorig\scene.lua" (
   echo Missing source files. Extract the complete package before installing.
   pause & exit /b 1
 )
+for %%F in (CartoRigBase.fuse CartoRigRegion.fuse) do (
+  if not exist "%SOURCE%\fuses\%%F" (
+    echo ERROR: Missing required renderer %%F. No files were installed.
+    pause & exit /b 1
+  )
+)
+if not exist "%SOURCE%\data\manifest.json" (
+  echo ERROR: Offline dataset manifest missing. No files were installed.
+  pause & exit /b 1
+)
 if not exist "%TARGET%" mkdir "%TARGET%"
 if not exist "%TARGET%\CartoRig" mkdir "%TARGET%\CartoRig"
 copy /Y "%SOURCE%\fusion\CartoRig Scene.lua" "%TARGET%\CartoRig Scene.lua" >nul

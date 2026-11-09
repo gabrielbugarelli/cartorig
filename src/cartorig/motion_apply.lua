@@ -96,8 +96,22 @@ function M.apply(host,object,plan)
       cameraCenter[#cameraCenter+1]={frame=lon[i].frame,value=normalized_pose({longitude=lon[i].value,latitude=lat[i].value,zoom=zoom[i].value})}
     end
   end
-  -- Special native pairing: a Camera that changes only Zoom can use the Size input directly.
-  -- Longer term, a shared geometry Fuse will own lon/lat independently in the Inspector.
+  -- Transform.Center is screen-space, not a geographic longitude/latitude.
+  -- When Size changes while Focus stays fixed, Center MUST also change so that
+  -- a fixed WGS84 point remains at the viewport centre throughout the Zoom.
+  -- Do not modify an existing manually-animated Center without user consent.
+  if object.kind=='Camera' and plan.channels.zoom and not cameraCenter then
+    local camera=active_tool(host,object,{tool='object'})
+    if camera:GetData('CartoRig.V2.Animated.Center')==true then
+      fail('Zoom To would overwrite an existing camera Center animation; operation blocked')
+    end
+    cameraCenter={}
+    for _,key in ipairs(plan.channels.zoom) do
+      cameraCenter[#cameraCenter+1]={frame=key.frame,value=normalized_pose({
+        longitude=object.style.longitude,latitude=object.style.latitude,zoom=key.value,
+      })}
+    end
+  end
   local comp=host.comp
   local started=false
   if comp.StartUndo then comp:StartUndo('CartoRig: '..tostring(plan.presetId));started=true end

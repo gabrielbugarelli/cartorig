@@ -87,6 +87,7 @@ function M.prepare(object,preset_id,opts,existing)
     if not object.route or not object.route.followerId then fail('Follow Path requires an existing linked marker') end
     ramp('followerProgress',0,100)
   elseif preset_id=='MO-MRK-02' then
+    if duration<2 then fail('Pop In requires at least 2 frames for start, peak and final keys') end
     local size=object.style.size
     plan_channel(channels,'size',{key(first,0),key(first+math.floor(duration*0.7),size*1.15),key(last,size)})
   elseif preset_id=='MO-CAM-01' or preset_id=='MO-CAM-03' then

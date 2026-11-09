@@ -13,6 +13,8 @@
 | Region/Marker/Label/Route native tools | PASS mock host | NOT RUN | OPEN |
 | Persistence-failure rollback without touching other nodes | PASS mock host | NOT RUN | OPEN |
 | RGB/Opacity/Size/Draw/Camera native keys (supported channels) | PASS mock host | NOT RUN | OPEN |
+| Camera Zoom-only preserving fixed geoanchor at keyed poses; manual Center collision prevention | PASS mock + mathematical contract | NOT RUN; between-key easing drift requires host QA | OPEN |
+| Motion Pop In minimum duration (3 distinct keyframes) | PASS boundary unit contract | NOT RUN | OPEN |
 | Experimental Fuse with Control/Motion Inspector pages, premultiplied alpha pass | PASS callback mock | NOT RUN | OPEN |
 | Region authorial Fuse: color picker, object opacity, highlight and native color/opacity/highlight keys | PASS callback + graph mock incl. 2-island geometry and rollback | NOT RUN | OPEN |
 | Base Map authorial Fuse: ocean-only background, Full Map / Transparent Overlay and Ocean Fade | PASS callback + graph mock incl. alpha 0 and fail-closed unsupported Land | NOT RUN | OPEN |
