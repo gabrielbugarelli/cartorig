@@ -23,6 +23,20 @@ jobs:
         run: ctest --test-dir build -C Release --output-on-failure
       - name: Natural Earth offline fixture tests
         run: python -m unittest discover -s tests -p "test_builder.py" -v
+      - name: Stage Windows OFX binary
+        shell: pwsh
+        run: |
+          $binary=Get-ChildItem -Path build -Recurse -Filter CartoRigFusion.ofx -File | Select-Object -First 1
+          if(-not $binary){throw "CartoRig OFX not compiled"}
+          New-Item -ItemType Directory -Force -Path stage-ofx | Out-Null
+          Copy-Item -LiteralPath $binary.FullName -Destination stage-ofx/CartoRigFusion.ofx
+      - name: Save Windows OFX artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: CartoRig-Fusion-RC1-OFX-Windows
+          path: stage-ofx/CartoRigFusion.ofx
+          if-no-files-found: error
+          retention-days: 7
   linux:
     runs-on: ubuntu-24.04
     steps:
@@ -66,7 +80,6 @@ jobs:
         run: ctest --test-dir build-sanitize --output-on-failure
   publisher-data:
     runs-on: ubuntu-24.04
-    if: github.event_name == 'workflow_dispatch'
     steps:
       - uses: actions/checkout@v4
       - name: Acquire Natural Earth 10m during package build ONLY
@@ -81,3 +94,61 @@ jobs:
           path: dist/data/
           retention-days: 7
           if-no-files-found: error
+
+  packaging-windows:
+    needs: [windows, publisher-data]
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download official Natural Earth bundle
+        uses: actions/download-artifact@v4
+        with:
+          name: CartoRig-Fusion-RC1-NaturalEarth10m
+          path: incoming/data
+      - name: Download compiled Windows OFX
+        uses: actions/download-artifact@v4
+        with:
+          name: CartoRig-Fusion-RC1-OFX-Windows
+          path: incoming/native
+      - name: Assemble offline Windows installer ZIP
+        shell: pwsh
+        run: |
+          $root='package'
+          $contents=Join-Path $root 'CartoRigFusion.ofx.bundle/Contents'
+          $resources=Join-Path $contents 'Resources/data'
+          $binary=Join-Path $contents 'Win64'
+          $scripts=Join-Path $root 'Fusion/Scripts/Comp'
+          New-Item -ItemType Directory -Force -Path $resources,$binary,$scripts | Out-Null
+          Copy-Item -LiteralPath 'incoming/native/CartoRigFusion.ofx' -Destination (Join-Path $binary 'CartoRigFusion.ofx')
+          foreach($file in @('catalog.tsv','geometry.crgeo','manifest.json')){
+            Copy-Item -LiteralPath (Join-Path 'incoming/data' $file) -Destination (Join-Path $resources $file)
+          }
+          Copy-Item -LiteralPath 'fusion/CartoRig Scene.lua' -Destination (Join-Path $scripts 'CartoRig Scene.lua')
+          Copy-Item -LiteralPath 'fusion/CartoRigSupport' -Destination (Join-Path $scripts 'CartoRigSupport') -Recurse
+          Copy-Item -LiteralPath 'install/Install-CartoRig.ps1' -Destination (Join-Path $root 'Install-CartoRig.ps1')
+          Copy-Item -LiteralPath 'install/Install-CartoRig.cmd' -Destination (Join-Path $root 'Install-CartoRig.cmd')
+          Copy-Item -LiteralPath README.md -Destination (Join-Path $root 'README.md')
+          $sha=([string]$env:GITHUB_SHA).Substring(0,10)
+          $name="CartoRig-Fusion-RC1-Development-$sha.zip"
+          Compress-Archive -Path (Join-Path $root '*') -DestinationPath $name -CompressionLevel Optimal
+          Add-Type -AssemblyName System.IO.Compression
+          $zip=[System.IO.Compression.ZipFile]::OpenRead((Join-Path (Get-Location) $name))
+          try {
+            $paths=@($zip.Entries | ForEach-Object FullName)
+            foreach($must in @('Install-CartoRig.cmd','Install-CartoRig.ps1',
+              'CartoRigFusion.ofx.bundle/Contents/Win64/CartoRigFusion.ofx',
+              'CartoRigFusion.ofx.bundle/Contents/Resources/data/manifest.json',
+              'CartoRigFusion.ofx.bundle/Contents/Resources/data/geometry.crgeo',
+              'CartoRigFusion.ofx.bundle/Contents/Resources/data/catalog.tsv',
+              'Fusion/Scripts/Comp/CartoRig Scene.lua',
+              'Fusion/Scripts/Comp/CartoRigSupport/scene.lua')){
+              if($paths -notcontains $must){throw "Missing packaged path: $must"}
+            }
+          } finally { $zip.Dispose() }
+      - name: Publish development package (not a stable RC)
+        uses: actions/upload-artifact@v4
+        with:
+          name: CartoRig-Fusion-RC1-Development-Windows
+          path: CartoRig-Fusion-RC1-Development-*.zip
+          if-no-files-found: error
+          retention-days: 7
