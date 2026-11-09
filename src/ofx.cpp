@@ -163,7 +163,7 @@ void page(OfxParamSetHandle ps,const char*id,const char*label,
   setString(d,kOfxParamPropPageChild,names[i].c_str(),static_cast<int>(i));
 }
 void commonCamera(OfxParamSetHandle ps,std::vector<std::string>&n){
- number(ps,n,"CameraLongitude","Camera Longitude",0,-180,180);
+ number(ps,n,"CameraLongitude","Camera Longitude",0,-540,540);
  number(ps,n,"CameraLatitude","Camera Latitude",0,-85,85);
  number(ps,n,"CameraZoom","Camera Zoom",1,.1,50);
  number(ps,n,"CameraBearing","Camera Bearing",0,-180,180);
@@ -290,7 +290,7 @@ OfxStatus describeContext(OfxImageEffectHandle e,Type type){
   color(ps,controls,"HaloColor","Halo Color",11./255,22./255,33./255);
   number(ps,controls,"HaloWidth","Halo Width (px)",2,0,20);
  }else if(type==Type::Camera){
-  number(ps,controls,"CenterLongitude","Center Longitude",0,-180,180);
+  number(ps,controls,"CenterLongitude","Center Longitude",0,-540,540);
   number(ps,controls,"CenterLatitude","Center Latitude",0,-85,85);
   number(ps,controls,"Zoom","Zoom",1,.1,50);
   number(ps,controls,"Bearing","Bearing",0,-180,180);
@@ -323,6 +323,8 @@ OfxStatus describeContext(OfxImageEffectHandle e,Type type){
  number(ps,motion,"MotionTargetLongitude","Target Longitude",0,-180,180,false);
  number(ps,motion,"MotionTargetLatitude","Target Latitude",0,-85,85,false);
  number(ps,motion,"MotionTargetBearing","Target Bearing",0,-180,180,false);
+ if(type==Type::Camera)
+   boolean(ps,motion,"AnimateBearing","Animate Bearing (opt-in)",false);
  number(ps,motion,"MotionTargetSize","Target Marker Size",14,0,128,false);
  button(ps,motion,"ApplyMotion","Apply Motion");
  string(ps,motion,"MotionStatus","Motion status");
@@ -723,13 +725,22 @@ OfxStatus applyInspectorMotion(OfxImageEffectHandle effect,
   }
  }else if(type==Type::Camera){
   const auto channel=[&](const char*id,const char*target){
-   scalar(id,base(id,0),base(target,0));
+   const double from=base(id,0);
+   const double desired=base(target,0);
+   const double endLongitude=(std::strcmp(id,"CenterLongitude")==0)?
+      from+std::remainder(desired-from,360.):desired;
+   require(std::isfinite(endLongitude)&&
+           (std::strcmp(id,"CenterLongitude")!=0||
+            std::abs(endLongitude)<=540),
+           "Fly To target longitude is out of representable spline range");
+   scalar(id,from,endLongitude);
   };
   if(chosen==0||chosen==2){
    channel("CenterLongitude","MotionTargetLongitude");
    channel("CenterLatitude","MotionTargetLatitude");
    channel("Zoom","MotionTargetZoom");
-   if(chosen==0)channel("Bearing","MotionTargetBearing");
+   if(chosen==0&&flagAt(effect,"AnimateBearing",time,false))
+     channel("Bearing","MotionTargetBearing");
   }else channel("Zoom","MotionTargetZoom");
  }
  require(!writes.empty(),"Motion preset has no supported channels");
