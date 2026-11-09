@@ -15,7 +15,7 @@ function mock:AddControlPage(name)pages[#pages+1]=name end
 function mock:AddInput(name,id,attrs)
   local input={id=id,value=attrs.INP_Default,attrs=attrs}
   function input:GetValue(req)
-    if id=='Input' then return self.image end
+    if id=='Input' or id=='StrokeInput' then return self.image end
     return {Value=self.value}
   end
   inputs[id]=input

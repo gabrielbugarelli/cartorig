@@ -58,6 +58,28 @@ function Create()
     LINKID_DataType='Number',INPID_InputControl='SliderControl',INP_Default=0,
     INP_MinScale=0,INP_MaxScale=1,INP_MinAllowed=0,INP_MaxAllowed=1,
   })
+  -- Stroke is a separate premultiplied border image, not a second Fill.
+  -- The geographic host supplies its contour matte through StrokeInput.
+  InStrokeR=self:AddInput('Stroke Red','StrokeRed',{
+    LINKID_DataType='Number',INPID_InputControl='ColorControl',INP_Default=0.843,
+    INP_MinScale=0,INP_MaxScale=1,IC_ControlGroup=23,IC_ControlID=0,
+  })
+  InStrokeG=self:AddInput('Stroke Green','StrokeGreen',{
+    LINKID_DataType='Number',INPID_InputControl='ColorControl',INP_Default=0.878,
+    INP_MinScale=0,INP_MaxScale=1,IC_ControlGroup=23,IC_ControlID=1,
+  })
+  InStrokeB=self:AddInput('Stroke Blue','StrokeBlue',{
+    LINKID_DataType='Number',INPID_InputControl='ColorControl',INP_Default=0.906,
+    INP_MinScale=0,INP_MaxScale=1,IC_ControlGroup=23,IC_ControlID=2,
+  })
+  InStrokeAlpha=self:AddInput('Stroke Alpha','StrokeAlpha',{
+    LINKID_DataType='Number',INPID_InputControl='SliderControl',INP_Default=1,
+    INP_MinScale=0,INP_MaxScale=1,INP_MinAllowed=0,INP_MaxAllowed=1,
+  })
+  InStrokeVisible=self:AddInput('Stroke Visible','StrokeVisible',{
+    LINKID_DataType='Number',INPID_InputControl='CheckboxControl',INP_Default=1,
+    INP_Integer=true,
+  })
   -- The Motion tab exposes the SAME channels rather than introducing a second
   -- invisible keyframe store. CloneInput is a native Fuse SDK feature.
   self:AddControlPage('Motion')
@@ -65,6 +87,9 @@ function Create()
   self:CloneInput(InHighlightStrength,'MotionHighlight',{INP_DoNotifyChanged=false,INP_InteractivePassive=true})
   InImage=self:AddInput('White Region Mask','Input',{
     LINKID_DataType='Image',LINK_Main=1,INP_Required=true,
+  })
+  InStrokeImage=self:AddInput('White Stroke Matte','StrokeInput',{
+    LINKID_DataType='Image',LINK_Main=2,INP_Required=false,
   })
   OutImage=self:AddOutput('Output','Output',{LINKID_DataType='Image',LINK_Main=1})
 end
@@ -83,5 +108,15 @@ function Process(req)
   -- Input is white premultiplied by geographic mask coverage; gain by RGB and
   -- alpha together to retain correct premultiplied RGBA on anti-aliased edges.
   out:Gain(r,g,b,opacity)
+  -- A fully independent border is composited ABOVE Fill; its alpha does not
+  -- change Fill Alpha or the Region's object-wide opacity channel.
+  local border=InStrokeImage:GetValue(req)
+  if border and number(InStrokeVisible,req)>=0.5 then
+    local stroke=border:Copy()
+    local alpha=number(InStrokeAlpha,req)*number(InOpacity,req)
+    stroke:Gain(number(InStrokeR,req)*alpha,number(InStrokeG,req)*alpha,
+      number(InStrokeB,req)*alpha,alpha)
+    out:Merge(stroke,{MO_ApplyMode='Merge',MO_ApplyOperator='Over'})
+  end
   OutImage:Set(req,out)
 end
