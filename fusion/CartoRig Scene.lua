@@ -294,15 +294,37 @@ local function refresh()
     return tostring(#objects).." CartoRig objects · "..state
 end
 local function perform(action)
-    if locked then return end
+    if locked then
+        item.Status.Text="BUSY: finish or cancel the current Scene operation."
+        return
+    end
     locked=true
-    item.Status.Text="Working..."
+    item.Status.Text="BUSY: applying Scene operation..."
     local ok,result=pcall(action)
     if ok then
         item.Status.Text="Status: "..tostring(result or "Applied.")
     else
-        item.Status.Text="Not applied: "..tostring(result)
-        print("[CartoRig Scene] "..tostring(result))
+        local full=tostring(result)
+        -- Do not reveal internal stack traces or local filesystem paths in
+        -- the editor. Keep full detail only in developer diagnostic logs.
+        local message=full:gsub("^.-%.lua:%d+:%s*","")
+                          :gsub("[\r\n]+"," ")
+        message=message:sub(1,280)
+        local code="HOST_ERROR"
+        if full:find("WRONG_CONTEXT",1,true) or
+           full:find("Active composition changed",1,true) then
+            code="WRONG_CONTEXT"
+        elseif full:find("SCENE_BROKEN",1,true) or
+               full:find("scene is broken",1,true) then
+            code="SCENE_BROKEN"
+        elseif full:find("locked",1,true) or full:find("Locked",1,true) then
+            code="LOCKED"
+        elseif full:find("No current Fusion composition",1,true) or
+               full:find("NO_COMP",1,true) then
+            code="NO_COMP"
+        end
+        item.Status.Text=code..": "..message
+        print("[CartoRig Scene] "..full)
     end
     locked=false
 end
