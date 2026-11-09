@@ -88,6 +88,10 @@ file:write("ne_10m_admin_0_countries:1\tcountry\tBrazil\tSouth America\tbrazil|b
 file:write("ne_10m_admin_1_states_provinces:22\tstate\tRio de Janeiro\tBrazil\trio de janeiro\t-45\t-25\t-40\t-20\t107\t88\n")
 file:write("ne_10m_populated_places:3\tcity\tSão Paulo\tBrazil\tsao paulo\t-46.63\t-23.55\t-46.63\t-23.55\t195\t44\n")
 file:close()
+local manifest=assert(io.open(data.."/manifest.json","wb"))
+local fakeSha=string.rep("a",64)
+manifest:write('{"format":"CRG1","geometry_sha256":"'..fakeSha..'"}')
+manifest:close()
 _G.CARTORIG_TEST_DATA=data
 comp=C.new()
 local api=dofile("fusion/CartoRigSupport/scene.lua")
@@ -130,6 +134,10 @@ check(#api.objects()==3,"region appended without editing other objects")
 local selected=api.select(id)
 check(comp.active==selected.node,"node selected for native Inspector")
 check(selected.feature==state[1].id,"feature reference persisted")
+check(api.datasetFingerprint()==fakeSha,
+      "Natural Earth active bundle fingerprint available offline")
+check(selected.node:GetInput("DatasetFingerprint")==fakeSha,
+      "New Region carries immutable source-data fingerprint for QA-28")
 selected.node:SetInput("Fill",{1,0,0,1})
 selected.node.frames={ObjectOpacity={[100]=0,[124]=1}}
 local copiedId=api.duplicate(id)
