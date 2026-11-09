@@ -366,6 +366,38 @@ function M.addMarker(location)
         return meta(node,"ObjectId")
     end)
 end
+function M.addLabel(location,text)
+    if type(location)~="table" or
+       (location.kind~="city" and location.kind~="custom_point") or
+       not location.bounds then
+        error("Text labels must use a city or explicitly chosen point",2)
+    end
+    text=tostring(text or location.name or "")
+    if #text<1 or #text>250 or text:find("[%z\1-\8]") then
+        error("Label text must contain valid printable Unicode characters",2)
+    end
+    local b=location.bounds
+    local lon=(b[1]+b[3])/2
+    local lat=(b[2]+b[4])/2
+    local composition=current()
+    getCore(composition)
+    return transaction(composition,"CartoRig: Add Label",function()
+        local node=newTool(composition,"ofx.com.cartorig.fusionrc1.label",
+                           "Label",4,maxOrder(composition))
+        local ok,err=pcall(function()
+            input(node,"StyledText",text)
+            input(node,"PointLongitude",lon)
+            input(node,"PointLatitude",lat)
+            bindCamera(node)
+            setObjectData(composition,node,"Label",
+                          "Label: "..text,location.id,location.kind)
+            rewire(composition)
+        end)
+        if not ok then pcall(function()node:Delete()end);error(err)end
+        trySelect(composition,node)
+        return meta(node,"ObjectId")
+    end)
+end
 function M.addCustomPoint(lon,lat,label)
     lon=tonumber(lon);lat=tonumber(lat)
     if not lon or not lat or lon<-180 or lon>180 or lat<-85 or lat>85 then
