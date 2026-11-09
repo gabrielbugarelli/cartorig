@@ -271,6 +271,9 @@ function M.connectOutput()
         error("Cannot inspect MediaOut input safely; existing connection preserved",2)
     end
     local old=media.Input:GetConnectedOutput()
+    if old==stack or (stack.Output and old==stack.Output) then
+        return "CartoRig already connected to MediaOut."
+    end
     if old then
         -- Resolve may return an Output object whose owner is unavailable.
         -- We only operate on it by passing the original Output to Fusion.
