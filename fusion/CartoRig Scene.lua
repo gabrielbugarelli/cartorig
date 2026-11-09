@@ -22,6 +22,7 @@ local function run()
   local Writer=module('motion_apply')
   local Authoring=module('authoring')
   local GraphOps=module('graph_ops')
+  local SceneOps=module('scene_ops')
   local Manifest=module('manifest')
   local fus=rawget(_G,'fusion') or rawget(_G,'fu')
   local comp=rawget(_G,'comp')
@@ -31,7 +32,7 @@ local function run()
   local ui=fus and fus.UIManager
   if not ui or not bridge or type(bridge.UIDispatcher)~='function' then error('Resolve Fusion UIManager is unavailable') end
   local bundleId=Manifest.load(dir..'/CartoRig/data/manifest.json',Json).id
-  local engine=Authoring.new(comp,{Scene=Scene,Repository=Repository,Json=Json,Host=Host,Objects=Objects,Geo=Geo,Motion=Motion,Writer=Writer,GraphOps=GraphOps},bridge,bundleId)
+  local engine=Authoring.new(comp,{Scene=Scene,Repository=Repository,Json=Json,Host=Host,Objects=Objects,Geo=Geo,Motion=Motion,Writer=Writer,GraphOps=GraphOps,SceneOps=SceneOps},bridge,bundleId)
   local host=engine.host
   local entries={};local results={};local displayed={}
   local state=engine:current()
@@ -66,6 +67,7 @@ local function run()
       ui:Tree{ID='CR_Results',ColumnCount=1,SortingEnabled=false,MinimumSize={320,160}},
       ui:HGroup{ui:Button{ID='CR_AddRegion',Text='Add as Region'},ui:Button{ID='CR_AddMarker',Text='Add Marker'},ui:Button{ID='CR_AddLabel',Text='Add Label'}},
       ui:HGroup{ui:Button{ID='CR_RouteFrom',Text='Route From'},ui:Button{ID='CR_RouteTo',Text='Route To'},ui:Button{ID='CR_CreateRoute',Text='Create Route'}},
+      ui:Button{ID='CR_UpdateRoute',Text='Update Selected Route Endpoints'},
       ui:Label{ID='CR_RouteState',Text='Route: choose explicit point endpoints'},
       ui:Label{Text='SCENE OBJECTS'},
       ui:Tree{ID='CR_Objects',ColumnCount=1,SortingEnabled=false,MinimumSize={320,200}},
@@ -190,6 +192,18 @@ local function run()
       local draft,object=engine:add_route(routeFrom,routeTo)
       state=draft;refresh_objects()
       return 'Added Route '..object.id..' with native Fusion line mask.'
+    end)
+  end
+  win.On.CR_UpdateRoute.Clicked=function()
+    guarded(function()
+      if not selected_id then error('Select an existing Route in Scene objects') end
+      if not routeFrom or not routeTo then error('Select explicit Route From and Route To endpoints first') end
+      local current=engine:current()
+      local object=Scene.get(current,selected_id)
+      if not object or object.kind~='Route' then error('Selected object is not a Route') end
+      state=engine:update_route(selected_id,{from=routeFrom,to=routeTo})
+      refresh_objects()
+      return 'Updated Route geometry in its existing Fusion mask; Draw Progress keys preserved.'
     end)
   end
   win.On.CR_Reveal.Clicked=function()

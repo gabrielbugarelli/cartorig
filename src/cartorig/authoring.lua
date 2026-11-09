@@ -126,6 +126,32 @@ function A:set_visible(id,visible)
   end
   return draft
 end
+-- Updating endpoints/waypoints affects the existing native geographic
+-- mask; it does NOT remove the mask or overwrite its Draw Progress spline.
+function A:update_route(id,changes)
+  local previous,draft=mutation_draft(self)
+  if type(changes)~='table' then fail('Route changes must be explicit') end
+  for key in pairs(changes) do
+    if key=='followerId' then fail('Follower reassignment requires a separate validated operation') end
+  end
+  if not self.m.SceneOps or type(self.m.SceneOps.update_route)~='function' then
+    fail('Route geometry editor unavailable')
+  end
+  local object=self.m.SceneOps.update_route(draft,id,changes)
+  self.m.Scene.validate(draft)
+  local pts=self.m.Geo.route_samples(object.route,48)
+  local prior=self.m.Scene.get(previous,id)
+  local undoGeometry=self.host:update_route_mask(previous,prior,pts)
+  local ok,err=pcall(function()
+    self.m.Repository.write(self.comp,draft,self.m.Scene,self.m.Json)
+  end)
+  if not ok then
+    local restored,why=pcall(undoGeometry)
+    if not restored then fail('Route metadata write failed AND native rollback failed; stop editing: '..tostring(why)) end
+    fail('Route update not persisted; prior geometry restored: '..tostring(err))
+  end
+  return draft
+end
 -- Draw order changes MUST update the actual native Fusion composite chain,
 -- not merely the Scene tree. Persist only after graph rewiring succeeds.
 function A:reorder(id,newIndex)

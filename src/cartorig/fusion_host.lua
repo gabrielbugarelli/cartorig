@@ -259,6 +259,47 @@ function H:_make_polyline_mask(ring,name,closed)
   end
   return mask
 end
+-- Edit a Route in place rather than reconstructing its graph. Keeping the
+-- PolylineMask tool preserves native WriteLength/BezierSpline animation.
+-- The old native Polyline is saved for recovery if metadata persistence fails.
+function H:update_route_mask(scene,object,points)
+  if not scene or not object or object.kind~='Route' then fail('Route identity required') end
+  if type(points)~='table' or #points<2 or #points>8192 then fail('Route sample budget exceeded') end
+  local ring={}
+  for i,p in ipairs(points) do
+    if type(p)~='table' then fail('invalid geographic route point') end
+    ring[i]={p.lon,p.lat}
+    if i>1 and math.abs(p.lon-points[i-1].lon)>180 then
+      fail('Route crosses the antimeridian; editing refused without safe seam-splitting')
+    end
+  end
+  local polySource=mask_settings(ring,false)
+  if not self.bridge or type(self.bridge.readstring)~='function' then fail('Fusion geometry parser unavailable') end
+  local ok,newPolyline=pcall(function()return self.bridge.readstring(polySource)end)
+  if not ok or not newPolyline then fail('Fusion rejected new Route geometry') end
+  local mask=object.maskToolRef and find(self.comp,object.maskToolRef)
+  if not mask or mask:GetData('CartoRig.V2.Owned')~=true
+    or mask:GetData('CartoRig.V2.SceneId')~=scene.id
+    or mask:GetData('CartoRig.V2.ObjectId')~=object.id
+    or mask:GetData('CartoRig.V2.Kind')~='InternalMask' then
+    fail('Route mask identity is broken; refusing to edit')
+  end
+  if type(mask.GetInput)~='function' then fail('Fusion cannot snapshot the existing Route geometry') end
+  local oldOk,oldPolyline=pcall(function()return mask:GetInput('Polyline')end)
+  if not oldOk or oldPolyline==nil then fail('Fusion cannot recover old Route geometry; editing refused') end
+  local written,result=pcall(function()return mask:SetInput('Polyline',newPolyline)end)
+  if not written or result==false then
+    pcall(function()mask:SetInput('Polyline',oldPolyline)end)
+    fail('Fusion refused new Route geometry; original geometry restored where supported')
+  end
+  return function()
+    local restored,success=pcall(function()return mask:SetInput('Polyline',oldPolyline)end)
+    if not restored or success==false then
+      fail('Route rollback failed; stop editing and recover a project copy')
+    end
+    return true
+  end
+end
 -- Polygon = outer ring + optional interior rings. The Fusion PolygonMask
 -- effect-mask chain uses PaintMode=Subtract for each hole. A single result
 -- mask represents the whole polygon, including its cutouts.

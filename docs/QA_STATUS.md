@@ -55,3 +55,16 @@
 **Not certified:** Actual `GetConnectedOutput`, disconnected sockets, Undo,
 reordering/rendering and save/reopen in DaVinci Resolve Studio 20. CI cannot
 substitute for those host gates.
+
+## 2026-11-09 — Route spatial update without replacing native spline
+
+| Verification | Automated | Windows Resolve Studio 20 |
+| --- | --- | --- |
+| Edit Route endpoints and waypoints in existing PolylineMask | PASS `test_native_draw_order.lua` | NOT RUN |
+| Keep existing WriteLength keys and exact mask identity | PASS | NOT RUN |
+| Reject unsupported antimeridian change before mutation | PASS | NOT RUN |
+| Reject missing ability to snapshot native Polyline for rollback | Guard coded, host evidence pending | NOT RUN |
+| Restore previous Polyline when Scene state persistence fails | PASS | NOT RUN |
+
+**Required host follow-up:** Test native `GetInput('Polyline')`/`SetInput` round-trip
+on PolygonMask with a keyframed WriteLength channel. No QA gate is marked DONE.

@@ -115,3 +115,16 @@ selectable, and a newly added object still attaches to the correct output.
 These are automated *mock-Fusion* contracts, not proof of native Resolve 20
 compatibility. Run `CartoRig Host Diagnostics` on a disposable composition
 and validate reorder/save/reopen visually before production use.
+
+### Edit an existing Route without losing Draw Progress (preview)
+
+With a Route selected, use the Scene `Route From` and `Route To` location
+selectors and click **Update Selected Route Endpoints**. This changes only the
+existing native Fusion PolylineMask's spatial path. The same tool and its
+`WriteLength` keyframes stay in place. The domain command additionally supports
+explicit waypoints, `Straight`/`Curved` and `Curvature` changes. Native geometry
+is snapshotted through `GetInput('Polyline')` before any edit; when it cannot
+be read, CartoRig refuses the operation rather than risking an irreversible
+edit. Unsupported antimeridian routes fail before mutation. On metadata-write
+failure, the previous mask geometry is restored. This integration is tested
+with a simulated Fusion host, **not yet validated in Resolve Studio 20**.

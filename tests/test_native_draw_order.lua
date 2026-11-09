@@ -4,7 +4,7 @@ local root=assert(arg[1])
 local function load(n)return dofile(root..'/src/cartorig/'..n..'.lua')end
 local m={Scene=load('scene'),Repository=load('repository'),Json=load('json'),
  Host=load('fusion_host'),Objects=load('fusion_objects'),Geo=load('geo'),
- Motion=load('motion'),Writer=load('motion_apply'),GraphOps=load('graph_ops')}
+ Motion=load('motion'),Writer=load('motion_apply'),GraphOps=load('graph_ops'),SceneOps=load('scene_ops')}
 local Author=load('authoring')
 local comp={nodes={},data={},refuse=nil,fail_store=false}
 local T={};T.__index=T
@@ -13,6 +13,7 @@ function T:GetAttrs()return {TOOLS_Name=self.Name,TOOLS_RegID=self.ID}end
 function T:SetData(k,v)self.data[k]=v end
 function T:GetData(k)return self.data[k]end
 function T:SetInput(k,v,t)self.inputs[k]=self.inputs[k] or {};self.inputs[k][t or 'static']=v;return true end
+function T:GetInput(k,t)return self.inputs[k] and self.inputs[k][t or 'static']end
 function T:ConnectInput(k,source)
  if comp.refuse==self and source then comp.refuse=nil;return false end
  self.links[k]=source;return true
@@ -121,4 +122,30 @@ comp.fail_store=false
 assert(camera.links.Input==merge(newMark))
 assert(#comp:GetToolList()==count)
 assert(external.deleted~=true and output.links.Input.links.Background==external)
+-- Editing a Route must change its existing native mask, not re-create its
+-- authorial object or discard a hand-edited WriteLength animation curve.
+local _,route=author:add_route({lon=-47.9,lat=-15.8},{lon=-51.1,lat=0.8})
+local routeMask=comp:FindTool(route.maskToolRef)
+local originalGeometry=routeMask:GetInput('Polyline')
+assert(originalGeometry)
+routeMask:SetInput('WriteLength',0.4,100)
+local updated=author:update_route(route.id,{
+ to={lon=-52.0,lat=2.0},waypoints={{lon=-50.0,lat=-7.0}},pathType='Curved',curvature=20
+})
+assert(updated and updated.objects[#updated.objects].id==route.id)
+assert(routeMask:GetInput('Polyline')~=originalGeometry)
+assert(routeMask:GetInput('WriteLength',100)==0.4)
+assert(comp:FindTool(route.maskToolRef)==routeMask)
+local acceptedGeometry=routeMask:GetInput('Polyline')
+-- Geometry outside the supported projection is rejected before modification.
+assert(not pcall(function()author:update_route(route.id,{from={lon=179,lat=0},to={lon=-179,lat=5}})end))
+assert(routeMask:GetInput('Polyline')==acceptedGeometry)
+-- Failed persistence is rolled back on the existing mask and Scene JSON.
+comp.fail_store=true
+assert(not pcall(function()author:update_route(route.id,{to={lon=-60,lat=10}})end))
+comp.fail_store=false
+assert(routeMask:GetInput('Polyline')==acceptedGeometry)
+assert(author:current().objects[#author:current().objects].route.to.lon==-52.0)
+assert(routeMask:GetInput('WriteLength',100)==0.4)
+assert(not external.deleted and not output.deleted)
 print('PASS native draw order: true Merge rewiring, stable IDs, renamed tool, external-graph guard, failed reconnect and persistence rollback')
