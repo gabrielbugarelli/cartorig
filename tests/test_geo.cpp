@@ -56,6 +56,30 @@ int main(){
   drawGeometry(canvas,shape,camera,{201,42,42,255},{212,175,55,255},2,1);
   check(canvas.pixel(400,300).a>0,"Rio polygon fill");
   check(canvas.pixel(0,0).a==0,"unrelated alpha preserved");
+  RegionStyle style;
+  style.fill={130,150,164,255};
+  style.stroke={215,224,231,255};
+  style.strokeWidth=3;
+  style.strokeProgress=0;
+  Surface r0(800,600);r0.clear({0,0,0,0});
+  drawRegion(r0,shape,camera,style);
+  auto interior0=r0.pixel(400,300);
+  style.strokeProgress=1;
+  Surface r1(800,600);r1.clear({0,0,0,0});
+  drawRegion(r1,shape,camera,style);
+  check(r0.rgba!=r1.rgba,"Stroke Progress adds outline pixels");
+  check(r1.pixel(400,300).r==interior0.r,
+        "Border Draw cannot recolor Region Fill");
+  style.highlightStrength=1;
+  style.highlight={255,0,0,255};
+  Surface highlighted(800,600);highlighted.clear({0,0,0,0});
+  drawRegion(highlighted,shape,camera,style);
+  check(highlighted.pixel(400,300).r>r1.pixel(400,300).r,
+        "Highlight Pulse has an actual pixel effect");
+  style.fillAlpha=0;style.strokeAlpha=0;
+  Surface hidden(800,600);hidden.clear({0,0,0,0});
+  drawRegion(hidden,shape,camera,style);
+  check(hidden.pixel(400,300).a==0,"Fill and stroke alpha independent");
   auto original=canvas.rgba;
   RouteOptions route;route.from={-44.7,-24.8};route.to={-43.5,-22.5};
   route.curvature=20;route.progress=.5;route.arrowhead=true;
