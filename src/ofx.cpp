@@ -679,8 +679,16 @@ OfxStatus applyInspectorMotion(OfxImageEffectHandle effect,
    auto convert=[](Color c)->std::array<double,4>{
     return {c.r/255.,c.g/255.,c.b/255.,c.a/255.};
    };
-   writes.push_back({"Fill",first,true,convert(from),0});
-   writes.push_back({"Fill",chosen==3?first+1:last,true,convert(target),0});
+   // Instant Color Change is a categorical switch ON the chosen frame.
+   // A key at first-1 preserves the previous value through frame 329,
+   // and a key at first changes it on frame 330 (QA-15/16).
+   if(chosen==3){
+    if(first>=1)writes.push_back({"Fill",first-1,true,convert(from),0});
+    writes.push_back({"Fill",first,true,convert(target),0});
+   }else{
+    writes.push_back({"Fill",first,true,convert(from),0});
+    writes.push_back({"Fill",last,true,convert(target),0});
+   }
   }else if(chosen==4){
    require(flagAt(effect,"StrokeVisible",time,true),
            "Border Draw requires visible stroke");
@@ -793,7 +801,9 @@ OfxStatus applyInspectorMotion(OfxImageEffectHandle effect,
    OfxTime existingTime=0;
    require(param->paramGetKeyTime(h,i,&existingTime)==kOfxStatOK,
            "Host cannot inspect existing key time");
-   if(existingTime>=first&&existingTime<=last&&policy==0){
+   const double conflictStart=(type==Type::Region&&chosen==3&&first>=1)?
+           first-1:first;
+   if(existingTime>=conflictStart&&existingTime<=last&&policy==0){
     logFailure("Motion conflict: existing native keyframes. Cancelled.");
     return kOfxStatFailed;
    }
@@ -814,7 +824,9 @@ OfxStatus applyInspectorMotion(OfxImageEffectHandle effect,
      OfxTime old=0;
      require(param->paramGetKeyTime(h,static_cast<unsigned int>(i),&old)==kOfxStatOK,
              "Cannot inspect existing spline point");
-     if(old>=first&&old<=last)
+     const double conflictStart=(type==Type::Region&&chosen==3&&first>=1)?
+             first-1:first;
+     if(old>=conflictStart&&old<=last)
       require(param->paramDeleteKey(h,old)==kOfxStatOK,
               "Cannot safely remove affected key");
     }
