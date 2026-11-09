@@ -6,6 +6,7 @@ local script=assert(debug.getinfo(1,"S").source)
 assert(script:sub(1,1)=="@","Launch CartoRig Scene from Fusion > Scripts")
 local directory=assert(script:sub(2):match("^(.*[\\/])"))
 local scene=assert(loadfile(directory.."CartoRigSupport/scene.lua"))()
+local treeModel=assert(loadfile(directory.."CartoRigSupport/scene_tree.lua"))()
 local fusion=_G.fu or _G.fusion or
     (bmd and bmd.scriptapp and bmd.scriptapp("Fusion"))
 assert(fusion and fusion.UIManager and bmd and bmd.UIDispatcher,
@@ -45,7 +46,10 @@ local window=dispatcher:AddWindow({
         ui:Button{ID="CustomMarker",Text="+ Point",Weight=0.17}
     },
     ui:Label{Text="SCENE OBJECTS — select to edit Control | Motion in Fusion"},
-    ui:ComboBox{ID="Objects"},
+    ui:Tree{ID="ObjectTree",ColumnCount=3,HeaderHidden=false,
+            SortingEnabled=false,RootIsDecorated=true,
+            SelectionMode="ExtendedSelection",Weight=1.4,
+            Events={ItemSelectionChanged=true,ItemActivated=true}},
     ui:HGroup{
         ui:Button{ID="Select",Text="Select"},
         ui:Button{ID="Show",Text="Show"},
@@ -111,6 +115,8 @@ local window=dispatcher:AddWindow({
 })
 local item=window:GetItems()
 local choices,objects,groups={},{},{}
+local treeIds,treeRows={},{}
+local rendering=false
 local context=nil
 local locked=false
 local kinds={"all","continent","country","state","city"}
@@ -129,10 +135,24 @@ local function selectedResult()
     if not loc then error("Search and select a location first")end
     return loc
 end
+local function selectedIds()
+    local selected=item.ObjectTree:SelectedItems() or {}
+    local ids,seen={},{}
+    for _,row in pairs(selected) do
+        local id=treeIds[row]
+        if id and not seen[id] then ids[#ids+1]=id;seen[id]=true end
+    end
+    return ids
+end
 local function selectedObject()
-    local obj=objects[currentIndex(item.Objects)]
-    if not obj then error("Select a CartoRig object first")end
-    return obj
+    local ids=selectedIds()
+    if #ids~=1 then
+        error("Select exactly one CartoRig object for this action")
+    end
+    for _,entry in ipairs(objects) do
+        if entry.id==ids[1] then return entry end
+    end
+    error("Selected object no longer exists in this composition")
 end
 local function compositionKey()
     local comp=scene.composition()
@@ -144,9 +164,10 @@ local function verifyContext()
     local comp,key=compositionKey()
     if context~=key then
         -- Fail closed: do not edit the last selected object from another comp.
-        choices={};objects={}
+        choices={};objects={};groups={}
+        treeIds={};treeRows={}
         setItems(item.Results,{})
-        setItems(item.Objects,{})
+        item.ObjectTree:Clear()
         context=key
         item.Context.Text="Composition: "..key
         error("Active composition changed. Refresh and select your scene.")
@@ -156,26 +177,59 @@ end
 local function refresh()
     local comp,key,name=compositionKey()
     context=key
-    item.Context.Text="Composition: "..name
-    objects=scene.objects()
-    local labels={}
-    for i,entry in ipairs(objects)do
-        labels[#labels+1]=string.format("%02d  %s | %s%s%s",i,
-            tostring(entry.role),tostring(entry.name),
-            entry.visible and "" or " [Hidden]",
-            entry.locked and " [Locked]" or "")
+    local snapshot=scene.snapshot(comp)
+    local state=snapshot.state
+    item.Context.Text="Composition: "..name.." ["..state.."]"
+    local preserve={}
+    for _,id in ipairs(selectedIds())do preserve[id]=true end
+    if next(preserve)==nil and snapshot.selection.state=="CARTORIG" then
+        preserve[snapshot.selection.id]=true
     end
-    setItems(item.Objects,labels)
+    objects=snapshot.objects
+    local tree=item.ObjectTree
+    rendering=true
+    tree:Clear()
+    treeIds={};treeRows={}
+    tree.ColumnCount=3
+    tree:SetHeaderLabels({"Scene object","Draw order","Status"})
+    local function createNode(node,parent)
+        if node.kind=="category" and #node.children==0 then return end
+        local row=tree:NewItem()
+        row.Text[0]=node.name
+        if node.kind=="object" or node.kind=="group" then
+            row.Text[1]=node.z and tostring(node.z) or ""
+            row.Text[2]=(node.visible==false and "Hidden " or "")..
+                        (node.locked and "Locked" or "")
+            treeIds[row]=node.id;treeRows[node.id]=row
+            if preserve[node.id] then row.Selected=true end
+        else
+            row.Text[1]="";row.Text[2]=""
+        end
+        if parent then parent:AddChild(row)
+        else tree:AddTopLevelItem(row)end
+        for _,child in ipairs(node.children or {})do createNode(child,row)end
+        if node.kind=="category" or node.kind=="group" then row.Expanded=true end
+    end
+    if state=="SCENE_READY" or state=="SCENE_EMPTY" then
+        for _,node in ipairs(treeModel.build(objects))do createNode(node,nil)end
+    end
+    rendering=false
     groups={}
     local groupLabels={"Select destination group..."}
-    for _,entry in ipairs(objects) do
+    for _,entry in ipairs(objects)do
         if entry.role=="Group" then
             groups[#groups+1]=entry
             groupLabels[#groupLabels+1]=entry.name
         end
     end
     setItems(item.Groups,groupLabels)
-    return tostring(#objects).." CartoRig objects in current composition."
+    if state=="SCENE_BROKEN" then
+        return "SCENE_BROKEN: inspect diagnostics; authoring disabled."
+    end
+    if snapshot.selection.state=="NON_CARTORIG" then
+        return "Non-CartoRig selection: select a Scene object before editing."
+    end
+    return tostring(#objects).." CartoRig objects · "..state
 end
 local function perform(action)
     if locked then return end
@@ -426,20 +480,28 @@ local function updateWaypoints()
     setItems(item.Waypoints,labels)
     return "Route waypoints refreshed."
 end
-function window.On.Objects.CurrentIndexChanged(_)
-    if locked then return end
+function window.On.ObjectTree.ItemSelectionChanged(_)
+    if locked or rendering then return end
     perform(function()
         verifyContext()
-        local object=objects[(tonumber(item.Objects.CurrentIndex) or -1)+1]
-        if not object then
-            setItems(item.Waypoints,{})
-            return "Select a CartoRig object."
+        local ids=selectedIds()
+        if #ids==1 then
+            local entry=scene.select(ids[1])
+            if entry.role=="Route" then updateWaypoints()
+            else setItems(item.Waypoints,{}) end
+            return "Selected "..entry.name.." — Inspector Control | Motion."
         end
-        scene.select(object.id)
-        if object.role=="Route" then updateWaypoints()
-        else setItems(item.Waypoints,{}) end
-        return "Selected "..tostring(object.name)..
-               " — native Fusion Inspector: Control | Motion."
+        setItems(item.Waypoints,{})
+        return #ids.." objects selected. Use batch Hide, Lock, Group or Delete."
+    end)
+end
+function window.On.ObjectTree.ItemActivated(_)
+    if locked or rendering then return end
+    perform(function()
+        verifyContext()
+        local entry=selectedObject()
+        scene.select(entry.id)
+        return "Inspector target: "..entry.name
     end)
 end
 local function activeRoute()
