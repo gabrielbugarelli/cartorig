@@ -82,7 +82,7 @@ function C:StartUndo(title)
     return true
 end
 function C:EndUndo(ok)return true end
-function C:SetActiveTool(node)self.active=node;return true end
+function C:SetActiveTool(node)self.active=node;self.ActiveTool=node;return true end
 function C:GetAttrs()return {COMPS_Name="Test composition"}end
 local data="build/mock-geo-catalog"
 os.execute("mkdir -p "..data)
@@ -150,6 +150,22 @@ local id=api.addRegion(state[1])
 check(#api.objects()==3,"region appended without editing other objects")
 local selected=api.select(id)
 check(comp.active==selected.node,"node selected for native Inspector")
+local hostSelection=api.selectedInHost()
+check(hostSelection.state=="CARTORIG" and hostSelection.id==id,
+      "Node Editor -> Scene selection resolves stable object ID")
+local sceneSnapshot=api.snapshot()
+check(sceneSnapshot.composition==comp and
+      sceneSnapshot.state=="SCENE_READY" and #sceneSnapshot.objects==3,
+      "single read-only Scene snapshot follows active composition")
+local external=comp:AddTool("Blur",8,8)
+comp:SetActiveTool(external)
+check(api.selectedInHost().state=="NON_CARTORIG",
+      "external Node Editor selection must not impersonate last CartoRig selection")
+comp:SetActiveTool(selected.node)
+selected.node:SetAttrs({TOOLS_Name="User_Renamed_Rio"})
+check(api.selectedInHost().id==id,
+      "renaming Node Editor node preserves Scene identity")
+
 check(selected.feature==state[1].id,"feature reference persisted")
 check(api.datasetFingerprint()==fakeSha,
       "Natural Earth active bundle fingerprint available offline")
