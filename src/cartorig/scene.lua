@@ -205,7 +205,26 @@ function M.validate(scene)
         fail('invalid persisted style '..tostring(key)..' on '..tostring(o.id))
       end
     end
-    local lastSerial=tonumber(o.id:match(':(%d+) or scene.objects[2].kind~='Camera' then fail('structural objects missing') end
+    local lastSerial=tonumber(o.id:match(':(%d+)$'))
+    if lastSerial and lastSerial>scene.serial then fail('persisted ID exceeds scene serial') end
+    if o.kind=='Route' then
+      local route=o.route
+      if type(route)~='table' or not route.from or not route.to then fail('Route geometry missing') end
+      assert_point(route.from);assert_point(route.to)
+      if route.from.lon==route.to.lon and route.from.lat==route.to.lat then fail('Route endpoints coincide') end
+      if route.pathType~='Straight' and route.pathType~='Curved' then fail('unsupported Route path') end
+      if type(route.curvature)~='number' or route.curvature~=route.curvature
+        or route.curvature < -100 or route.curvature >100 or route.curvature==math.huge then
+        fail('invalid Route curvature')
+      end
+      if type(route.waypoints)~='table' or #route.waypoints>100 then fail('invalid Route waypoint count') end
+      for _,point in ipairs(route.waypoints) do assert_point(point) end
+    elseif (o.kind=='Marker' or o.kind=='Label') and o.anchor then
+      assert_point(o.anchor)
+    end
+    seen[o.id]=true
+  end
+  if scene.objects[1].kind~='BaseMap' or scene.objects[2].kind~='Camera' then fail('structural objects missing') end
   if scene.selected and not seen[scene.selected] then fail('dangling selection') end
   local indexed={};for _,o in ipairs(scene.objects) do indexed[o.id]=o end
   local followers={}
