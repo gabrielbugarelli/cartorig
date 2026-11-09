@@ -132,6 +132,10 @@ check(api.select(label).node:GetInput("StyledText")=="São Paulo",
 local group=api.addGroup("Northern focus")
 check(#api.objects()==6,"organizational Group exists")
 api.setParent(label,group)
+api.lock(group,true)
+local blocked=pcall(function()api.rename(label,"Tampered")end)
+check(not blocked,"Group lock prevents editing children")
+api.lock(group,false)
 api.visibility(group,false)
 check(api.select(label).node:GetInput("Visible")==0,
       "Group hides member without deleting it")
