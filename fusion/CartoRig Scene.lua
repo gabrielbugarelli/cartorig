@@ -122,7 +122,8 @@ end
 local function compositionKey()
     local comp=scene.composition()
     local attrs=comp:GetAttrs() or {}
-    return comp,tostring(attrs.COMPS_FileName or attrs.COMPS_Name or comp)
+    local display=tostring(attrs.COMPS_Name or attrs.COMPS_FileName or "Untitled")
+    return comp,tostring(comp),display
 end
 local function verifyContext()
     local comp,key=compositionKey()
@@ -138,9 +139,9 @@ local function verifyContext()
     return comp
 end
 local function refresh()
-    local comp,key=compositionKey()
+    local comp,key,name=compositionKey()
     context=key
-    item.Context.Text="Composition: "..key
+    item.Context.Text="Composition: "..name
     objects=scene.objects()
     local labels={}
     for i,entry in ipairs(objects)do
