@@ -136,6 +136,15 @@ local function objectFor(composition,id)
     end
     error("CartoRig object no longer exists in this composition",3)
 end
+local function isLocked(composition,entry)
+    if entry.locked then return true end
+    local parent=meta(entry.node,"ParentGroup")
+    if parent and parent~=""then
+        local ok,group=pcall(objectFor,composition,parent)
+        if ok and group.role=="Group"and group.locked then return true end
+    end
+    return false
+end
 local function trySelect(composition,tool)
     if type(composition.SetActiveTool)=="function" then
         local ok,res=pcall(function()return composition:SetActiveTool(tool)end)
@@ -160,6 +169,12 @@ local function setObjectData(composition,tool,role,name,feature,kind)
     stamp(tool,"DisplayName",name)
     stamp(tool,"FeatureId",feature or "")
     stamp(tool,"LocationKind",kind or "")
+    if feature and feature~="" then
+        stamp(tool,"SourceProvider","Natural Earth")
+        stamp(tool,"SourceScale","10m")
+        stamp(tool,"SourceDataset",feature:match("^(.-):") or "")
+        stamp(tool,"SourceWorldview","Publisher default")
+    end
     stamp(tool,"Locked",false)
     stamp(tool,"Visible",true)
     stamp(tool,"Order",maxOrder(composition))
@@ -481,7 +496,7 @@ end
 local function waypointRoute(composition,id)
     local item=objectFor(composition,id)
     if item.role~="Route" then error("Select an authored Route",3) end
-    if item.locked then error("This Route is locked",3)end
+    if isLocked(composition,item) then error("This Route is locked",3)end
     return item
 end
 local function waypointList(route)
@@ -589,7 +604,7 @@ function M.rename(id,name)
     end
     local composition=current()
     local item=objectFor(composition,id)
-    if item.locked then error("Object is locked",2)end
+    if isLocked(composition,item) then error("Object is locked",2)end
     return transaction(composition,"CartoRig: Rename object",function()
         stamp(item.node,"DisplayName",name)
         return true
@@ -598,7 +613,7 @@ end
 function M.visibility(id,visible)
     local composition=current()
     local item=objectFor(composition,id)
-    if item.locked then error("Object is locked",2)end
+    if isLocked(composition,item) then error("Object is locked",2)end
     return transaction(composition,"CartoRig: Visibility",function()
         stamp(item.node,"Visible",visible==true)
         if item.role=="Group" then
@@ -633,14 +648,14 @@ function M.delete(id)
     if item.role=="Base Map"or item.role=="Camera"then
         error("Base Map and Camera are required scene objects",2)
     end
-    if item.locked then error("Object is locked",2)end
+    if isLocked(composition,item) then error("Object is locked",2)end
     if item.role=="Group" then return M.ungroup(id) end
     return transaction(composition,"CartoRig: Delete object",function()
         local base,camera,output=getCore(composition)
         local next=base
         for _,entry in ipairs(owned(composition)) do
             if entry.id~=id and entry.role~="Camera" and
-               entry.role~="Base Map" and entry.role~="Label" then
+               entry.role~="Base Map" and entry.role~="Group" then
                 connect(entry.node,next)
                 next=entry.node
             end
@@ -682,7 +697,7 @@ function M.setParent(id,groupId)
     if entry.role=="Base Map" or entry.role=="Camera" or entry.role=="Group" then
         error("Only authored visual objects can be placed into a group",2)
     end
-    if entry.locked then error("This object is locked",2)end
+    if isLocked(composition,entry) then error("This object is locked",2)end
     local group=objectFor(composition,groupId)
     if group.role~="Group" then error("Select a group destination",2)end
     return transaction(composition,"CartoRig: Group object",function()
@@ -710,7 +725,7 @@ function M.move(id,direction)
     if direction~=-1 and direction~=1 then error("Choose Move Up or Move Down",2)end
     local composition=current()
     local a=objectFor(composition,id)
-    if a.locked or a.role=="Camera" or a.role=="Base Map" then
+    if isLocked(composition,a) or a.role=="Camera" or a.role=="Base Map" then
         error("This object cannot be reordered",2)
     end
     local reorder={}
@@ -725,7 +740,7 @@ function M.move(id,direction)
         error("Object already at this draw order boundary",2)
     end
     local b=reorder[index+direction]
-    if b.locked then error("Adjacent object is locked",2)end
+    if isLocked(composition,b) then error("Adjacent object is locked",2)end
     return transaction(composition,"CartoRig: Reorder object",function()
         stamp(a.node,"Order",b.z)
         stamp(b.node,"Order",a.z)
