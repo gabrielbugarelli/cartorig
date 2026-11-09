@@ -250,7 +250,10 @@ function M.initialize()
         -- For a blank composition, only user-visible connection is made.
         if media and media.Input and type(media.Input.GetConnectedOutput)=="function" then
             local connected=media.Input:GetConnectedOutput()
-            if not connected then connect(media,stack) end
+            if not connected then
+                assertHost(media:ConnectInput("Input",stack),
+                           "Connect initialized scene to empty MediaOut")
+            end
         elseif media then
             -- Cannot prove existing input is empty. Leave stack separate.
         end
@@ -284,7 +287,8 @@ function M.connectOutput()
                 rename(merge,unique(composition,"CR_Output_Merge"))
                 assertHost(merge:ConnectInput("Background",old),
                            "Preserve existing MediaOut image")
-                connect(merge,stack)
+                assertHost(merge:ConnectInput("Foreground",stack),
+                           "Connect CartoRig to Merge foreground")
                 assertHost(media:ConnectInput("Input",merge),
                            "Connect composited output to MediaOut")
             end)
