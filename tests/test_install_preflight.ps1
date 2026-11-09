@@ -27,8 +27,14 @@ try {
         [System.IO.File]::WriteAllText((Join-Path $data 'manifest.json'),$value)
     }
     function Run-Preflight {
-        & powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $root 'Install-CartoRig.ps1') -VerifyPackageOnly 2>&1 | Out-Null
-        return $LASTEXITCODE
+        # Failing fixtures intentionally produce stderr. Windows PowerShell 5.1
+        # turns redirected native stderr into NativeCommandError when Stop is
+        # enabled, so capture the child exit code instead of piping stderr.
+        $installer = Join-Path $root 'Install-CartoRig.ps1'
+        $arguments = '-NoProfile -ExecutionPolicy Bypass -File "' + $installer + '" -VerifyPackageOnly'
+        $process = Start-Process -FilePath 'powershell.exe' -ArgumentList $arguments `
+            -Wait -PassThru -NoNewWindow
+        return [int] $process.ExitCode
     }
     Write-Manifest $true
     if ((Run-Preflight) -ne 0) { throw 'Valid offline manifest must pass.' }
