@@ -203,6 +203,13 @@ local function makeDispatcher(_)
    window.On.Refresh.Clicked({})
    check(w.Context.Text:find("Composition%-B"),
          "user explicitly refreshes active composition")
+  elseif visited==20 then
+   check(w.Context.Text:find("NO_COMP") and
+         w.Status.Text:find("NO_COMP"),
+         "NO_COMP is explicit; no stale launch composition is reused")
+   window.On.Initialize.Clicked({})
+   check(compA:FindTool("CR_Base_Map")~=nil,
+         "NO_COMP Initialize cannot change existing source objects")
   else
    check(w.Context.Text:find("COMP_WITHOUT_CARTORIG"),
          "reopening Scene keeps active composition state")
@@ -216,6 +223,7 @@ _G.fu={UIManager=ui,GetCurrentComp=function()return comp end}
 _G.fusion=_G.fu
 _G.bmd={UIDispatcher=makeDispatcher}
 for cycle=1,20 do
+ if cycle==20 then comp=nil end
  local ok,err=pcall(dofile,script)
  check(ok,"Scene script executes: "..tostring(err))
  for event,n in pairs(notices)do
