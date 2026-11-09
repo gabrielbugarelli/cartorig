@@ -66,6 +66,7 @@ local function run()
       ui:Label{Text='OFFLINE LOCATIONS (installed Natural Earth bundle)'},
       ui:Tree{ID='CR_Results',ColumnCount=1,SortingEnabled=false,MinimumSize={320,160}},
       ui:HGroup{ui:Button{ID='CR_AddRegion',Text='Add as Region'},ui:Button{ID='CR_AddMarker',Text='Add Marker'},ui:Button{ID='CR_AddLabel',Text='Add Label'}},
+      ui:HGroup{ui:Button{ID='CR_FocusCamera',Text='Focus Camera'},ui:Button{ID='CR_FitLocation',Text='Fit Location'}},
       ui:HGroup{ui:Button{ID='CR_RouteFrom',Text='Route From'},ui:Button{ID='CR_RouteTo',Text='Route To'},ui:Button{ID='CR_CreateRoute',Text='Create Route'}},
       ui:Button{ID='CR_UpdateRoute',Text='Update Selected Route Endpoints'},
       ui:Label{ID='CR_RouteState',Text='Route: choose explicit point endpoints'},
@@ -170,6 +171,27 @@ local function run()
       local draft,object=engine:add_location(feature,kind)
       state=draft;refresh_objects()
       return 'Added '..kind..' '..object.name..' as independent Fusion tool.'
+    end)
+  end
+  win.On.CR_FocusCamera.Clicked=function()
+    guarded(function()
+      if not state then error('Initialize Map Scene first') end
+      if not chosen then error('Search and select a geographic location first') end
+      local location=Catalog.load_feature(dataDir,chosen,Json)
+      if not location.point then error('This location has no point for Focus; use Fit Location for polygons') end
+      state=engine:focus_camera(location.point)
+      -- Do not refresh the tree; preserve the user's geographic selection.
+      return 'Camera focused on '..location.name..' without creating keyframes.'
+    end)
+  end
+  win.On.CR_FitLocation.Clicked=function()
+    guarded(function()
+      if not state then error('Initialize Map Scene first') end
+      if not chosen then error('Search and select a geographic location first') end
+      local location=Catalog.load_feature(dataDir,chosen,Json)
+      local w,h=engine.host:viewport()
+      state=engine:fit_location(location,w,h)
+      return 'Camera fitted to '..location.name..' using '..w..' x '..h..' composition viewport; no keyframes.'
     end)
   end
   win.On.CR_AddMarker.Clicked=function()add_point('Marker')end

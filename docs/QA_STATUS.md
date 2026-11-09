@@ -81,3 +81,18 @@ on PolygonMask with a keyframed WriteLength channel. No QA gate is marked DONE.
 | Reject malformed persisted styles and locked ancestor group | PASS `test_scene_integrity.lua` | NOT RUN |
 
 **No host certification:** Native registrations, pixel output, 4K performance, complete object controls, all 16 Motion presets, host Undo/Redo, random-seek, alpha/footage, QA-01..60 and HOST-01..10 still need execution on Resolve Studio 20 Windows.
+
+## 2026-11-09 — Native Camera Focus / Fit Scene commands
+
+| Contract | Automated | Windows Resolve Studio 20 |
+| --- | --- | --- |
+| Focus City changes longitude/latitude only and never creates a key | PASS `test_camera_focus_fit.lua` | NOT RUN |
+| Fit Point uses explicit 4x reference zoom; Fit Polygon uses actual viewport aspect/padding | PASS | NOT RUN |
+| Focus/Fit preserve user-selected Bearing and existing independent properties | PASS | NOT RUN |
+| Existing Fusion camera spline prevents static Focus edits; other channels rolled back | PASS | NOT RUN |
+| Rejected second-channel native input or failed Scene persistence restores full camera pose | PASS | NOT RUN |
+| Resolution unavailable in host prevents Fit rather than guessing a frame size | PASS | NOT RUN |
+
+**Host gate:** `Comp.FrameFormat.Width`/`Height` preferences and Fusion Fuse camera
+positioning must be exercised on the actual Resolve 20 Windows host. Unit tests
+confirm transactional integration contracts, not Viewer alignment or render quality.

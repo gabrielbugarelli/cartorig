@@ -195,6 +195,92 @@ function A:set_style(id,key,value)
   end
   return draft
 end
+-- A camera pose is one logical edit. No keyframe is inserted by Focus/Fit.
+-- Every native input is restored if any later channel or metadata write fails.
+function A:set_camera_pose(values)
+  if type(values)~='table' then fail('camera pose must contain explicit fields') end
+  local previous,draft=mutation_draft(self)
+  local camera=previous.objects[2]
+  if not camera or camera.kind~='Camera' then fail('structural camera missing') end
+  local fields={'longitude','latitude','zoom','bearing'}
+  local changes={};local count=0
+  for _,key in ipairs(fields) do
+    local value=values[key]
+    if value~=nil then
+      self.m.Scene.set_style(draft,camera.id,key,value)
+      if camera.style[key]~=value then changes[#changes+1]={key=key,value=value};count=count+1 end
+    end
+  end
+  for key in pairs(values) do
+    if key~='longitude' and key~='latitude' and key~='zoom' and key~='bearing' then
+      fail('unsupported camera field '..tostring(key))
+    end
+  end
+  if count==0 then return previous end
+  self.m.Scene.validate(draft)
+  local rollbacks={}
+  local function rollback()
+    local errors={}
+    for i=#rollbacks,1,-1 do
+      local ok,err=pcall(rollbacks[i])
+      if not ok then errors[#errors+1]=tostring(err) end
+    end
+    if #errors>0 then fail('native camera rollback failed; recover a saved project copy: '..table.concat(errors,'; ')) end
+  end
+  local ok,err=xpcall(function()
+    for _,change in ipairs(changes) do
+      rollbacks[#rollbacks+1]=self.host:prepare_style(previous,camera,change.key,change.value)
+    end
+    self.m.Repository.write(self.comp,draft,self.m.Scene,self.m.Json)
+  end,debug.traceback)
+  if not ok then
+    local restored,why=pcall(rollback)
+    if not restored then fail('camera edit failed AND rollback failed: '..tostring(why)) end
+    fail('camera edit not applied; native inputs restored: '..tostring(err))
+  end
+  return draft
+end
+function A:focus_camera(point)
+  if not self.m.Geo.valid_point(point) then fail('Focus requires a real geographic point') end
+  if point.lat>85 or point.lat< -85 then fail('Focus latitude exceeds supported equirectangular camera range') end
+  return self:set_camera_pose({longitude=point.lon,latitude=point.lat})
+end
+local function fit_points(feature)
+  if type(feature)~='table' then fail('Fit requires a geographic location') end
+  if feature.geometryType=='Point' then
+    if not feature.point then fail('point location has no WGS84 anchor') end
+    return {feature.point}
+  end
+  local geometry=feature.geometry
+  if type(geometry)~='table' then fail('Fit requires available polygon geometry') end
+  local coordinates=geometry.coordinates
+  if type(coordinates)~='table' then fail('Fit polygon has no vertices') end
+  local polys
+  if geometry.type=='Polygon' then polys={coordinates}
+  elseif geometry.type=='MultiPolygon' then polys=coordinates
+  else fail('Fit requires a Point, Polygon or MultiPolygon') end
+  local points={}
+  for _,poly in ipairs(polys) do
+    for _,ring in ipairs(poly) do
+      for _,v in ipairs(ring) do
+        if type(v)~='table' then fail('invalid fit vertex') end
+        points[#points+1]={lon=v[1],lat=v[2]}
+        if #points>1000000 then fail('Fit geometry exceeds safe vertex budget') end
+      end
+    end
+  end
+  if #points==0 then fail('Fit polygon has no vertices') end
+  return points
+end
+function A:fit_location(feature,width,height)
+  local current=self:current()
+  if not current then fail('initialize map scene first') end
+  local pad=current.objects[2].style.fitPadding or 8
+  local pose=self.m.Geo.fit(fit_points(feature),width,height,pad)
+  if pose.latitude>85 or pose.latitude< -85 then fail('Fit requires an unsupported camera latitude') end
+  -- Fit does not reset bearing; the user may have explicitly rotated the map.
+  return self:set_camera_pose({longitude=pose.longitude,latitude=pose.latitude,zoom=pose.zoom})
+end
 function A:delete(id)
   local previous,draft=mutation_draft(self)
   local object=self.m.Scene.get(previous,id)

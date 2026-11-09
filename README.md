@@ -139,3 +139,20 @@ with a simulated Fusion host, **not yet validated in Resolve Studio 20**.
 - New Lua tests: `test_native_delete`, `test_native_control`, `test_fuse_authorial_objects` plus extended graph, Scene, Fuse and diagnostics contracts. **These are mock-host tests, not Resolve 20 validation.**
 
 **Outstanding scope:** full 10m land/coastline/border rendering, screen-space constant Marker/Label sizes, full 16-preset workflow and lifecycle in Inspector, native Windows GUI installation, all HOST-01..10/QA-01..60 including real alpha/4K/media export. This remains a Draft engineering preview, not CartoRig 1.0.
+
+## Camera Focus / Fit (new Scene authoring commands)
+
+The Scene window now exposes **Focus Camera** and **Fit Location**. Choose a
+geographic search result, then select one of the actions. Focus changes native
+`CenterLongitude` and `CenterLatitude` on the one scene camera without adding
+keyframes, markers or regions. It requires a genuine geographic point. Fit
+loads the selected Point/Polygon/MultiPolygon from the installed offline bundle
+and computes Center+Zoom at the actual Fusion composition aspect ratio. For
+point-only locations, the baseline fit zoom is 4×. Both actions preserve Bearing,
+existing user objects and all unrelated native channels. If the camera is
+already animated on any affected input, the static action refuses to overwrite
+it. Failed Fusion writes or Scene persistence restore the previous camera pose.
+
+The host must expose its actual frame size in Composition preferences or attrs
+for Fit to proceed; it will not guess 1920×1080. Native positioning and
+spline behavior on Resolve Studio 20 Windows remain unverified.

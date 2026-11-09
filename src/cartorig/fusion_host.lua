@@ -510,6 +510,30 @@ local function active_keys(tool,input)
   end
   return false
 end
+-- Read the host composition's real frame dimensions; never fit against an
+-- invented 16:9 viewport. Some Fusion versions expose width/height only
+-- through GetPrefs, others expose evaluated Composition attributes.
+function H:viewport()
+  local comp=self.comp
+  local w,h
+  if type(comp.GetPrefs)=='function' then
+    local goodWidth,width=pcall(function()return comp:GetPrefs('Comp.FrameFormat.Width')end)
+    local goodHeight,height=pcall(function()return comp:GetPrefs('Comp.FrameFormat.Height')end)
+    if goodWidth then w=tonumber(width) end
+    if goodHeight then h=tonumber(height) end
+  end
+  if (not w or not h) and type(comp.GetAttrs)=='function' then
+    local ok,attrs=pcall(function()return comp:GetAttrs()end)
+    if ok and type(attrs)=='table' then
+      w=w or tonumber(attrs.COMPN_RenderWidth)
+      h=h or tonumber(attrs.COMPN_RenderHeight)
+    end
+  end
+  if not w or not h or w<16 or h<16 or w>16384 or h>16384 then
+    fail('cannot read active Fusion composition resolution; Fit was not applied')
+  end
+  return w,h
+end
 function H:prepare_style(scene,object,key,value)
   if not scene or not object or not object.id then fail('style requires a scene and object identity') end
   if object.locked then fail('object is locked') end
