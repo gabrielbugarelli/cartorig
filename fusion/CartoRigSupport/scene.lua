@@ -408,12 +408,30 @@ function M.search(text,kind)
     local file=assert(io.open(path.."/catalog.tsv","rb"),
                       "Natural Earth offline catalog not installed")
     local found,seen={},{}
+    local continents={}
     local index=0
     for line in file:lines()do
         index=index+1
         if index>1 then
             local c=cols(line)
             if #c==11 then
+                if c[2]=="country" and c[4]~="" then
+                    local continent=c[4]
+                    local entry=continents[continent]
+                    if not entry then
+                        entry={id="continent:"..continent,kind="continent",
+                               name=continent,parent="Natural Earth derived",
+                               geometry="Composite",members={},
+                               bounds={180,90,-180,-90}}
+                        continents[continent]=entry
+                    end
+                    entry.members[#entry.members+1]=c[1]
+                    local b=entry.bounds
+                    b[1]=math.min(b[1],tonumber(c[6])or 180)
+                    b[2]=math.min(b[2],tonumber(c[7])or 90)
+                    b[3]=math.max(b[3],tonumber(c[8])or -180)
+                    b[4]=math.max(b[4],tonumber(c[9])or -90)
+                end
                 local matches=(kind=="all"or c[2]==kind) and
                     (norm(c[3]):find(text,1,true)
                      or norm(c[5]):find(text,1,true))
@@ -430,6 +448,14 @@ function M.search(text,kind)
         end
     end
     file:close()
+    if kind=="all" or kind=="continent" then
+        for name,entry in pairs(continents) do
+            if norm(name):find(text,1,true) and #entry.members>0 then
+                table.sort(entry.members)
+                found[#found+1]=entry
+            end
+        end
+    end
     table.sort(found,function(a,b)
         if a.name==b.name then return a.kind<b.kind end
         return a.name<b.name
@@ -443,12 +469,21 @@ local function verifyLocation(loc)
         error("Select a real offline location first",3)
     end
     if loc.kind=="city" then return "Point" end
+    if loc.kind=="continent" and type(loc.members)=="table"
+       and #loc.members>0 and #loc.members<=300 then return "Composite" end
     if loc.kind=="country"or loc.kind=="state" then return "Polygon"end
     error("This location does not have a supported editable geometry",3)
 end
 function M.addRegion(loc)
-    if verifyLocation(loc)~="Polygon" then
+    local geometry=verifyLocation(loc)
+    if geometry~="Polygon" and geometry~="Composite" then
         error("City is a point. Add Marker or Focus Camera instead",2)
+    end
+    local featureId=loc.id
+    if geometry=="Composite" then
+        -- A derived group is not a Natural Earth continent boundary:
+        -- the exact member polygons are linked and rendered separately.
+        featureId=table.concat(loc.members,"|")
     end
     local composition=current()
     local base,camera,output=getCore(composition)
@@ -456,9 +491,14 @@ function M.addRegion(loc)
         local node=newTool(composition,"ofx.com.cartorig.fusionrc1.region",
                            "Region",2,maxOrder(composition))
         local ok,err=pcall(function()
-            input(node,"FeatureId",loc.id)
+            input(node,"FeatureId",featureId)
             bindCamera(node)
-            setObjectData(composition,node,"Region",loc.name,loc.id,loc.kind)
+            setObjectData(composition,node,"Region",loc.name,featureId,loc.kind)
+            if geometry=="Composite" then
+                stamp(node,"SourceProvider","Natural Earth derived group")
+                stamp(node,"SourceFeatureIds",loc.members)
+                stamp(node,"SourceWorldview","Publisher country polygons")
+            end
             rewire(composition)
         end)
         if not ok then pcall(function()node:Delete()end);error(err) end
