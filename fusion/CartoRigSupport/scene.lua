@@ -13,14 +13,20 @@ local function current()
     -- A long-lived UIManager window must follow the ACTIVE composition;
     -- the initial global comp points to the script launch context only.
     local composition=nil
+    local queriedHost=false
     if _G.fu and type(fu.GetCurrentComp)=="function" then
+        queriedHost=true
         composition=fu:GetCurrentComp()
     end
-    if not composition and _G.fusion and
+    if not composition and _G.fusion and _G.fusion~=_G.fu and
        type(fusion.GetCurrentComp)=="function" then
+        queriedHost=true
         composition=fusion:GetCurrentComp()
     end
-    if not composition then composition=_G.comp end
+    -- Global comp is only a legacy fallback when no host API exists.
+    -- If a real host reports NO active composition, reusing a stale
+    -- script-launch global comp would edit the WRONG composition.
+    if not composition and not queriedHost then composition=_G.comp end
     return assertHost(composition,"No current Fusion composition")
 end
 local function tools(composition)
