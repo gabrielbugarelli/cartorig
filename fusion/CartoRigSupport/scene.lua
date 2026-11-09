@@ -459,7 +459,21 @@ function M.visibility(id,visible)
     if item.locked then error("Object is locked",2)end
     return transaction(composition,"CartoRig: Visibility",function()
         stamp(item.node,"Visible",visible==true)
-        if item.role~="Camera"then input(item.node,"Visible",visible and 1 or 0)end
+        if item.role=="Group" then
+            for _,entry in ipairs(owned(composition)) do
+                if meta(entry.node,"ParentGroup")==id then
+                    input(entry.node,"Visible",
+                        (visible and entry.visible) and 1 or 0)
+                end
+            end
+        elseif item.role~="Camera" then
+            local parent=meta(item.node,"ParentGroup")
+            local parentVisible=true
+            if parent and parent~="" then
+                parentVisible=objectFor(composition,parent).visible
+            end
+            input(item.node,"Visible",(visible and parentVisible) and 1 or 0)
+        end
         return true
     end)
 end
@@ -478,6 +492,7 @@ function M.delete(id)
         error("Base Map and Camera are required scene objects",2)
     end
     if item.locked then error("Object is locked",2)end
+    if item.role=="Group" then return M.ungroup(id) end
     return transaction(composition,"CartoRig: Delete object",function()
         local base,camera,output=getCore(composition)
         local next=base
