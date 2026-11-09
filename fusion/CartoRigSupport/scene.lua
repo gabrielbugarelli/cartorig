@@ -86,7 +86,9 @@ function M.isInitialized(composition)
     composition=composition or current()
     local map=composition:FindTool("CR_Base_Map")
     local camera=composition:FindTool("CR_Camera")
-    if not map or not camera then return false end
+    if not map or not camera or not composition:FindTool("CR_Stack_Output") then
+        return false
+    end
     return meta(map,"Role")=="Base Map" and meta(camera,"Role")=="Camera"
 end
 local function getCore(composition)
@@ -179,7 +181,7 @@ local function rewire(composition)
     local tail=base
     for _,entry in ipairs(owned(composition)) do
         if entry.role~="Base Map" and entry.role~="Camera"
-           and entry.role~="Group" and entry.role~="Label" then
+           and entry.role~="Group" then
             connect(entry.node,tail)
             tail=entry.node
         end
@@ -220,6 +222,9 @@ function M.initialize()
         stamp(camera,"Role","Camera");stamp(camera,"ObjectId",newid(composition))
         stamp(camera,"DisplayName","Camera");stamp(camera,"Order",0)
         stamp(map,"Initialized",true)
+        stamp(map,"SceneId",newid(composition))
+        stamp(map,"SchemaVersion",1)
+        stamp(map,"Projection","Equirectangular")
         bindCamera(map)
         connect(stack,map)
         -- A populated MediaOut is user-owned: never hijack its input.
@@ -339,6 +344,10 @@ function M.addMarker(location)
     if type(location)~="table"or not location.bounds then
        error("Select an offline location",2)
     end
+    if location.kind~="city" and location.kind~="custom_point" then
+        error("Only published city points or explicitly chosen coordinates "..
+              "can create markers; a region center is not a city",2)
+    end
     local bbox=location.bounds
     local lon=(bbox[1]+bbox[3])/2
     local lat=(bbox[2]+bbox[4])/2
@@ -357,6 +366,21 @@ function M.addMarker(location)
         return meta(node,"ObjectId")
     end)
 end
+function M.addCustomPoint(lon,lat,label)
+    lon=tonumber(lon);lat=tonumber(lat)
+    if not lon or not lat or lon<-180 or lon>180 or lat<-85 or lat>85 then
+        error("Custom point needs valid WGS84 longitude/latitude",2)
+    end
+    label=tostring(label or "Custom Point")
+    if #label<1 or #label>120 then
+        error("Custom point name must contain 1–120 characters",2)
+    end
+    return M.addMarker({
+        id="custom-point:"..tostring(lon)..":"..tostring(lat),
+        kind="custom_point",name=label,parent="",
+        bounds={lon,lat,lon,lat}
+    })
+end
 function M.focus(loc,fit)
     if type(loc)~="table"or not loc.bounds then
         error("Select a valid geographic location",2)
@@ -372,7 +396,14 @@ function M.focus(loc,fit)
         if fit then
             local westEast=math.max(.001,b[3]-b[1])
             local northSouth=math.max(.001,b[4]-b[2])
-            local zoom=math.min(45,math.max(1,180/westEast,85/northSouth))
+            local attributes=composition:GetAttrs() or {}
+            local width=tonumber(attributes.COMPN_RenderWidth) or 1920
+            local height=tonumber(attributes.COMPN_RenderHeight) or 1080
+            local padding=.08
+            -- Same equirectangular transform as the C++ renderer.
+            local zoom=math.min((1-2*padding)*360/westEast,
+                (1-2*padding)*360*height/(width*northSouth))
+            zoom=math.min(50,math.max(.1,zoom))
             input(camera,"Zoom",zoom)
         end
         trySelect(composition,camera)
@@ -459,6 +490,89 @@ function M.delete(id)
         end
         connect(output,next)
         assertHost(item.node:Delete(),"Delete CartoRig owned node")
+        return true
+    end)
+end
+
+-- Groups are organizational Fusion Underlays: a Group is not an extra
+-- image effect and does not shift geographic coordinates or draw order.
+function M.addGroup(name)
+    name=tostring(name or "New Group")
+    if #name<1 or #name>120 then error("Invalid group name",2)end
+    local composition=current()
+    getCore(composition)
+    return transaction(composition,"CartoRig: Add Group",function()
+        local node=assertHost(composition:AddTool("Underlay",0,0),
+                              "Create organizational group")
+        rename(node,unique(composition,"CR_Group"))
+        setObjectData(composition,node,"Group",name,"","")
+        trySelect(composition,node)
+        return meta(node,"ObjectId")
+    end)
+end
+local function effectiveVisibility(composition,entry)
+    if not entry.visible then return false end
+    local parent=meta(entry.node,"ParentGroup")
+    if parent and parent~="" then
+        local group=objectFor(composition,parent)
+        if group.role=="Group" and not group.visible then return false end
+    end
+    return true
+end
+function M.setParent(id,groupId)
+    local composition=current()
+    local entry=objectFor(composition,id)
+    if entry.role=="Base Map" or entry.role=="Camera" or entry.role=="Group" then
+        error("Only authored visual objects can be placed into a group",2)
+    end
+    if entry.locked then error("This object is locked",2)end
+    local group=objectFor(composition,groupId)
+    if group.role~="Group" then error("Select a group destination",2)end
+    return transaction(composition,"CartoRig: Group object",function()
+        stamp(entry.node,"ParentGroup",groupId)
+        input(entry.node,"Visible",effectiveVisibility(composition,entry) and 1 or 0)
+        return true
+    end)
+end
+function M.ungroup(id)
+    local composition=current()
+    local entry=objectFor(composition,id)
+    if entry.role~="Group" then error("Select a group",2)end
+    return transaction(composition,"CartoRig: Ungroup objects",function()
+        for _,child in ipairs(owned(composition)) do
+            if meta(child.node,"ParentGroup")==id then
+                stamp(child.node,"ParentGroup","")
+                input(child.node,"Visible",child.visible and 1 or 0)
+            end
+        end
+        assertHost(entry.node:Delete(),"Remove Group after moving its children")
+        return true
+    end)
+end
+function M.move(id,direction)
+    if direction~=-1 and direction~=1 then error("Choose Move Up or Move Down",2)end
+    local composition=current()
+    local a=objectFor(composition,id)
+    if a.locked or a.role=="Camera" or a.role=="Base Map" then
+        error("This object cannot be reordered",2)
+    end
+    local reorder={}
+    for _,entry in ipairs(owned(composition)) do
+        if entry.role~="Camera" and entry.role~="Base Map" and entry.role~="Group" then
+            reorder[#reorder+1]=entry
+        end
+    end
+    local index
+    for i,item in ipairs(reorder) do if item.id==id then index=i;break end end
+    if not index or not reorder[index+direction] then
+        error("Object already at this draw order boundary",2)
+    end
+    local b=reorder[index+direction]
+    if b.locked then error("Adjacent object is locked",2)end
+    return transaction(composition,"CartoRig: Reorder object",function()
+        stamp(a.node,"Order",b.z)
+        stamp(b.node,"Order",a.z)
+        rewire(composition)
         return true
     end)
 end
