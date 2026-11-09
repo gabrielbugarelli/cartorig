@@ -520,7 +520,16 @@ local styleBinding={
     drawProgress={'maskscalar','WriteLength',0.01},strokeWidth={'maskscalar','BorderWidth',1/1080}},
   Label={color={'color','Text'},opacity={'scalar','ObjectOpacity',0.01},fontSize={'textsize','Size',1/1080}},
   Camera={longitude={'scalar','CenterLongitude',1},latitude={'scalar','CenterLatitude',1},zoom={'scalar','Zoom',1},bearing={'scalar','Bearing',1}},
-  BaseMap={ocean={'color','Ocean'},opacity={'scalar','BaseOpacity',0.01},displayMode={'enum','DisplayMode'}},
+  BaseMap={
+    ocean={'color','Ocean'},land={'color','Land'},coastline={'color','Coastline'},
+    countryBorders={'color','CountryBorders'},stateBorders={'color','StateBorders'},
+    opacity={'scalar','BaseOpacity',0.01},displayMode={'enum','DisplayMode'},
+    oceanOpacity={'scalar','OceanLayerOpacity',0.01},
+    landOpacity={'scalar','LandLayerOpacity',0.01},
+    coastlineOpacity={'scalar','CoastlineLayerOpacity',0.01},
+    countryBordersOpacity={'scalar','CountryBordersLayerOpacity',0.01},
+    stateBordersOpacity={'scalar','StateBordersLayerOpacity',0.01},
+  },
 }
 local function safe_style_tool(host,scene,object,kind)
   if kind=='object' then return host:tool_for(object) end
