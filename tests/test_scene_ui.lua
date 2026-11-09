@@ -131,6 +131,7 @@ end
 local currentDispatcher
 local visited=0
 local createdDispatchers=0
+local throwFromRunLoop=false
 local function makeDispatcher(_)
  createdDispatchers=createdDispatchers+1
  local d={On=setmetatable({},{__index=function(t,k)
@@ -153,6 +154,9 @@ local function makeDispatcher(_)
  end
  function d:ExitLoop()self.exited=true end
  function d:RunLoop()
+  if throwFromRunLoop then
+   error("Intentional Fusion dispatcher failure (cleanup contract)")
+  end
   visited=visited+1
   if visited==1 then
    check(_G.CARTORIG_SCENE_WINDOW_RUNNING==true,
@@ -262,4 +266,13 @@ for cycle=1,20 do
 end
 check(visited==20 and createdDispatchers==20,
       "twenty open/close cycles, one dispatcher per lifetime")
-print("PASS Fusion UI mock: real Tree, Inspector selection, wrong context, no stale delete, 20 notification-clean lifecycles")
+throwFromRunLoop=true
+local okOnError,errorOnError=pcall(dofile,script)
+check(not okOnError and tostring(errorOnError):find("Intentional Fusion dispatcher failure"),
+      "dispatcher errors must surface instead of simulating success")
+check(_G.CARTORIG_SCENE_WINDOW_RUNNING==nil,
+      "dispatcher exception cannot leave singleton locked")
+for event,n in pairs(notices)do
+ check(n==0,"dispatcher exception releases notification: "..event)
+end
+print("PASS Fusion UI mock: Tree and Inspector, wrong context, 20 clean cycles, singleton and exception cleanup")
