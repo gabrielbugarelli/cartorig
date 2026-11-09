@@ -85,6 +85,29 @@ int main(){
   route.curvature=20;route.progress=.5;route.arrowhead=true;
   drawRoute(canvas,camera,route);
   check(original!=canvas.rgba,"route appears at partial reveal");
+  Surface straight(800,600),curved(800,600),withWaypoint(800,600),reversed(800,600);
+  straight.clear({0,0,0,0});curved.clear({0,0,0,0});
+  withWaypoint.clear({0,0,0,0});reversed.clear({0,0,0,0});
+  route.progress=1;route.curvature=80;route.curved=false;
+  drawRoute(straight,camera,route);
+  route.curved=true;drawRoute(curved,camera,route);
+  check(straight.rgba!=curved.rgba,
+        "Straight and Curved routes have distinct geometry");
+  route.waypoints.push_back({-44.9,-22.7});
+  drawRoute(withWaypoint,camera,route);
+  check(withWaypoint.rgba!=curved.rgba,
+        "ordered geographic waypoints affect pixels");
+  route.reverseArrowhead=true;
+  drawRoute(reversed,camera,route);
+  check(reversed.rgba!=withWaypoint.rgba,
+        "Reverse arrowhead points towards origin without swapping endpoints");
+  Surface seam(800,600);seam.clear({0,0,0,0});
+  Camera seamCamera;seamCamera.center={179,0};seamCamera.zoom=12;
+  RouteOptions seamRoute;seamRoute.from={179.5,0};seamRoute.to={-179.5,0};
+  seamRoute.width=5;
+  drawRoute(seam,seamCamera,seamRoute);
+  check(seam.pixel(400,300).a>0,
+        "antimeridian endpoints use shortest screen-space arc");
   MarkerOptions marker;marker.at={-44,-23.5};marker.ring=true;
   drawMarker(canvas,camera,marker);
   check(canvas.pixel(400,300).a>0,"marker centered on geoanchor");
