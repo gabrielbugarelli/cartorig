@@ -469,11 +469,117 @@ function M.addRoute(from,to)
             input(node,"ToLatitude",to.lat)
             setObjectData(composition,node,"Route",
                 (from.name or "Origin").." → "..(to.name or "Destination"),"","")
+            stamp(node,"Waypoints",{})
+            input(node,"WaypointsEncoded","")
             rewire(composition)
         end)
         if not ok then pcall(function()node:Delete()end);error(err)end
         trySelect(composition,node)
         return meta(node,"ObjectId")
+    end)
+end
+local function waypointRoute(composition,id)
+    local item=objectFor(composition,id)
+    if item.role~="Route" then error("Select an authored Route",3) end
+    if item.locked then error("This Route is locked",3)end
+    return item
+end
+local function waypointList(route)
+    local stored=meta(route.node,"Waypoints")
+    if type(stored)~="table"then return {} end
+    local points={}
+    for _,point in ipairs(stored)do
+        points[#points+1]={lon=tonumber(point.lon),lat=tonumber(point.lat)}
+    end
+    return points
+end
+local function encodedWaypoints(points)
+    if #points>64 then error("A Route supports at most 64 waypoints",3)end
+    local parts={}
+    for _,point in ipairs(points)do
+        if not point.lon or not point.lat or
+           point.lon<-180 or point.lon>180 or
+           point.lat<-85 or point.lat>85 then
+            error("Invalid WGS84 waypoint",3)
+        end
+        parts[#parts+1]=string.format("%.12g,%.12g",point.lon,point.lat)
+    end
+    return table.concat(parts,";")
+end
+function M.waypoints(id)
+    local composition=current()
+    return waypointList(waypointRoute(composition,id))
+end
+function M.addWaypoint(id,longitude,latitude,at)
+    local composition=current()
+    local route=waypointRoute(composition,id)
+    local point={lon=tonumber(longitude),lat=tonumber(latitude)}
+    if not point.lon or not point.lat then error("Choose waypoint coordinates",2)end
+    local points=waypointList(route)
+    local index=tonumber(at)or #points+1
+    if index<1 or index>#points+1 then error("Invalid waypoint index",2)end
+    table.insert(points,index,point)
+    local encoded=encodedWaypoints(points)
+    return transaction(composition,"CartoRig: Add Route waypoint",function()
+        input(route.node,"WaypointsEncoded",encoded)
+        stamp(route.node,"Waypoints",points)
+        return #points
+    end)
+end
+function M.moveWaypoint(id,index,direction)
+    local composition=current()
+    local route=waypointRoute(composition,id)
+    local points=waypointList(route)
+    index=tonumber(index)
+    local nextIndex=index and index+direction
+    if not index or not nextIndex or index<1 or nextIndex<1 or
+       nextIndex>#points or (direction~=1 and direction~=-1) then
+        error("Cannot move waypoint outside its Route",2)
+    end
+    points[index],points[nextIndex]=points[nextIndex],points[index]
+    local encoded=encodedWaypoints(points)
+    return transaction(composition,"CartoRig: Reorder waypoint",function()
+        input(route.node,"WaypointsEncoded",encoded)
+        stamp(route.node,"Waypoints",points)
+        return true
+    end)
+end
+function M.removeWaypoint(id,index)
+    local composition=current()
+    local route=waypointRoute(composition,id)
+    local points=waypointList(route)
+    index=tonumber(index)
+    if not index or index<1 or index>#points then error("Waypoint not selected",2)end
+    table.remove(points,index)
+    local encoded=encodedWaypoints(points)
+    return transaction(composition,"CartoRig: Delete waypoint",function()
+        input(route.node,"WaypointsEncoded",encoded)
+        stamp(route.node,"Waypoints",points)
+        return true
+    end)
+end
+function M.reverseRoute(id)
+    local composition=current()
+    local route=waypointRoute(composition,id)
+    local points=waypointList(route)
+    local from={lon=tonumber(route.node:GetInput("FromLongitude")),
+                lat=tonumber(route.node:GetInput("FromLatitude"))}
+    local to={lon=tonumber(route.node:GetInput("ToLongitude")),
+              lat=tonumber(route.node:GetInput("ToLatitude"))}
+    if not from.lon or not from.lat or not to.lon or not to.lat then
+        error("Route coordinates unavailable",2)
+    end
+    local reversed={}
+    for i=#points,1,-1 do reversed[#reversed+1]=points[i] end
+    local encoded=encodedWaypoints(reversed)
+    return transaction(composition,"CartoRig: Reverse Route",function()
+        input(route.node,"FromLongitude",to.lon)
+        input(route.node,"FromLatitude",to.lat)
+        input(route.node,"ToLongitude",from.lon)
+        input(route.node,"ToLatitude",from.lat)
+        input(route.node,"WaypointsEncoded",encoded)
+        stamp(route.node,"Waypoints",reversed)
+        return true
     end)
 end
 function M.rename(id,name)
