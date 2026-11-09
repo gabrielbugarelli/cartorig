@@ -1,0 +1,60 @@
+name: CartoRig rewrite — unit and contracts
+on:
+  push:
+    branches: ['rewrite/fusion-v2-from-scratch']
+  pull_request:
+    paths: ['src/**', 'fusion/**', 'fuses/**', 'data/**', 'tests/**', 'tools/**', '.github/workflows/ci.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  lua-contracts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Lua 5.4 and LuaJIT 5.1 compatibility runtime
+        run: sudo apt-get update -qq && sudo apt-get install -y lua5.4 luajit
+      - name: Lua syntax — every shipped module and entry point
+        run: |
+          find src fusion -name '*.lua' -print0 | xargs -0 -n1 luac5.4 -p
+          find fuses -name '*.fuse' -print0 | xargs -0 -n1 luac5.4 -p
+          find src fusion fuses -type f \( -name '*.lua' -o -name '*.fuse' \) -print0 | while IFS= read -r -d '' file; do luajit -b "$file" /dev/null; done
+      - name: Execute all Lua contract tests
+        run: |
+          set -euo pipefail
+          count=0
+          for test in tests/test_*.lua; do
+            echo "::group::$test"
+            lua5.4 "$test" .
+            echo '::endgroup::'
+            count=$((count+1))
+          done
+          echo "Executed $count Lua 5.4 test files successfully"
+          for test in tests/test_*.lua; do
+            echo "::group::LuaJIT 5.1 — $test"
+            luajit "$test" .
+            echo '::endgroup::'
+          done
+          echo "Executed $count LuaJIT test files successfully"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install converter test dependency (CI only)
+        run: python -m pip install --disable-pip-version-check 'pyshp==2.3.1'
+      - name: Python conversion fixture contracts
+        run: python -m unittest discover -s tests -p 'test_*.py'
+      - name: Validate bundled preview GeoJSON / provenance
+        run: |
+          python3 - <<'PY'
+          import hashlib,json,pathlib
+          base=pathlib.Path('data')
+          m=json.loads((base/'manifest.json').read_text())
+          for d in m['datasets']:
+              p=base/d['filename']
+              assert hashlib.sha256(p.read_bytes()).hexdigest()==d['sha256'], p
+              fc=json.loads(p.read_text())
+              assert fc['type']=='FeatureCollection' and len(fc['features'])==d['feature_count']
+          assert not m['production_ready']
+          print('Preview GeoJSON hash, provenance and feature count: PASS')
+          PY

@@ -1,0 +1,1 @@
+{"schema":"cartorig.offline.layers/1","dataset":"boundaries","version":"synthetic-fixture","featureFile":"features_boundaries.jsonl","features":[{"id":"test:boundaries:0","bbox":[-60,-20,-40,0],"crossesAntimeridian":false,"geometryType":"LineString","featureOffset":0,"featureBytes":118}]}

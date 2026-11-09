@@ -1,0 +1,85 @@
+name: CartoRig — build full Natural Earth 10m data pack
+on:
+  workflow_dispatch:
+  workflow_call:
+  pull_request:
+    paths:
+      - 'tools/build_natural_earth.py'
+      - '.github/workflows/build-natural-earth.yml'
+permissions:
+  contents: read
+jobs:
+  build-dataset:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Build-only dependencies (not needed by CartoRig users)
+        run: python -m pip install --disable-pip-version-check --no-cache-dir 'pyshp==2.3.1'
+      - name: Validate Shapefile conversion against synthetic fixtures
+        run: python -m unittest discover -s tests -p 'test_builder_*.py'
+      - name: Download official ZIPs, validate, convert offline bundle
+        run: python tools/build_natural_earth.py --output dist/natural-earth-10m
+      - uses: actions/upload-artifact@v4
+        with:
+          name: CartoRig-Natural-Earth-10m-Data-Pack
+          path: dist/natural-earth-10m
+          retention-days: 30
+      - name: Build offline Windows preview installer bundle
+        shell: bash
+        run: |
+          set -euo pipefail
+          target=dist/cartorig-windows-preview
+          mkdir -p "$target/data"
+          cp -a fusion src fuses packaging "$target/"
+          cp README.md "$target/"
+          cp -a dist/natural-earth-10m/. "$target/data/"
+          python3 - <<'PY_VERIFY'
+          import hashlib,json,pathlib
+          root=pathlib.Path('dist/cartorig-windows-preview')
+          manifest=json.loads((root/'data/manifest.json').read_text())
+          assert len(manifest['datasets'])==7
+          assert len(manifest['index_files'])==3
+          assert len(manifest['layer_indexes'])==4
+          assert {x['dataset'] for x in manifest['layer_indexes']}=={'land','coastline','lakes','boundaries'}
+          for layer in manifest['layer_indexes']:
+              idx=root/'data'/layer['filename']
+              geo=root/'data'/layer['data_file']
+              assert idx.is_file() and geo.is_file(),layer['dataset']
+              assert hashlib.sha256(idx.read_bytes()).hexdigest()==layer['sha256'],idx
+              assert hashlib.sha256(geo.read_bytes()).hexdigest()==layer['data_sha256'],geo
+              layer_index=json.loads(idx.read_text(encoding='utf-8'))
+              assert layer_index['schema']=='cartorig.offline.layers/1'
+              assert layer_index['dataset']==layer['dataset']
+              assert len(layer_index['features'])==layer['feature_count']
+              assert all(0<=x['featureOffset'] and 0<x['featureBytes']<=30_000_000 for x in layer_index['features'])
+          for record in manifest['datasets']:
+              p=root/'data'/record['filename']
+              assert p.is_file() and hashlib.sha256(p.read_bytes()).hexdigest()==record['output_sha256'],p
+          for record in manifest['index_files']+[manifest['catalog_index']]:
+              p=root/'data'/record['filename']
+              assert p.is_file() and hashlib.sha256(p.read_bytes()).hexdigest()==record['sha256'],p
+          index=json.loads((root/'data/catalog_index.json').read_text())
+          assert index['schema']=='cartorig.offline.catalog/1'
+          assert len(index['locations'])==manifest['catalog_index']['location_count']
+          ids={x['id'] for x in index['locations']}
+          assert len(ids)==len(index['locations']), 'duplicate offline location ID'
+          country_ids={x['id'] for x in index['locations'] if x['kind']=='Country'}
+          continent_entries=[x for x in index['locations'] if x['kind']=='Continent']
+          assert continent_entries,'no source-derived continent groups in indexed Admin-0'
+          for x in continent_entries:
+              assert x['geometryType']=='Composite' and not x.get('geometry'),x['name']
+              assert x['memberIds'] and len(x['memberIds'])==len(set(x['memberIds'])),x['name']
+              assert set(x['memberIds']).issubset(country_ids),x['name']
+          for required in ('packaging/Install-CartoRig.cmd','fusion/CartoRig Scene.lua','fuses/CartoRigOpacity.fuse','fuses/CartoRigRegion.fuse','fuses/CartoRigBase.fuse','fuses/CartoRigCamera.fuse','fuses/CartoRigMarker.fuse','fuses/CartoRigRoute.fuse','fuses/CartoRigLabel.fuse','fusion/CartoRig Host Diagnostics.lua','src/cartorig/authoring.lua'):
+              assert (root/required).is_file(),required
+          print('PASS: self-contained offline preview package, seven datasets, SHA256 and indexed search')
+          PY_VERIFY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: CartoRig-Fusion-Preview-Windows-With-NaturalEarth-10m
+          path: dist/cartorig-windows-preview/
+          retention-days: 30

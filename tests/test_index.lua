@@ -1,0 +1,12 @@
+local r=assert(arg[1]);local C=dofile(r..'/src/cartorig/catalog.lua');local J=dofile(r..'/src/cartorig/json.lua')
+local path=r..'/tests/fixtures';local entries=C.load_index(path,J)
+assert(#entries==1 and entries[1].name=='São Paulo')
+assert(C.search(entries,'Sao Paulo','City')[1].id==entries[1].id)
+local source=C.load_feature(path,entries[1],J)
+assert(source.geometry.type=='Point')
+assert(source.geometry.coordinates[1]==-46.6333)
+assert(source.point.lon==-46.6333 and source.point.lat==-23.5505)
+assert(entries[1].geometry==nil,'index must not load polygon arrays until requested')
+local evil={featureFile='../etc/passwd',featureOffset=0,featureBytes=100}
+assert(not pcall(function()C.load_feature(path,evil,J)end))
+print('PASS index: secure lazy reads, typed search, Unicode, no geometry loaded on search')

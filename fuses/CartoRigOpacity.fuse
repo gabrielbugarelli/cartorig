@@ -1,0 +1,62 @@
+-- CartoRig: an actually rendering, minimal Fuse with Control and Motion Inspector pages.
+-- Experimental visual host-gate component. It is NOT a geographic renderer or a preset system.
+-- All authored numeric channels are native Fusion inputs, so host keyframes are the source of time.
+FuRegisterClass('CartoRigOpacity', CT_Tool, {
+  REGS_Name = 'CartoRig Opacity (Experimental)',
+  REGS_Category = 'CartoRig\\Experimental',
+  REGS_OpIconString = 'CRO',
+  REGS_OpDescription = 'Pre-multiplied object opacity with separately animatable Motion fade',
+  REG_NoMotionBlurCtrls = true,
+})
+function Create()
+  self:AddControlPage('Control')
+  InOpacity=self:AddInput('Object Opacity', 'ObjectOpacity', {
+    LINKID_DataType = 'Number',
+    INPID_InputControl = 'SliderControl',
+    INP_Default = 1.0,
+    INP_MinScale = 0,
+    INP_MaxScale = 1,
+    INP_MinAllowed = 0,
+    INP_MaxAllowed = 1,
+  })
+  self:AddControlPage('Motion')
+  InFade=self:AddInput('Fade Factor', 'FadeFactor', {
+    LINKID_DataType = 'Number',
+    INPID_InputControl = 'SliderControl',
+    INP_Default = 1.0,
+    INP_MinScale = 0,
+    INP_MaxScale = 1,
+    INP_MinAllowed = 0,
+    INP_MaxAllowed = 1,
+  })
+  InImage=self:AddInput('Input','Input',{
+    LINKID_DataType='Image',
+    LINK_Main=1,
+    INP_Required=true,
+  })
+  OutImage=self:AddOutput('Output','Output',{
+    LINKID_DataType='Image',
+    LINK_Main=1,
+  })
+end
+function Process(req)
+  local input=InImage:GetValue(req)
+  if not input then
+    OutImage:Set(req,nil)
+    return
+  end
+  local opacity=InOpacity:GetValue(req).Value
+  local fade=InFade:GetValue(req).Value
+  -- Never assume user controls cannot be driven outside the displayed slider range.
+  opacity=math.max(0,math.min(1,tonumber(opacity) or 1))
+  fade=math.max(0,math.min(1,tonumber(fade) or 1))
+  local combined=opacity*fade
+  if combined>=1 then
+    OutImage:Set(req,input)
+    return
+  end
+  local out=input:Copy()
+  -- Premultiplied RGBA requires RGB and Alpha multiplied by identical opacity.
+  out:Gain(combined,combined,combined,combined)
+  OutImage:Set(req,out)
+end

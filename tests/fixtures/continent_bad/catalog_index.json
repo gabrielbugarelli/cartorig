@@ -1,0 +1,1 @@
+{"schema": "cartorig.offline.catalog/1", "locations": [{"id": "country:BR", "kind": "Country", "name": "Brazil", "geometryType": "Polygon", "featureFile": "features_admin0.jsonl", "featureOffset": 0, "featureBytes": 10}, {"id": "continent:SA", "kind": "Continent", "name": "South America", "geometryType": "Composite", "memberIds": ["country:XX"]}]}
