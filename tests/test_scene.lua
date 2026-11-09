@@ -115,6 +115,16 @@ local state=api.search("Rio de Janeiro","state")
 check(#state==1 and state[1].kind=="state","states found by name")
 check(#api.search("São Paulo","city")==1,"Unicode city search")
 check(#api.search("brasil","country")==1,"Portuguese country alias")
+local continents=api.search("South America","continent")
+check(#continents==1 and continents[1].kind=="continent" and
+      continents[1].geometry=="Composite" and #continents[1].members==1,
+      "Continent derives honest country-group membership from official catalog")
+local derived=api.addRegion(continents[1])
+local derivedEntry=api.select(derived)
+check(derivedEntry.locationKind=="continent" and
+      derivedEntry.node:GetInput("FeatureId")=="ne_10m_admin_0_countries:1",
+      "Composite Region references publisher country IDs")
+api.delete(derived)
 local id=api.addRegion(state[1])
 check(#api.objects()==3,"region appended without editing other objects")
 local selected=api.select(id)
