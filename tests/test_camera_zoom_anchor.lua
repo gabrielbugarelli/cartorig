@@ -18,19 +18,19 @@ local host={comp=comp}
 function host:tool_for(o)return o.id==camera.id and native or nil end
 local plan=Motion.prepare(camera,'MO-CAM-02',{start=10,frameCount=200,targetZoom=6},{})
 assert(Writer.apply(host,camera,plan))
-local x=(camera.style.longitude+180)/360
-local y=(camera.style.latitude+90)/180
-for _,k in ipairs(plan.channels.zoom)do
- local center=native.inputs.Center[k.frame]
- local zoom=native.inputs.Size[k.frame]
- assert(math.abs(center[1]+(x-0.5)*zoom-0.5)<1e-8,'longitude drift')
- assert(math.abs(center[2]+(y-0.5)*zoom-0.5)<1e-8,'latitude drift')
-end
--- Existing animated Center must not receive overwrites from a Zoom-only preset.
-local before=native.inputs.Center[40]
-native:SetData('CartoRig.V2.Animated.Center',true)
-local original=native.inputs.Size[10]
-assert(not pcall(function()Writer.apply(host,camera,plan)end))
-assert(native.inputs.Size[10]==original)
-assert(native.inputs.Center[40]==before)
-print('PASS Camera Zoom To: native Size/Center coupled to fixed WGS84 focus; conflict blocks prior animated Center')
+assert(native.inputs.Zoom[10]==1 and native.inputs.Zoom[40]==6)
+assert(native.inputs.CenterLongitude==nil and native.inputs.CenterLatitude==nil,
+       'zoom-only must never rewrite camera location channels')
+assert(native.inputs.Center==nil and native.inputs.Size==nil,
+       'old Transform screen-space channels must not exist')
+assert(comp.ended==true)
+-- Fly To writes independent WGS84 channels; Fuse applies coherent projection at
+-- every frame without inventing additional screen-space keyframes.
+native.data={};native.inputs={};native.mods={} -- distinct Camera authoring session
+local fly=Motion.prepare(camera,'MO-CAM-01',{start=60,frameCount=200,
+  targetPose={longitude=-45,latitude=-20,zoom=3}},{})
+assert(Writer.apply(host,camera,fly))
+assert(math.abs(native.inputs.CenterLongitude[105]+45)<1e-8)
+assert(native.inputs.CenterLatitude[105]==-20)
+assert(native.inputs.Zoom[105]==3)
+print('PASS Camera canonical geographic channels: Zoom independent, Fly To WGS84, no screen-space keyframes')

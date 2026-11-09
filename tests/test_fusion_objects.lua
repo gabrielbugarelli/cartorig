@@ -50,8 +50,9 @@ assert(Writer.apply(host,route,draw))
 assert(c:FindTool(route.maskToolRef).inputs.WriteLength[130]==1)
 local fly=Motion.prepare(camera,'MO-CAM-01',{start=100,frameCount=900,targetPose={longitude=-46.63,latitude=-23.5,zoom=4}}, {})
 assert(Writer.apply(host,camera,fly))
-assert(c:FindTool(camera.hostToolRef).inputs.Size[145]==4)
-assert(c:FindTool(camera.hostToolRef).inputs.Center[145])
+assert(c:FindTool(camera.hostToolRef).inputs.Zoom[145]==4)
+assert(math.abs(c:FindTool(camera.hostToolRef).inputs.CenterLongitude[145]+46.63)<1e-8)
+assert(c:FindTool(camera.hostToolRef).inputs.CenterLatitude[145]==-23.5)
 local invalid=Motion.prepare(marker,'MO-MRK-01',{start=200,frameCount=900},{})
 invalid.channels.fake={{frame=200,value=1}}
 local before=#c.undo

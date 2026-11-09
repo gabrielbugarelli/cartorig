@@ -83,3 +83,17 @@ Run `.github/workflows/build-natural-earth.yml` on the rewrite branch (or retrie
 7. Errors: inspect `%TEMP%\CartoRig_Rewrite_v2.log` or Resolve's Console.
 
 This code does not inherit prior CartoRig implementation branches. The v2.0 specification remains the product contract, not a claim of implemented features.
+
+## Integration hardening — 2026-11-09
+
+The `CartoRigCamera` Fuse is now the shared authorial Camera node. Its native `Control`/`Motion` pages expose longitude, latitude, zoom and bearing, with per-request-frame projection. The old `Transform.Size/Center` keyframe coupling was removed, so independent native interpolation of those screen-space values cannot cause interim-frame drift. A new mock Fuse test checks camera transform parameters in 16:9 and 9:16. **This does not yet solve wrap seams or pixel-constant screen-space Marker/Label sizing**, both explicitly pending.
+
+Initialization can now preserve an existing user graph: the original `MediaOut.Input` is read with `GetConnectedOutput()` and connected to a dedicated overlay `Merge.Background`; the CartoRig camera output goes to the foreground. It refuses to modify a non-empty composition when the original connection cannot be inspected. Rollback restores the original MediaOut source before deleting only CartoRig-owned nodes.
+
+Region polygon rendering now accepts inner rings and chains native `PolylineMask` tools using `EffectMask` and `PaintMode=Subtract`. Host simulation verifies ownership, chain topology and cleanup on failure. Its visual boolean-mask correctness must still pass Resolve-host pixel tests. True international date line polygons are still rejected rather than rendered incorrectly.
+
+`Motion.apply` now preflights actual native `GetKeyFrames()` when available, refusing to overwrite manually animated channels even when CartoRig metadata doesn't know about them. A repeat attempt at an already-animated channel fails closed. Full interactive preset conflict/update/removal is **not implemented**.
+
+`fusion/CartoRig Host Diagnostics.lua` is installed alongside the authoring script. Run it on a **new empty disposable Fusion Composition** to generate `%TEMP%\CartoRig_Host_Diagnostics.txt` and verify actual Fuse registry, mask serialization, hole subtraction, numeric keyframes and cleanup. It never wires MediaOut or touches another project. It does not certify rendering or all 60 QA cases.
+
+All new tests are run by the GitHub Actions suite under Lua 5.4 and LuaJIT (Lua 5.1 semantics), with Python geometry/index fixtures. Results do not imply a release-ready product.

@@ -23,7 +23,7 @@ local feature={id='Brazil',name='Brazil',type='Country',geometryType='Polygon',g
 local obj=Scene.add_location(state,feature,'Region')
 assert(host:add_region(state,obj,feature))
 assert(obj.hostToolRef and host:tool_for(obj))
-assert(output.connections.Input and output.connections.Input.regid=='Transform')
+assert(output.connections.Input and output.connections.Input.regid=='CartoRigCamera')
 local plan={channels={fill={{frame=329,value='#C92A2A'},{frame=330,value='#20A65A'}}}}
 host:apply_color_plan(obj,plan)
 local tool=host:tool_for(obj)

@@ -8,20 +8,12 @@ local function rgb(value)
   if type(value)~='string' or not value:match('^#%x%x%x%x%x%x$') then fail('invalid color key') end
   return {tonumber(value:sub(2,3),16)/255,tonumber(value:sub(4,5),16)/255,tonumber(value:sub(6,7),16)/255}
 end
-local function normalized_pose(pose)
-  if not finite(pose.longitude) or not finite(pose.latitude) or not finite(pose.zoom) or pose.zoom<=0 or pose.zoom>50 then fail('invalid camera pose') end
-  -- The Fusion Transform Center controls the position of the centre of the source world image.
-  -- World point x=(lon+180)/360, y=(lat+90)/180 must land at 0.5/0.5 after scaling.
-  local x=(pose.longitude+180)/360
-  local y=(pose.latitude+90)/180
-  return {0.5-(x-0.5)*pose.zoom,0.5-(y-0.5)*pose.zoom}
-end
 local channelMap={
   Region={opacity={tool='object',input='ObjectOpacity',percent=true},fill={tool='object',color={'FillRed','FillGreen','FillBlue'}},highlightStrength={tool='object',input='HighlightStrength',percent=true}},
   Marker={opacity={tool='object',input='TopLeftAlpha',percent=true},size={tool='mask',inputs={'Width','Height'},scale=1/1080}},
   Label={opacity={tool='object',input='Alpha1',percent=true}},
   Route={opacity={tool='object',input='TopLeftAlpha',percent=true},drawProgress={tool='mask',input='WriteLength',percent=true}},
-  Camera={zoom={tool='object',input='Size'},longitude={tool='object',camera=true},latitude={tool='object',camera=true}},
+  Camera={zoom={tool='object',input='Zoom'},longitude={tool='object',input='CenterLongitude'},latitude={tool='object',input='CenterLatitude'}},
   BaseMap={['layerOpacity.Ocean']={tool='object',input='OceanLayerOpacity',percent=true}},
 }
 M.supported_channels=channelMap
@@ -54,6 +46,19 @@ local function set_key(tool,input,value,frame)
   local ok,success=pcall(function()return tool:SetInput(input,value,frame)end)
   if not ok or success==false then fail('Fusion refused keyframe at '..tostring(frame)..' on '..input) end
 end
+local function native_keys_exist(tool,input)
+  if tool:GetData('CartoRig.V2.Animated.'..input)==true then return true end
+  if type(tool.GetInputList)~='function' then return false end
+  local ok,fields=pcall(function()return tool:GetInputList()end)
+  if not ok or type(fields)~='table' then return false end
+  local field=fields[input]
+  if field and type(field.GetKeyFrames)=='function' then
+    local success,keys=pcall(function()return field:GetKeyFrames()end)
+    if not success then fail('could not inspect existing Fusion keyframes on '..input) end
+    if type(keys)=='table' and next(keys)~=nil then return true end
+  end
+  return false
+end
 local function preflight(host,object,plan)
   if type(plan)~='table' or plan.objectId~=object.id or type(plan.channels)~='table' then fail('plan does not match selected object') end
   local mapped=channelMap[object.kind]
@@ -64,6 +69,13 @@ local function preflight(host,object,plan)
     if not spec then fail('native renderer has no editable '..channel..' channel for '..object.kind..' yet') end
     local tool=active_tool(host,object,spec)
     if type(tool.AddModifier)~='function' then fail('Fusion keyframe API not available') end
+    -- Do not trust only CartoRig scene metadata: Fusion may have hand-edited
+    -- curves which were never registered by the Scene window.
+    for _,input in ipairs(channel_inputs(spec)) do
+      if native_keys_exist(tool,input) then
+        fail('CONFLICT: Fusion channel '..input..' already has animation; preserve manual keys')
+      end
+    end
     if type(keys)~='table' or #keys==0 then fail('empty channel') end
     local last=-1
     for _,key in ipairs(keys) do
@@ -79,39 +91,9 @@ function M.apply(host,object,plan)
   if not host or not object or object.locked then fail('invalid or locked object') end
   -- Fail before creating ANY splines if a planned channel has no real native counterpart.
   local staged=preflight(host,object,plan)
-  local cameraCenter=nil
-  if object.kind=='Camera' and (plan.channels.longitude or plan.channels.latitude) then
-    -- Camera Center is a single 2D native input; it must be composed from both geographic channels.
-    local lon=plan.channels.longitude
-    local lat=plan.channels.latitude
-    if not lon or not lat or #lon~=#lat then fail('camera Center requires synchronized longitude and latitude keys') end
-    for i=1,#lon do
-      if lon[i].frame~=lat[i].frame then fail('camera Center keys are not synchronized') end
-    end
-    local zoom=plan.channels.zoom
-    if not zoom or #zoom~=#lon then fail('camera Center requires paired Zoom keys') end
-    cameraCenter={}
-    for i=1,#lon do
-      if zoom[i].frame~=lon[i].frame then fail('camera Zoom and Center keys must be synchronized') end
-      cameraCenter[#cameraCenter+1]={frame=lon[i].frame,value=normalized_pose({longitude=lon[i].value,latitude=lat[i].value,zoom=zoom[i].value})}
-    end
-  end
-  -- Transform.Center is screen-space, not a geographic longitude/latitude.
-  -- When Size changes while Focus stays fixed, Center MUST also change so that
-  -- a fixed WGS84 point remains at the viewport centre throughout the Zoom.
-  -- Do not modify an existing manually-animated Center without user consent.
-  if object.kind=='Camera' and plan.channels.zoom and not cameraCenter then
-    local camera=active_tool(host,object,{tool='object'})
-    if camera:GetData('CartoRig.V2.Animated.Center')==true then
-      fail('Zoom To would overwrite an existing camera Center animation; operation blocked')
-    end
-    cameraCenter={}
-    for _,key in ipairs(plan.channels.zoom) do
-      cameraCenter[#cameraCenter+1]={frame=key.frame,value=normalized_pose({
-        longitude=object.style.longitude,latitude=object.style.latitude,zoom=key.value,
-      })}
-    end
-  end
+  -- Camera now exposes canonical geographic parameters as native Fusion
+  -- channels. The Camera Fuse projects these values at EVERY requested frame,
+  -- avoiding independent Transform.Center/Size interpolation drift.
   local comp=host.comp
   local started=false
   if comp.StartUndo then comp:StartUndo('CartoRig: '..tostring(plan.presetId));started=true end
@@ -127,18 +109,10 @@ function M.apply(host,object,plan)
         for _,key in ipairs(row.keys) do
           for _,input in ipairs(spec.inputs) do set_key(tool,input,key.value*(spec.scale or 1),key.frame) end
         end
-      elseif not spec.camera then
+      else
         for _,key in ipairs(row.keys) do
           set_key(tool,spec.input,key.value*(spec.percent and 0.01 or 1),key.frame)
         end
-      end
-    end
-    if cameraCenter then
-      local tool=active_tool(host,object,{tool='object'})
-      ensure_spline(tool,'Center',true)
-      for _,k in ipairs(cameraCenter) do
-        local result=tool:SetInput('Center',k.value,k.frame)
-        if result==false then fail('Fusion rejected camera Center key') end
       end
     end
     local tool=host:tool_for(object)
@@ -148,7 +122,11 @@ function M.apply(host,object,plan)
     end
   end,debug.traceback)
   if started and comp.EndUndo then comp:EndUndo(ok) end
-  if not ok then fail('native keyframe write failed: '..tostring(err)) end
+  if not ok then
+    local tool=host:tool_for(object)
+    if tool then pcall(function()tool:SetData('CartoRig.V2.MotionNeedsRepair',true)end)end
+    fail('native keyframe write failed; inspect Undo and keyframes: '..tostring(err))
+  end
   return true
 end
 return M

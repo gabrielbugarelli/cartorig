@@ -1,0 +1,73 @@
+-- CartoRigCamera: single shared 2D geographic camera evaluated per requested frame.
+-- Fusion Inspector exposes canonical lon/lat/zoom/bearing splines directly.
+-- World source: x=(longitude+180)/360, y=(latitude+90)/180, bottom-up.
+-- At longitude seam this 2D prototype requires world-edge duplication; do not
+-- advertise a continuously wrapped global camera until host-specific tests pass.
+FuRegisterClass('CartoRigCamera', CT_Tool, {
+  REGS_Name='CartoRig Camera',
+  REGS_Category='CartoRig\\Map Objects',
+  REGS_OpIconString='CRC',
+  REGS_OpDescription='Shared WGS84 equirectangular 2D camera with native Fusion channels',
+  REG_NoMotionBlurCtrls=true,
+})
+local function numeric(input,req,default)
+  local value=input:GetValue(req)
+  local n=tonumber(type(value)=='table' and value.Value or value)
+  if not n or n~=n or n==math.huge or n==-math.huge then return default end
+  return n
+end
+-- Pure projection helpers are kept here so Fusion Process does not depend on
+-- the Scene window or an external Lua/Python process at render time.
+local function pose(lon,lat,zoom,bearing,width,height)
+  local xScale=(2*height/width)*zoom
+  local yScale=zoom
+  return {
+    XF_XOffset=0.5-((lon+180)/360-0.5)*xScale,
+    XF_YOffset=0.5-((lat+90)/180-0.5)*yScale,
+    XF_XAxis=0.5, XF_YAxis=0.5,
+    XF_XSize=xScale, XF_YSize=yScale,
+    XF_Angle=bearing, XF_EdgeMode='Black'
+  }
+end
+function Create()
+  self:AddControlPage('Control')
+  InLongitude=self:AddInput('Center Longitude','CenterLongitude',{
+    LINKID_DataType='Number',INPID_InputControl='SliderControl',INP_Default=0,
+    INP_MinScale=-180,INP_MaxScale=180,INP_MinAllowed=-1080,INP_MaxAllowed=1080,
+  })
+  InLatitude=self:AddInput('Center Latitude','CenterLatitude',{
+    LINKID_DataType='Number',INPID_InputControl='SliderControl',INP_Default=0,
+    INP_MinScale=-85,INP_MaxScale=85,INP_MinAllowed=-85,INP_MaxAllowed=85,
+  })
+  InZoom=self:AddInput('Zoom','Zoom',{
+    LINKID_DataType='Number',INPID_InputControl='SliderControl',INP_Default=1,
+    INP_MinScale=0.1,INP_MaxScale=50,INP_MinAllowed=0.1,INP_MaxAllowed=50,
+  })
+  InBearing=self:AddInput('Bearing','Bearing',{
+    LINKID_DataType='Number',INPID_InputControl='SliderControl',INP_Default=0,
+    INP_MinScale=-180,INP_MaxScale=180,INP_MinAllowed=-1080,INP_MaxAllowed=1080,
+  })
+  self:AddControlPage('Motion')
+  self:CloneInput(InLongitude,'MotionLongitude',{INP_DoNotifyChanged=false,INP_InteractivePassive=true})
+  self:CloneInput(InLatitude,'MotionLatitude',{INP_DoNotifyChanged=false,INP_InteractivePassive=true})
+  self:CloneInput(InZoom,'MotionZoom',{INP_DoNotifyChanged=false,INP_InteractivePassive=true})
+  self:CloneInput(InBearing,'MotionBearing',{INP_DoNotifyChanged=false,INP_InteractivePassive=true})
+  InImage=self:AddInput('Geographic Composite','Input',{
+    LINKID_DataType='Image',LINK_Main=1,INP_Required=true,
+  })
+  OutImage=self:AddOutput('Output','Output',{LINKID_DataType='Image',LINK_Main=1})
+end
+function Process(req)
+  local img=InImage:GetValue(req)
+  if not img then OutImage:Set(req,nil);return end
+  local width,height=tonumber(img.Width),tonumber(img.Height)
+  if not width or not height or width<=0 or height<=0 then
+    OutImage:Set(req,nil);return
+  end
+  local lon=numeric(InLongitude,req,0)
+  local lat=numeric(InLatitude,req,0)
+  local zoom=math.max(0.1,math.min(50,numeric(InZoom,req,1)))
+  local bearing=numeric(InBearing,req,0)
+  local options=pose(lon,lat,zoom,bearing,width,height)
+  OutImage:Set(req,img:Transform(nil,options))
+end

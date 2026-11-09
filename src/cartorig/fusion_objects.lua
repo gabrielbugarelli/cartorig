@@ -79,7 +79,8 @@ function O.build(host,scene,object,kind,points)
     if kind=='Label' then
       fg=add(comp,created,'TextPlus','CR2_LABEL_'..object.id)
       fg:SetInput('StyledText',object.text or object.name or '')
-      local x,y=table.unpack(point(object.anchor))
+      local xy=point(object.anchor)
+      local x,y=xy[1],xy[2]
       fg:SetInput('Center',{x,y})
       fg:SetInput('Size',(object.style.fontSize or 32)/1080)
       local tr,tg,tb=color(object.style.color or '#F0F5F8')
