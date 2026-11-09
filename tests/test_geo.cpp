@@ -57,6 +57,23 @@ int main(){
         "unwrapped native camera 181° stays geographically centered at -179°");
   auto target=fit(shape.bounds,800,600);
   check(target.zoom>0&&target.zoom<=50,"region fit");
+  // Cross-dateline bounds are the short envelope, not a 340-degree map.
+  auto wrapped=fit({170,-10,-170,10},800,600);
+  check(std::abs(std::abs(wrapped.center.lon)-180.)<1e-10,
+        "antimeridian Fit must center on 180 degrees");
+  check(wrapped.zoom>10.,"wrapped 20-degree Fit must not zoom to the whole world");
+  const auto eastPoint=project({175,0},wrapped,800,600);
+  const auto westPoint=project({-175,0},wrapped,800,600);
+  check(eastPoint.x<400&&westPoint.x>400&&
+        eastPoint.x>0&&westPoint.x<800,
+        "opposite dateline coastlines remain inside the fitted viewport");
+  auto wide=fit({-180,-60,180,60},800,600);
+  check(std::abs(wide.center.lon)<1e-10&&wide.zoom<=1.,
+        "whole-world Fit preserves conventional geographic extents");
+  bool invalidBounds=false;
+  try{(void)fit({170,20,-170,-20},800,600);}
+  catch(const std::invalid_argument&){invalidBounds=true;}
+  check(invalidBounds,"Fit rejects north-south inverted bounds");
   Surface canvas(800,600);canvas.clear({0,0,0,0});
   drawGeometry(canvas,shape,camera,{201,42,42,255},{212,175,55,255},2,1);
   check(canvas.pixel(400,300).a>0,"Rio polygon fill");
