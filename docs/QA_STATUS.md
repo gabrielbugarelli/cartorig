@@ -5,6 +5,7 @@
 | Scope | Automated tests | Windows Resolve Studio 20 | Product acceptance |
 | --- | --- | --- | --- |
 | Scene model, group/route edits, identity, styles | PASS locally | NOT RUN | OPEN |
+| Scene UI authorial Rename / Hide-Show / Lock, owned node validation, failure rollback | PASS command + mock-Fusion tests | NOT RUN | OPEN |
 | Offline GeoJSON, lazy point/polygon loading | PASS locally | NOT RUN | OPEN |
 | Projection, seam math, fit, polygon ring semantics | PASS locally | NOT RUN | OPEN |
 | Fusion Scene metadata JSON roundtrip | PASS with mock | NOT RUN | OPEN |

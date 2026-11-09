@@ -225,6 +225,22 @@ function H:add_region(scene,object,feature)
   if not ok then fail('Region creation rolled back: '..tostring(err)) end
   return true
 end
+function H:set_authorial_visibility(scene,object,visible)
+  if type(visible)~='boolean' then fail('visibility must be boolean') end
+  if not scene or not object or object.kind=='BaseMap' or object.kind=='Camera' then
+    fail('visibility adapter supports authored visual objects only')
+  end
+  if not self:tool_for(object) then fail('authorial Fusion object no longer exists') end
+  local ref=object.compositeToolRef
+  local blend=ref and find(self.comp,ref)
+  if not blend or blend:GetData('CartoRig.V2.Owned')~=true
+    or blend:GetData('CartoRig.V2.SceneId')~=scene.id
+    or blend:GetData('CartoRig.V2.ObjectId')~=object.id
+  then fail('authorial compositing node is missing or not owned by this object') end
+  local ok,result=pcall(function()return blend:SetInput('Blend',visible and 1 or 0)end)
+  if not ok or result==false then fail('Fusion refused authorial visibility change') end
+  return true
+end
 function H:set_region_fill(object,color,frame,animate)
   local node=self:tool_for(object)
   if not node or object.kind~='Region' then fail('Region has no Fusion color tool') end

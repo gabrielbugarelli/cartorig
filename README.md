@@ -4,7 +4,7 @@ Fresh source code aligned to `CR-PS-2.0`: `Scene` owns structure in UIManager; t
 
 ## Implemented and covered by automated contract tests
 
-- Canonical Scene: typed objects, stable IDs, styles, CRUD, group and follower reference validation, draw order, locks, copy/snapshot.
+- Canonical Scene: typed objects, stable IDs, styles, CRUD, group and follower reference validation, draw order, locks, copy/snapshot. The UIManager preview now connects Rename, Hide/Show and Lock/Unlock commands for authorial objects to persisted Scene metadata. Hide/Show updates only the owned object composite Blend and reverts on metadata failure; it does not erase native keyframes.
 - Safe Scene authoring orchestration: manifest-pinned source protection, initialize, add Region, Marker, Label or Route, persist back into Fusion Composition metadata, and remove only the newly-created CartoRig nodes when an operation fails before commit.
 - Offline GeoJSON search/index: country/state/city distinction, Unicode/aliases, on-demand point and polygon geometry loading. A City with point geometry does not become an invented municipal polygon.
 - Native Fusion authoring adapter: white Background + CartoRigBase Fuse/Transform/MediaOut **preview**, Region via native PolygonMask matte + CartoRigRegion Fuse, Marker via EllipseMask, Label via TextPlus, Route via PolylineMask, each with a separate user-facing tool and a shared downstream Transform.
@@ -79,7 +79,7 @@ Run `.github/workflows/build-natural-earth.yml` on the rewrite branch (or retrie
 3. Restart Resolve 20 Studio, insert a fresh Fusion Composition on a **disposable project** and open the Fusion page.
 4. Run `CartoRig Scene` from Fusion Scripts. Click `Initialize Map Scene`.
 5. Search for a country (for example Brazil), select `Country`, click `Add as Region`. For a city point, use `Add Marker` or `Add Label`. To make a Route, choose two explicit City points with `Route From` / `Route To`, then `Create Route`.
-6. Click an object in Scene to select its corresponding native tool in the Node Editor/Inspector. Fusion native controls can be inspected and manually animated; the complete contextual `Control / Motion` pages are future implementation work.
+6. Click an object in Scene to select its corresponding native tool in the Node Editor/Inspector. Use Rename, Hide/Show or Lock/Unlock from Scene on user-created objects; these commands preserve object IDs and animation. Fusion native controls can be inspected and manually animated; the complete contextual `Control / Motion` pages are future implementation work.
 7. Errors: inspect `%TEMP%\CartoRig_Rewrite_v2.log` or Resolve's Console.
 
 This code does not inherit prior CartoRig implementation branches. The v2.0 specification remains the product contract, not a claim of implemented features.

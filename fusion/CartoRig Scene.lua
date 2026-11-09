@@ -63,6 +63,8 @@ local function run()
       ui:Label{Text='SCENE OBJECTS'},
       ui:Tree{ID='CR_Objects',ColumnCount=1,SortingEnabled=false,MinimumSize={320,200}},
       ui:HGroup{ui:Button{ID='CR_Reveal',Text='Reveal in Fusion'},ui:Button{ID='CR_Refresh',Text='Refresh'}},
+      ui:HGroup{ui:LineEdit{ID='CR_RenameField',PlaceholderText='New object name'},ui:Button{ID='CR_Rename',Text='Rename'}},
+      ui:HGroup{ui:Button{ID='CR_Visibility',Text='Hide / Show'},ui:Button{ID='CR_Lock',Text='Lock / Unlock'}},
       ui:Label{ID='CR_Status',Text='Ready'},
       ui:Button{ID='CR_Close',Text='Close Scene'},
     })
@@ -188,6 +190,36 @@ local function run()
       local object=Scene.get(state,selected_id)
       engine:select(selected_id)
       return 'Selected '..object.name..' in Fusion Node Editor/Inspector.'
+    end)
+  end
+  win.On.CR_Rename.Clicked=function()
+    guarded(function()
+      if not selected_id then error('Select an authorial scene object first') end
+      local obj=Scene.get(engine:current(),selected_id)
+      if not obj or obj.kind=='BaseMap' or obj.kind=='Camera' then error('Cannot rename a structural scene object') end
+      state=engine:rename(selected_id,w.CR_RenameField.Text)
+      refresh_objects()
+      return 'Renamed object. Stable identity and Fusion tools were preserved.'
+    end)
+  end
+  win.On.CR_Visibility.Clicked=function()
+    guarded(function()
+      if not selected_id then error('Select an authorial scene object') end
+      local obj=Scene.get(engine:current(),selected_id)
+      if not obj then error('Object not found') end
+      state=engine:set_visible(selected_id,not obj.visible)
+      refresh_objects()
+      return obj.visible and 'Hidden without deleting object/animation' or 'Object shown'
+    end)
+  end
+  win.On.CR_Lock.Clicked=function()
+    guarded(function()
+      if not selected_id then error('Select an authorial scene object') end
+      local obj=Scene.get(engine:current(),selected_id)
+      if not obj then error('Object not found') end
+      state=engine:set_lock(selected_id,not obj.locked)
+      refresh_objects()
+      return obj.locked and 'Unlocked in CartoRig Scene' or 'Locked for CartoRig operations'
     end)
   end
   win.On.CR_Refresh.Clicked=function()guarded(function()refresh_objects();return 'Scene refreshed' end)end

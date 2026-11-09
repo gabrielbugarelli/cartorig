@@ -78,6 +78,48 @@ function A:add_route(from,to)
   end
   return draft,object
 end
+local function mutation_draft(self)
+  local current=self:current()
+  if not current then fail('initialize map scene first') end
+  if self.expectedManifestId and current.manifestId~=self.expectedManifestId then
+    fail('installed geographic dataset differs from saved scene; mutation blocked')
+  end
+  return current,self.m.Scene.snapshot(current)
+end
+function A:rename(id,new_name)
+  local previous,draft=mutation_draft(self)
+  self.m.Scene.rename(draft,id,new_name)
+  self.m.Scene.validate(draft)
+  self.m.Repository.write(self.comp,draft,self.m.Scene,self.m.Json)
+  return draft
+end
+function A:set_lock(id,locked)
+  local previous,draft=mutation_draft(self)
+  self.m.Scene.set_lock(draft,id,locked)
+  self.m.Scene.validate(draft)
+  self.m.Repository.write(self.comp,draft,self.m.Scene,self.m.Json)
+  return draft
+end
+function A:set_visible(id,visible)
+  local previous,draft=mutation_draft(self)
+  local obj=self.m.Scene.get(previous,id)
+  if not obj then fail('selected object no longer exists') end
+  if obj.kind=='BaseMap' or obj.kind=='Camera' then
+    fail('use the native Base Map / Camera controls for structural objects')
+  end
+  self.m.Scene.set_visible(draft,id,visible)
+  if obj.visible==visible then return previous end
+  self.host:set_authorial_visibility(previous,obj,visible)
+  local ok,err=pcall(function()
+    self.m.Scene.validate(draft)
+    self.m.Repository.write(self.comp,draft,self.m.Scene,self.m.Json)
+  end)
+  if not ok then
+    pcall(function()self.host:set_authorial_visibility(previous,obj,obj.visible)end)
+    fail('visibility persistence failed; Fusion blend restored: '..tostring(err))
+  end
+  return draft
+end
 function A:select(id)
   local state=self:current()
   if not state then fail('no scene') end
