@@ -9,8 +9,11 @@ have not been run in DaVinci Resolve Studio 20.
 ## Product architecture
 
 - **Scene** — one Fusion UIManager window, opened with `CartoRig Scene`
-  from the Fusion scripting menu. Search local Natural Earth names, add,
-  select, rename, lock, hide and delete authoring objects.
+  from the Fusion scripting menu. Hierarchical object Tree, category/group
+  organization, context-aware offline search, explicit batch Hide/Show/Lock/
+  Delete/Group, Node Editor selection bridge, object registry, read-only
+  broken-scene inspection, guarded Recover Copy, and single-window lifecycle.
+  All interaction remains subject to actual Resolve-host certification.
 - **Control** — native Fusion Inspector parameters exposed by original
   OpenFX objects. Source geometry, independent colors and geo camera.
 - **Motion** — an adjacent Inspector page with editable keyframe channels.
@@ -49,12 +52,18 @@ Countries and states are areas; cities are points, not municipal polygons.
 ## Release gates — NOT COMPLETED
 
 The product spec requires 60 QA cases, 10 HOST checks, offline 4K image
-quality/alpha regression, scene reopen/Undo and real fusion UI testing.
+quality/alpha regression, scene reopen/Undo and real Fusion UI testing.
 Those checks have **not** been passed by this build merely because the CI
-compiles successfully. Remaining work includes typography/Label, Group
-completeness, geo Route waypoints and linked marker Follow Path, native
-Motion easing/customized fingerprint handling, anti-meridian polygon seam,
-host-level animation/Spline verification and final Windows installer QA.
+compiles successfully. Remaining work includes full typography/Label host
+verification, geo Route linked-marker Follow Path, native Motion
+easing/customized fingerprint handling, anti-meridian polygon seam,
+host-level Scene Tree/selection/recovery certification, Spline verification
+and final Windows installer QA.
+
+The Scene engineering acceptance ledger is
+[docs/SCENE_MILESTONE1_ACCEPTANCE.md](docs/SCENE_MILESTONE1_ACCEPTANCE.md).
+It identifies exact simulated proofs and the mandatory real Resolve gates.
+Do not interpret test coverage of the Scene as real-host UX approval.
 
 No stable release, automatic merge, or sign-off will occur without the
 required evidence. This rewrite branch remains isolated from `main`.
