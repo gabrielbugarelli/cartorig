@@ -128,8 +128,12 @@ void fillPolygons(Surface&canvas,const std::vector<std::vector<ScreenPoint>>&rin
 }
 }
 void Camera::validate() const{
- validateGeo(center);
- if(!finite(zoom)||zoom<.1||zoom>50||!finite(bearing)||bearing<-360||bearing>360)
+ // Camera keys may use unwrapped longitudes (179 -> 181) to avoid a
+ // 358-degree Fly To. Published geographic object anchors stay [-180,180].
+ if(!finite(center.lon)||std::abs(center.lon)>540||
+    !finite(center.lat)||std::abs(center.lat)>85||
+    !finite(zoom)||zoom<.1||zoom>50||
+    !finite(bearing)||bearing<-360||bearing>360)
   throw std::invalid_argument("Invalid camera parameters");
 }
 Surface::Surface(int w,int h):width(w),height(h){
