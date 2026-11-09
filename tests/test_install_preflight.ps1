@@ -12,6 +12,7 @@ try {
     Set-Content -LiteralPath (Join-Path $native 'CartoRigFusion.ofx') -Value 'dummy binary' -Encoding ASCII
     Set-Content -LiteralPath (Join-Path $scripts 'CartoRig Scene.lua') -Value '-- fixture' -Encoding ASCII
     Set-Content -LiteralPath (Join-Path $support 'scene.lua') -Value '-- fixture' -Encoding ASCII
+    Set-Content -LiteralPath (Join-Path $support 'scene_tree.lua') -Value '-- fixture' -Encoding ASCII
     $geometry = Join-Path $data 'geometry.crgeo'
     $catalog = Join-Path $data 'catalog.tsv'
     Set-Content -LiteralPath $geometry -Value 'fixture geometry' -Encoding ASCII
