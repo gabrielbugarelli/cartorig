@@ -64,9 +64,10 @@ local window=dispatcher:AddWindow({
         ui:Button{ID="SetGroup",Text="Move into Group",Weight=0.40}
     },
     ui:HGroup{
-        ui:LineEdit{ID="RenameValue",PlaceholderText="Rename selected object",Weight=0.63},
-        ui:Button{ID="Rename",Text="Rename",Weight=0.20},
-        ui:Button{ID="Delete",Text="Delete",Weight=0.17}
+        ui:LineEdit{ID="RenameValue",PlaceholderText="Rename object",Weight=0.42},
+        ui:Button{ID="Rename",Text="Rename",Weight=0.17},
+        ui:Button{ID="Duplicate",Text="Duplicate",Weight=0.22},
+        ui:Button{ID="Delete",Text="Delete",Weight=0.19}
     },
     ui:Label{Text="ROUTE — explicit point coordinates; never assume a region centroid"},
     ui:HGroup{
@@ -378,6 +379,14 @@ function window.On.Rename.Clicked(_)
         scene.rename(o.id,item.RenameValue.Text)
         refresh()
         return "Object renamed without changing publisher feature ID."
+    end)
+end
+function window.On.Duplicate.Clicked(_)
+    perform(function()
+        local object=chooseObject("duplicate")
+        local id=scene.duplicate(object.id)
+        refresh()
+        return "Native Fusion settings and animation copied to new object "..id
     end)
 end
 function window.On.Delete.Clicked(_)
