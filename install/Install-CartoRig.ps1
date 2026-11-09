@@ -62,7 +62,11 @@ New-Item -ItemType Directory -Force -Path $supportDir | Out-Null
 Copy-Item -LiteralPath $script -Destination (Join-Path $compHome 'CartoRig Scene.lua') -Force
 Copy-Item -LiteralPath $support -Destination (Join-Path $supportDir 'scene.lua') -Force
 $dataDir=Join-Path $destination 'Contents\Resources\data'
-Set-Content -LiteralPath (Join-Path $supportDir 'install-root.txt') -Value $dataDir -Encoding UTF8
+# Windows PowerShell 5.1 Set-Content -Encoding UTF8 writes a BOM.
+# The Fusion Lua script reads this as raw bytes; a BOM corrupts the path.
+$installRoot=Join-Path $supportDir 'install-root.txt'
+$utf8WithoutBom=New-Object System.Text.UTF8Encoding($false)
+[System.IO.File]::WriteAllText($installRoot, $dataDir + [Environment]::NewLine, $utf8WithoutBom)
 Write-Host 'Installed CartoRig Fusion OpenFX and Scene UIManager script.'
 Write-Host 'Resolve Studio 20 > Fusion > Workspace > Scripts > Comp > CartoRig Scene.'
 Write-Host "Natural Earth features: $($meta.features). The plugin is offline."
