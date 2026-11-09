@@ -10,13 +10,17 @@ local function assertHost(value,message)
     return value
 end
 local function current()
-    local composition=_G.comp
-    if not composition and _G.fu and type(fu.GetCurrentComp)=="function" then
+    -- A long-lived UIManager window must follow the ACTIVE composition;
+    -- the initial global comp points to the script launch context only.
+    local composition=nil
+    if _G.fu and type(fu.GetCurrentComp)=="function" then
         composition=fu:GetCurrentComp()
     end
-    if not composition and _G.fusion and type(fusion.GetCurrentComp)=="function" then
+    if not composition and _G.fusion and
+       type(fusion.GetCurrentComp)=="function" then
         composition=fusion:GetCurrentComp()
     end
+    if not composition then composition=_G.comp end
     return assertHost(composition,"No current Fusion composition")
 end
 local function tools(composition)
