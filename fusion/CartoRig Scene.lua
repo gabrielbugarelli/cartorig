@@ -12,6 +12,18 @@ local fusion=_G.fu or _G.fusion or
 assert(fusion and fusion.UIManager and bmd and bmd.UIDispatcher,
        "CartoRig Scene requires the Fusion UIManager")
 local ui=fusion.UIManager
+-- One editor window per process; repeated script invocation must not create
+-- duplicate notification subscriptions or competing Scene controllers.
+if _G.CARTORIG_SCENE_WINDOW_RUNNING then
+    local old=nil
+    if type(ui.FindWindow)=="function" then
+        pcall(function()old=ui:FindWindow("CartoRigSceneWindow")end)
+    end
+    if old and type(old.Raise)=="function" then
+        pcall(function()old:Show();old:Raise()end)
+    end
+    return
+end
 local dispatcher=bmd.UIDispatcher(ui)
 local window=dispatcher:AddWindow({
     ID="CartoRigSceneWindow",WindowTitle="CartoRig — Scene",
@@ -782,11 +794,16 @@ watch("DeleteTool",function(_)
         perform(refresh)
     end
 end)
-window:Show()
-dispatcher:RunLoop()
-window:Hide()
+_G.CARTORIG_SCENE_WINDOW_RUNNING=true
+local ok,why=pcall(function()
+    window:Show()
+    dispatcher:RunLoop()
+end)
+pcall(function()window:Hide()end)
 for _,notice in ipairs(notifications)do
     pcall(function()ui:RemoveNotify(notice.event)end)
 end
 notifications={}
+_G.CARTORIG_SCENE_WINDOW_RUNNING=nil
+if not ok then error("CartoRig Scene UI failed: "..tostring(why))end
 
