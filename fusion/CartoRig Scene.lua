@@ -354,33 +354,25 @@ function window.On.Reveal.Clicked(_)
         return "Node selected: "..o.name
     end)
 end
+local function batchAction(action)
+    verifyContext()
+    local ids=selectedIds()
+    if #ids==0 then error("Select CartoRig objects in the Scene tree") end
+    local count=scene.batch(action,ids)
+    refresh()
+    return count.." object(s): "..action.." — one Fusion Undo unit."
+end
 function window.On.Show.Clicked(_)
-    perform(function()
-        local o=chooseObject("show")
-        scene.visibility(o.id,true);refresh()
-        return "Object shown."
-    end)
+    perform(function()return batchAction("show")end)
 end
 function window.On.Hide.Clicked(_)
-    perform(function()
-        local o=chooseObject("hide")
-        scene.visibility(o.id,false);refresh()
-        return "Object hidden; animation remains intact."
-    end)
+    perform(function()return batchAction("hide")end)
 end
 function window.On.Lock.Clicked(_)
-    perform(function()
-        local o=chooseObject("lock")
-        scene.lock(o.id,true);refresh()
-        return "Object locked in CartoRig Scene."
-    end)
+    perform(function()return batchAction("lock")end)
 end
 function window.On.Unlock.Clicked(_)
-    perform(function()
-        local o=chooseObject("unlock")
-        scene.lock(o.id,false);refresh()
-        return "Object unlocked."
-    end)
+    perform(function()return batchAction("unlock")end)
 end
 function window.On.MoveUp.Clicked(_)
     perform(function()
@@ -410,12 +402,14 @@ function window.On.CreateGroup.Clicked(_)
 end
 function window.On.SetGroup.Clicked(_)
     perform(function()
-        local o=chooseObject("group")
+        verifyContext()
+        local ids=selectedIds()
         local group=groups[(tonumber(item.Groups.CurrentIndex) or -1)]
-        if not group then error("Choose a destination group in the dropdown")end
-        scene.setParent(o.id,group.id)
+        if not group then error("Choose a destination group")end
+        local count=scene.groupMany(ids,group.id)
         refresh()
-        return o.name.." added to "..group.name.." without changing its draw order."
+        return count.." object(s) placed into "..group.name..
+               " without changing global draw order."
     end)
 end
 function window.On.Ungroup.Clicked(_)
@@ -445,12 +439,7 @@ function window.On.Duplicate.Clicked(_)
 end
 function window.On.Delete.Clicked(_)
     perform(function()
-        local o=chooseObject("delete")
-        if o.role=="Base Map" or o.role=="Camera" then
-            error("Base Map and Camera cannot be deleted.")
-        end
-        scene.delete(o.id);refresh()
-        return "Selected object deleted. Restore via Fusion Undo if needed."
+        return batchAction("delete")
     end)
 end
 local function coords(lon,lat)
