@@ -174,6 +174,23 @@ check(#api.objects()==4,"marker independently editable")
 api.focus(api.search("São Paulo","city")[1],false)
 local camera=comp:FindTool("CR_Camera")
 check(camera:GetInput("CenterLongitude")~=nil,"camera focus is static")
+local crossing={bounds={170,-10,-170,10}}
+api.focus(crossing,true)
+check(math.abs(math.abs(camera:GetInput("CenterLongitude"))-180)<1e-10,
+      "Fit of wrapped WGS84 bounds centers on the antimeridian")
+check(camera:GetInput("Zoom")>5,
+      "wrapped 20-degree Fit does not zoom out to an entire world")
+api.focus({bounds={-180,-60,180,60}},true)
+check(math.abs(camera:GetInput("CenterLongitude"))<1e-10,
+      "whole-world Fit remains centered at zero longitude")
+local previousCenter=camera:GetInput("CenterLongitude")
+local previousZoom=camera:GetInput("Zoom")
+local previousUndos=comp.undos
+local safe=pcall(function()api.focus({bounds={170,20,-170,-20}},true)end)
+check(not safe and comp.undos==previousUndos and
+      camera:GetInput("CenterLongitude")==previousCenter and
+      camera:GetInput("Zoom")==previousZoom,
+      "invalid bounds must not start Undo or partially edit camera")
 local count=#api.objects()
 ok,err=pcall(function()api.addRoute({lon=-47.88,lat=-15.79},{lon=999,lat=0})end)
 check(not ok and #api.objects()==count,"invalid route point rejected")
