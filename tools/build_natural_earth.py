@@ -11,6 +11,7 @@ import json
 import urllib.request
 import zipfile
 from pathlib import Path
+from layer_index import write_layer_index
 
 DATASETS = {
     "admin0": ("10m_cultural", "ne_10m_admin_0_countries"),
@@ -119,6 +120,9 @@ def build(out: Path, selected, pins: dict[str, str]) -> dict:
         filename = f'{stem}.geojson'
         content = json.dumps(feature_collection, ensure_ascii=False, separators=(',', ':'), allow_nan=False).encode('utf-8')
         (out / filename).write_bytes(content)
+        if name in ('land','coastline','boundaries','lakes'):
+            record = write_layer_index(out, name, feature_collection['features'], digest)
+            manifest.setdefault('layer_indexes', []).append(record)
         if name in ('admin0','admin1','cities'):
             geo_linefile = out / f'features_{name}.jsonl'
             with geo_linefile.open('wb') as stream:
