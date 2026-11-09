@@ -78,11 +78,17 @@ local function connect(tool,upstream)
 end
 local function transaction(composition,title,fn)
     assertHost(composition.StartUndo,"Fusion Undo API")
-    composition:StartUndo(title)
+    -- Some Fusion versions return nil for success; only explicit false
+    -- signals rejection. Never execute a mutation after rejection.
+    local started=composition:StartUndo(title)
+    if started==false then error("Fusion refused to start Undo: "..title,3) end
     local ok,result=pcall(fn)
-    local committed,why=pcall(function()composition:EndUndo(ok)end)
+    local closed,endResult=pcall(function()return composition:EndUndo(ok)end)
     if not ok then error(result,3) end
-    if not committed then error(why,3) end
+    if not closed then error(endResult,3) end
+    if endResult==false then
+        error("Fusion failed to finalize Undo: "..title,3)
+    end
     return result
 end
 function M.composition()return current()end
