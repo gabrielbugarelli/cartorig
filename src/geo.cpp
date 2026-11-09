@@ -336,6 +336,77 @@ void drawGeometry(Surface&canvas,const Geometry&g,const Camera&camera,
    paintLine(canvas,ring[j-1],ring[j],width,stroke,opacity);
  }
 }
+void drawRegion(Surface&canvas,const Geometry&g,const Camera&camera,
+                const RegionStyle&style){
+ camera.validate();
+ auto unit=[](double x){return std::isfinite(x)&&x>=0&&x<=1;};
+ if(!unit(style.fillAlpha)||!unit(style.strokeAlpha)||
+    !unit(style.objectOpacity)||!unit(style.strokeProgress)||
+    !unit(style.highlightStrength)||!std::isfinite(style.strokeWidth)||
+    style.strokeWidth<0||style.strokeWidth>24)
+  throw std::invalid_argument("Invalid Region style controls");
+ if(g.shape!=5||g.points.empty()||g.parts.empty())
+  throw std::invalid_argument("Region requires published polygon geometry");
+ auto mix=[&](Color base){
+  const double t=style.highlightStrength;
+  auto component=[t](uint8_t from,uint8_t to){
+   return static_cast<uint8_t>(std::lround((1-t)*from+t*to));
+  };
+  return Color{component(base.r,style.highlight.r),
+               component(base.g,style.highlight.g),
+               component(base.b,style.highlight.b),base.a};
+ };
+ const Color fillColor=style.highlightStroke?style.fill:mix(style.fill);
+ const Color strokeColor=style.highlightStroke?mix(style.stroke):style.stroke;
+ std::vector<std::vector<ScreenPoint>> rings;
+ std::vector<bool> external;
+ rings.reserve(g.parts.size());external.reserve(g.parts.size());
+ for(std::size_t i=0;i<g.parts.size();++i){
+  const std::size_t first=g.parts[i];
+  const std::size_t last=i+1<g.parts.size()?g.parts[i+1]:g.points.size();
+  rings.push_back(transformRing(g.points,first,last,camera,
+                               canvas.width,canvas.height));
+  // Natural Earth SHP follows the clockwise outer-ring convention.
+  // Evaluate raw geographic vertices; do not let screen Y inversion flip it.
+  double sum=0;
+  for(std::size_t j=first;j+1<last;++j)
+   sum+=g.points[j].lon*g.points[j+1].lat-
+        g.points[j+1].lon*g.points[j].lat;
+  external.push_back(sum<0||i==0);
+ }
+ const double fillOpacity=style.objectOpacity*style.fillAlpha;
+ if(fillOpacity>0&&style.fill.a>0)
+  fillPolygons(canvas,rings,fillColor,fillOpacity);
+ if(!style.strokeVisible||style.strokeWidth==0||
+    style.strokeProgress==0||style.strokeAlpha==0||
+    style.objectOpacity==0||style.stroke.a==0)return;
+ const double opacity=style.objectOpacity*style.strokeAlpha;
+ double total=0;
+ for(std::size_t i=0;i<rings.size();++i){
+  if(style.outerContoursOnly&&!external[i])continue;
+  const auto&ring=rings[i];
+  for(std::size_t j=1;j<ring.size();++j)
+   total+=std::hypot(ring[j].x-ring[j-1].x,ring[j].y-ring[j-1].y);
+ }
+ const double limit=total*style.strokeProgress;
+ double current=0;
+ for(std::size_t i=0;i<rings.size();++i){
+  if(style.outerContoursOnly&&!external[i])continue;
+  const auto&ring=rings[i];
+  for(std::size_t j=1;j<ring.size();++j){
+   auto a=ring[j-1],b=ring[j];
+   const double length=std::hypot(b.x-a.x,b.y-a.y);
+   if(length<=1e-10)continue;
+   if(current>=limit)return;
+   if(current+length>limit){
+    const double f=(limit-current)/length;
+    b={a.x+f*(b.x-a.x),a.y+f*(b.y-a.y)};
+   }
+   paintLine(canvas,a,b,style.strokeWidth,strokeColor,opacity);
+   current+=length;
+  }
+ }
+}
 void drawRoute(Surface&canvas,const Camera&camera,const RouteOptions&route){
  camera.validate();validateGeo(route.from);validateGeo(route.to);
  if(!finite(route.progress)||!finite(route.trimStart)||!finite(route.trimEnd)||
