@@ -27,7 +27,13 @@ local positive={ strokeWidth=true,size=true,fontSize=true,zoom=true }
 local function valid_style(key, value)
   if colors[key] then return type(value)=='string' and value:match('^#%x%x%x%x%x%x$')~=nil end
   if pct[key] then return type(value)=='number' and value==value and value>=0 and value<=100 end
-  if positive[key] then return type(value)=='number' and value==value and value~=math.huge and value>=0 and value<1e6 end
+  if positive[key] then
+    if type(value)~='number' or value~=value or value==math.huge or value==-math.huge then return false end
+    if key=='zoom' then return value>=0.1 and value<=50 end
+    if key=='fontSize' then return value>=6 and value<=200 end
+    if key=='size' then return value>=0 and value<=128 end
+    return value>=0 and value<=32
+  end
   if key=='longitude' or key=='bearing' then return type(value)=='number' and value==value and value>=-180 and value<=180 end
   if key=='latitude' then return type(value)=='number' and value==value and value>=-85 and value<=85 end
   if key=='displayMode' then return value=='Full Map' or value=='Transparent Overlay' end
@@ -184,7 +190,7 @@ function M.validate(scene)
   if type(scene)~='table' or scene.schema~='cartorig.scene/1' then fail('unsupported scene schema') end
   if type(scene.id)~='string' or #scene.id<8 or #scene.id>240 then fail('invalid persistent scene ID') end
   if type(scene.manifestId)~='string' or #scene.manifestId>512 then fail('invalid data manifest identity') end
-  if type(scene.serial)~='number' or scene.serial%1~=0 or scene.serial<2 then fail('invalid scene serial') end
+  if type(scene.serial)~='number' or scene.serial%1~=0 or scene.serial<2 or scene.serial==math.huge then fail('invalid scene serial') end
   if type(scene.objects)~='table' or #scene.objects<2 or #scene.objects>5000 then fail('invalid scene object count') end
   local seen={}
   for i,o in ipairs(scene.objects) do
@@ -198,6 +204,60 @@ function M.validate(scene)
       if style[o.kind][key]==nil or not valid_style(key,value) then
         fail('invalid persisted style '..tostring(key)..' on '..tostring(o.id))
       end
+    end
+    local lastSerial=tonumber(o.id:match(':(%d+) or scene.objects[2].kind~='Camera' then fail('structural objects missing') end
+  if scene.selected and not seen[scene.selected] then fail('dangling selection') end
+  local indexed={};for _,o in ipairs(scene.objects) do indexed[o.id]=o end
+  local followers={}
+  for _,o in ipairs(scene.objects) do
+    if o.groupId then
+      local parent=indexed[o.groupId]
+      if not parent or parent.kind~='Group' then fail('dangling group reference') end
+      local cursor=o.groupId;local path={[o.id]=true}
+      while cursor do
+        if path[cursor] then fail('group cycle detected') end
+        path[cursor]=true
+        local node=indexed[cursor]
+        cursor=node and node.groupId
+      end
+    end
+    if o.kind=='Route' then
+      if not o.route then fail('Route geometry missing') end
+      assert_point(o.route.from);assert_point(o.route.to)
+      if type(o.route.waypoints)~='table' then fail('Route waypoint list missing') end
+      for _,p in ipairs(o.route.waypoints) do assert_point(p) end
+      if o.route.followerId then
+        local marker=indexed[o.route.followerId]
+        if not marker or marker.kind~='Marker' or followers[marker.id] then fail('invalid or duplicate route follower') end
+        followers[marker.id]=true
+      end
+    end
+    if o.motion~=nil then
+      if type(o.motion)~='table' then fail('invalid Motion binding metadata') end
+      for channel,binding in pairs(o.motion) do
+        if type(channel)~='string' or type(binding)~='table' or #binding>1 then fail('invalid Motion binding') end
+      end
+    end
+  end
+  return true
+end
+return M
+))
+    if lastSerial and lastSerial>scene.serial then fail('persisted ID exceeds scene serial') end
+    if o.kind=='Route' then
+      local route=o.route
+      if type(route)~='table' or not route.from or not route.to then fail('Route geometry missing') end
+      assert_point(route.from);assert_point(route.to)
+      if route.from.lon==route.to.lon and route.from.lat==route.to.lat then fail('Route endpoints coincide') end
+      if route.pathType~='Straight' and route.pathType~='Curved' then fail('unsupported Route path') end
+      if type(route.curvature)~='number' or route.curvature~=route.curvature
+        or route.curvature<-100 or route.curvature>100 or route.curvature==math.huge then
+        fail('invalid Route curvature')
+      end
+      if type(route.waypoints)~='table' or #route.waypoints>100 then fail('invalid Route waypoint count') end
+      for _,point in ipairs(route.waypoints) do assert_point(point) end
+    elseif (o.kind=='Marker' or o.kind=='Label') and o.anchor then
+      assert_point(o.anchor)
     end
     seen[o.id]=true
   end
