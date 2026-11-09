@@ -120,6 +120,11 @@ local function widget(spec)
  local w={Text=spec.Text or "",CurrentIndex=0}
  function w:Clear()self.entries={};self.CurrentIndex=-1 end
  function w:AddItems(values)self.entries=values end
+ function w:AddTab(text)
+  self.tabs=self.tabs or {}
+  self.tabs[#self.tabs+1]=text
+  return #self.tabs-1
+ end
  function w:HasFocus()return false end
  return w
 end
@@ -152,6 +157,15 @@ local function makeDispatcher(_)
   local tree=w.ObjectTree
   check(tree~=nil and (visited==20 or tree.columns[1]=="Scene object"),
         "native Tree widget initialized or disabled in NO_COMP")
+  check(w.AuthoringTabs.tabs[1]=="Objects" and
+        w.AuthoringTabs.tabs[2]=="Route",
+        "two in-window authoring panels available without second timeline")
+  w.AuthoringTabs.CurrentIndex=1
+  window.On.AuthoringTabs.CurrentChanged({})
+  check(w.AuthoringStack.CurrentIndex==1,
+        "Route panel navigation updates contextual stack")
+  w.AuthoringTabs.CurrentIndex=0
+  window.On.AuthoringTabs.CurrentChanged({})
   if visited~=20 then
     check(w.Status.Text:find("COMP_WITHOUT_CARTORIG")~=nil,
           "uninitialized composition gets context feedback")
