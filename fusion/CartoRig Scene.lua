@@ -22,8 +22,9 @@ local window=dispatcher:AddWindow({
         ui:Button{ID="Refresh",Text="Refresh",Weight=0.25}
     },
     ui:HGroup{
-        ui:Button{ID="Initialize",Text="Initialize CartoRig Scene",Weight=0.66},
-        ui:Button{ID="Reveal",Text="Reveal node",Weight=0.34}
+        ui:Button{ID="Initialize",Text="Initialize Scene",Weight=0.42},
+        ui:Button{ID="ConnectOutput",Text="Connect Output",Weight=0.32},
+        ui:Button{ID="Reveal",Text="Reveal node",Weight=0.26}
     },
     ui:Label{Text="SEARCH OFFLINE LOCATIONS"},
     ui:HGroup{
@@ -197,6 +198,12 @@ function window.On.Initialize.Clicked(_)
         local created,message=scene.initialize()
         refresh()
         return message or (created and "Initialized." or "Already initialized.")
+    end)
+end
+function window.On.ConnectOutput.Clicked(_)
+    perform(function()
+        verifyContext()
+        return scene.connectOutput()
     end)
 end
 function window.On.Find.Clicked(_)
