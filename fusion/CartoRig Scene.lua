@@ -69,6 +69,7 @@ local function run()
       ui:HGroup{ui:Button{ID='CR_FocusCamera',Text='Focus Camera'},ui:Button{ID='CR_FitLocation',Text='Fit Location'}},
       ui:HGroup{ui:Button{ID='CR_RouteFrom',Text='Route From'},ui:Button{ID='CR_RouteTo',Text='Route To'},ui:Button{ID='CR_CreateRoute',Text='Create Route'}},
       ui:Button{ID='CR_UpdateRoute',Text='Update Selected Route Endpoints'},
+      ui:Button{ID='CR_ReverseRoute',Text='Reverse Selected Route'},
       ui:Label{ID='CR_RouteState',Text='Route: choose explicit point endpoints'},
       ui:Label{Text='SCENE OBJECTS'},
       ui:Tree{ID='CR_Objects',ColumnCount=1,SortingEnabled=false,MinimumSize={320,200}},
@@ -81,7 +82,7 @@ local function run()
       ui:Button{ID='CR_Close',Text='Close Scene'},
     })
   local w=win:GetItems()
-  local chosen=nil;local selected_id=nil;local pendingDelete=nil
+  local chosen=nil;local selected_id=nil;local pendingDelete=nil;local pendingReverse=nil
   local routeFrom,routeTo=nil,nil
   local filters={'All','Continent','Country','State','City'}
   for _,kind in ipairs(filters) do w.CR_Filter:AddItem(kind) end
@@ -113,7 +114,7 @@ local function run()
     if #results==0 and #w.CR_Search.Text>0 then status('Location not found in bundled offline data.') end
   end
   local function refresh_objects()
-    selected_id=nil;pendingDelete=nil
+    selected_id=nil;pendingDelete=nil;pendingReverse=nil
     state=engine:current()
     displayed={}
     if state then
@@ -147,7 +148,7 @@ local function run()
     if chosen then status('Selected '..chosen.name..' — '..chosen.kind..'; no scene changes yet.') end
   end
   win.On.CR_Objects.CurrentItemChanged=function()
-    pendingDelete=nil
+    pendingDelete=nil;pendingReverse=nil
     local index=item_index(w.CR_Objects.CurrentItem)
     selected_id=index and displayed[index] and displayed[index].id or nil
     if selected_id then guarded(function()
@@ -233,6 +234,21 @@ local function run()
       state=engine:update_route(selected_id,{from=routeFrom,to=routeTo})
       refresh_objects()
       return 'Updated Route geometry in its existing Fusion mask; Draw Progress keys preserved.'
+    end)
+  end
+  win.On.CR_ReverseRoute.Clicked=function()
+    guarded(function()
+      if not selected_id then error('Select an existing Route') end
+      local object=Scene.get(engine:current(),selected_id)
+      if not object or object.kind~='Route' then error('Selected object is not a Route') end
+      if pendingReverse~=selected_id then
+        pendingReverse=selected_id
+        return 'Reverse Route swaps endpoints and travel direction; click again to confirm. Motion keys remain.'
+      end
+      pendingReverse=nil
+      state=engine:reverse_route(selected_id,true)
+      refresh_objects()
+      return 'Route reversed in the existing Fusion mask; saved Draw Progress animation preserved.'
     end)
   end
   win.On.CR_Reveal.Clicked=function()

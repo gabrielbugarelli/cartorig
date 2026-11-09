@@ -220,6 +220,25 @@ function A:update_route(id,changes)
   end
   return draft
 end
+-- Route reversal changes spatial travel direction while keeping the Fusion
+-- WriteLength spline and native mask identity. Curved paths retain their shape
+-- because SceneOps reverses the signed normal displacement at the same time.
+function A:reverse_route(id,confirmed)
+  if confirmed~=true then fail('Reverse Route requires explicit confirmation; reveal direction may change') end
+  local previous,draft=mutation_draft(self)
+  local obj=self.m.Scene.get(previous,id)
+  if not obj or obj.kind~='Route' then fail('select an existing Route') end
+  if not self.m.SceneOps or type(self.m.SceneOps.reverse_route)~='function' then
+    fail('route reversal unavailable')
+  end
+  local reversed=self.m.SceneOps.reverse_route(draft,id)
+  -- Reuse the fully transactional in-place geometry update. No new tool,
+  -- animation channel, or detached spline is created on reversal.
+  return self:update_route(id,{
+    from=reversed.route.from,to=reversed.route.to,
+    waypoints=reversed.route.waypoints,curvature=reversed.route.curvature,
+  })
+end
 -- Draw order changes MUST update the actual native Fusion composite chain,
 -- not merely the Scene tree. Persist only after graph rewiring succeeds.
 function A:reorder(id,newIndex)

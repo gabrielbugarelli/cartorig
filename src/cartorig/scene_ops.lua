@@ -96,6 +96,10 @@ function M.reverse_route(scene,id)
   local rev={}
   for i=#r.waypoints,1,-1 do rev[#rev+1]=r.waypoints[i] end
   r.waypoints=rev
+  -- Curvature offsets control points along the normal to each directed chord.
+  -- Reversing the chords flips that normal; negate the signed curvature so
+  -- the pixels follow the same geographic path in reverse, not a mirrored arc.
+  if r.pathType=='Curved' then r.curvature=-r.curvature end
   return o
 end
 function M.validate_groups(scene)

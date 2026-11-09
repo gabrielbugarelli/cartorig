@@ -147,5 +147,21 @@ comp.fail_store=false
 assert(routeMask:GetInput('Polyline')==acceptedGeometry)
 assert(author:current().objects[#author:current().objects].route.to.lon==-52.0)
 assert(routeMask:GetInput('WriteLength',100)==0.4)
+-- Reverse a real curved Route in place; preserve exact native mask and animation.
+local curvedBefore=author:current().objects[#author:current().objects].route
+local beforePoints=m.Geo.route_samples(curvedBefore,32)
+assert(not pcall(function()author:reverse_route(route.id,false)end))
+assert(author:reverse_route(route.id,true))
+local reverseRoute=author:current().objects[#author:current().objects].route
+local afterPoints=m.Geo.route_samples(reverseRoute,32)
+assert(reverseRoute.curvature==-curvedBefore.curvature)
+assert(reverseRoute.from.lon==curvedBefore.to.lon and reverseRoute.to.lon==curvedBefore.from.lon)
+assert(#afterPoints==#beforePoints)
+for i=1,#beforePoints do
+  assert(math.abs(afterPoints[i].lat-beforePoints[#beforePoints-i+1].lat)<1e-7)
+  assert(math.abs(m.Geo.shortest_delta(afterPoints[i].lon,beforePoints[#beforePoints-i+1].lon))<1e-7)
+end
+assert(routeMask:GetInput('WriteLength',100)==0.4)
+assert(comp:FindTool(route.maskToolRef)==routeMask)
 assert(not external.deleted and not output.deleted)
 print('PASS native draw order: true Merge rewiring, stable IDs, renamed tool, external-graph guard, failed reconnect and persistence rollback')
