@@ -97,6 +97,7 @@ local function run()
   local chosen=nil;local selected_id=nil;local pendingDelete=nil;local pendingReverse=nil
   local routeFrom,routeTo=nil,nil
   local routeWaypoints=nil
+  local routeFromArea,routeToArea=nil,nil
   local filters={'All','Continent','Country','State','City'}
   for _,kind in ipairs(filters) do w.CR_Filter:AddItem(kind) end
   w.CR_PathType:AddItem('Straight');w.CR_PathType:AddItem('Curved')
@@ -236,10 +237,16 @@ local function run()
     guarded(function()
       if not chosen then error('Select a City with an explicit point') end
       local feature=Catalog.load_feature(dataDir,chosen,Json)
-      if feature.geometryType~='Point' or not feature.point then
-        error('A Country or State is an area. Select a City or specify coordinates; no implicit capital/centroid.')
+      if feature.geometryType=='Polygon' or feature.geometryType=='MultiPolygon' then
+        if target=='from' then routeFrom=nil;routeFromArea=chosen
+        else routeTo=nil;routeToArea=chosen end
+        return 'Selected area '..feature.name..': enter coordinates inside this region and click Use as Route '..target..'.'
       end
-      if target=='from' then routeFrom=feature.point else routeTo=feature.point end
+      if feature.geometryType~='Point' or not feature.point then
+        error('This geographic result is not a point or polygon endpoint')
+      end
+      if target=='from' then routeFrom=feature.point;routeFromArea=nil
+      else routeTo=feature.point;routeToArea=nil end
       w.CR_RouteState.Text='Route: From '..(routeFrom and 'set' or 'missing')..' / To '..(routeTo and 'set' or 'missing')
       return 'Route '..target..' selected: '..feature.name
     end)
@@ -250,7 +257,15 @@ local function run()
   local function set_custom_endpoint(slot)
     guarded(function()
       local p=custom_point()
-      if slot=='from' then routeFrom=p else routeTo=p end
+      local selectedArea=slot=='from' and routeFromArea or routeToArea
+      if selectedArea then
+        local feature=Catalog.load_feature(dataDir,selectedArea,Json)
+        if not Geo.contains_geojson(p,feature.geometry) then
+          error('Selected coordinate is outside '..selectedArea.name..' or inside an excluded hole')
+        end
+      end
+      if slot=='from' then routeFrom=p;routeFromArea=nil
+      else routeTo=p;routeToArea=nil end
       w.CR_RouteState.Text='Route: From '..(routeFrom and 'set' or 'missing')..' / To '..(routeTo and 'set' or 'missing')
       return 'Route '..slot..' set to explicit WGS84 coordinates.'
     end)

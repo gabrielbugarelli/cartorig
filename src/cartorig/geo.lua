@@ -79,6 +79,35 @@ function M.contains(point,polygon)
   for i=2,#polygon do if M.point_in_ring(point,polygon[i]) then return false end end
   return true
 end
+-- An area is not a Route endpoint. Explicit points are validated against
+-- the real geographic Polygon/MultiPolygon, excluding interior holes.
+function M.contains_geojson(point,geometry)
+  assert(M.valid_point(point),'invalid explicit destination point')
+  assert(type(geometry)=='table','geographic polygon source unavailable')
+  local polys
+  if geometry.type=='Polygon' then polys={geometry.coordinates}
+  elseif geometry.type=='MultiPolygon' then polys=geometry.coordinates
+  else error('target location has no polygon extent',2) end
+  assert(type(polys)=='table' and #polys>0,'empty geographic polygon')
+  local function valid_ring(ring)
+    assert(type(ring)=='table' and #ring>=3,'invalid geographic boundary ring')
+    local last=nil
+    for _,xy in ipairs(ring) do
+      assert(type(xy)=='table' and finite(xy[1]) and finite(xy[2])
+        and abs(xy[1])<=180 and abs(xy[2])<=90,'invalid boundary vertex')
+      if last and abs(last[1]-xy[1])>180 then
+        error('boundary requires antimeridian-aware containment; endpoint not validated',2)
+      end
+      last=xy
+    end
+  end
+  for _,polygon in ipairs(polys) do
+    assert(type(polygon)=='table' and #polygon>0,'empty polygon rings')
+    for _,ring in ipairs(polygon) do valid_ring(ring) end
+    if M.contains(point,polygon) then return true end
+  end
+  return false
+end
 function M.bezier(a,b,curvature,u)
   assert(M.valid_point(a) and M.valid_point(b),'route endpoints invalid')
   assert(finite(u) and u>=0 and u<=1,'invalid route interpolation')
