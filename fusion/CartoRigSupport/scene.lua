@@ -605,10 +605,18 @@ function M.addLabel(location,text)
         return meta(node,"ObjectId")
     end)
 end
+local function finiteNumber(value)
+    return type(value)=="number" and value==value and
+           value~=math.huge and value~=-math.huge
+end
+local function validPoint(lon,lat)
+    return finiteNumber(lon) and finiteNumber(lat) and
+           lon>=-180 and lon<=180 and lat>=-85 and lat<=85
+end
 function M.addCustomPoint(lon,lat,label)
     lon=tonumber(lon);lat=tonumber(lat)
-    if not lon or not lat or lon<-180 or lon>180 or lat<-85 or lat>85 then
-        error("Custom point needs valid WGS84 longitude/latitude",2)
+    if not validPoint(lon,lat) then
+        error("Custom point needs finite WGS84 longitude/latitude",2)
     end
     label=tostring(label or "Custom Point")
     if #label<1 or #label>120 then
@@ -619,10 +627,6 @@ function M.addCustomPoint(lon,lat,label)
         kind="custom_point",name=label,parent="",
         bounds={lon,lat,lon,lat}
     })
-end
-local function finiteNumber(value)
-    return type(value)=="number" and value==value and
-           value~=math.huge and value~=-math.huge
 end
 local function cameraBounds(bounds)
     if type(bounds)~="table" then
@@ -679,14 +683,10 @@ end
 function M.addRoute(from,to)
     local composition=current()
     local base,camera=getCore(composition)
-    if not from or not to or not from.lon or not to.lon
-       or not from.lat or not to.lat then
-        error("Select explicit route endpoint coordinates",2)
-    end
-    for _,point in ipairs({from,to})do
-        if point.lon < -180 or point.lon>180 or point.lat < -85 or point.lat>85 then
-            error("Invalid geographic route coordinates",2)
-        end
+    if type(from)~="table" or type(to)~="table" or
+       not validPoint(from.lon,from.lat) or
+       not validPoint(to.lon,to.lat) then
+        error("Route endpoints require finite WGS84 coordinates",2)
     end
     return transaction(composition,"CartoRig: Add Route",function()
         local node=newTool(composition,"ofx.com.cartorig.fusionrc1.route",
@@ -727,10 +727,8 @@ local function encodedWaypoints(points)
     if #points>64 then error("A Route supports at most 64 waypoints",3)end
     local parts={}
     for _,point in ipairs(points)do
-        if not point.lon or not point.lat or
-           point.lon<-180 or point.lon>180 or
-           point.lat<-85 or point.lat>85 then
-            error("Invalid WGS84 waypoint",3)
+        if not validPoint(point.lon,point.lat) then
+            error("Waypoint requires finite WGS84 longitude/latitude",3)
         end
         parts[#parts+1]=string.format("%.12g,%.12g",point.lon,point.lat)
     end
@@ -747,7 +745,10 @@ function M.addWaypoint(id,longitude,latitude,at)
     if not point.lon or not point.lat then error("Choose waypoint coordinates",2)end
     local points=waypointList(route)
     local index=tonumber(at)or #points+1
-    if index<1 or index>#points+1 then error("Invalid waypoint index",2)end
+    if not finiteNumber(index) or index%1~=0 or
+       index<1 or index>#points+1 then
+        error("Waypoint index must be a valid integer",2)
+    end
     table.insert(points,index,point)
     local encoded=encodedWaypoints(points)
     return transaction(composition,"CartoRig: Add Route waypoint",function()
@@ -762,7 +763,8 @@ function M.moveWaypoint(id,index,direction)
     local points=waypointList(route)
     index=tonumber(index)
     local nextIndex=index and index+direction
-    if not index or not nextIndex or index<1 or nextIndex<1 or
+    if not finiteNumber(index) or index%1~=0 or
+       not finiteNumber(nextIndex) or index<1 or nextIndex<1 or
        nextIndex>#points or (direction~=1 and direction~=-1) then
         error("Cannot move waypoint outside its Route",2)
     end
@@ -779,7 +781,8 @@ function M.removeWaypoint(id,index)
     local route=waypointRoute(composition,id)
     local points=waypointList(route)
     index=tonumber(index)
-    if not index or index<1 or index>#points then error("Waypoint not selected",2)end
+    if not finiteNumber(index) or index%1~=0 or
+       index<1 or index>#points then error("Waypoint not selected",2)end
     table.remove(points,index)
     local encoded=encodedWaypoints(points)
     return transaction(composition,"CartoRig: Delete waypoint",function()
@@ -796,8 +799,9 @@ function M.reverseRoute(id)
                 lat=tonumber(route.node:GetInput("FromLatitude"))}
     local to={lon=tonumber(route.node:GetInput("ToLongitude")),
               lat=tonumber(route.node:GetInput("ToLatitude"))}
-    if not from.lon or not from.lat or not to.lon or not to.lat then
-        error("Route coordinates unavailable",2)
+    if not validPoint(from.lon,from.lat) or
+       not validPoint(to.lon,to.lat) then
+        error("Route endpoints are missing or invalid",2)
     end
     local reversed={}
     for i=#points,1,-1 do reversed[#reversed+1]=points[i] end
