@@ -197,7 +197,9 @@ local function makeDispatcher(_)
    check(w.Status.Text:find("WRONG_CONTEXT")~=nil,
          "composition switch is invalidated before user mutation")
    window.On.Delete.Clicked({})
-   check(region.deleted~=true,"wrong-context Delete cannot alter old composition")
+   window.On.Delete.Clicked({})
+   check(region.deleted~=true and compB:FindTool("CR_Base_Map")==nil,
+         "QA-59: repeated wrong-context Delete cannot change either composition")
    window.On.Refresh.Clicked({})
    check(w.Context.Text:find("Composition%-B"),
          "user explicitly refreshes active composition")
