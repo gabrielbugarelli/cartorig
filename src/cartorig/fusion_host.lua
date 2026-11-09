@@ -427,6 +427,22 @@ function H:set_authorial_visibility(scene,object,visible)
     or blend:GetData('CartoRig.V2.SceneId')~=scene.id
     or blend:GetData('CartoRig.V2.ObjectId')~=object.id
   then fail('authorial compositing node is missing or not owned by this object') end
+  -- Hide/Show is structural and must never replace hand-authored Blend keys.
+  -- Query the native input whenever the host makes spline inspection available.
+  if blend:GetData('CartoRig.V2.Animated.Blend')==true then
+    fail('CONFLICT: Fusion composite Blend is animated; Hide/Show would overwrite keyframes')
+  end
+  if type(blend.GetInputList)=='function' then
+    local inspected,inputs=pcall(function()return blend:GetInputList()end)
+    if not inspected then fail('could not inspect Fusion composite animation') end
+    if type(inputs)=='table' and inputs.Blend and type(inputs.Blend.GetKeyFrames)=='function' then
+      local okkeys,keys=pcall(function()return inputs.Blend:GetKeyFrames()end)
+      if not okkeys then fail('could not read Fusion composite Blend keyframes') end
+      if type(keys)=='table' and next(keys) then
+        fail('CONFLICT: Fusion composite Blend has manual keyframes; structural Hide/Show refused')
+      end
+    end
+  end
   local ok,result=pcall(function()return blend:SetInput('Blend',visible and 1 or 0)end)
   if not ok or result==false then fail('Fusion refused authorial visibility change') end
   return true

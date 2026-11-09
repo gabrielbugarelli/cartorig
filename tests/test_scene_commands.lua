@@ -38,6 +38,16 @@ assert(composite.inputs.Blend.static==0)
 assert(m.Scene.get(engine:current(),id).visible==false)
 comp.metadataFail=false
 assert(engine:set_visible(id,true));assert(composite.inputs.Blend.static==1)
+-- Native manual Blend animation must not be replaced by a structural toggle.
+function composite:GetInputList()
+ return {Blend={GetKeyFrames=function()return self.manualBlendKeys or {} end}}
+end
+composite.manualBlendKeys={[10]={Value=0.5}}
+local before=composite.inputs.Blend.static
+local allowed,reason=pcall(function()engine:set_visible(id,false)end)
+assert(not allowed and tostring(reason):find('CONFLICT',1,true))
+assert(composite.inputs.Blend.static==before and engine:current().objects[3].visible==true)
+composite.manualBlendKeys={}
 assert(engine:rename(id,'São Paulo — Pin'))
 assert(m.Scene.get(engine:current(),id).name=='São Paulo — Pin')
 assert(engine:current().objects[3].hostToolRef==marker.hostToolRef)
