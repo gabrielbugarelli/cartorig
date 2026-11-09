@@ -127,4 +127,152 @@ function G.reorder(host,before,after)
   after.lastLayerRef=tool_name(tools[desired[#desired].id])
   return true
 end
+-- Two-phase object deletion. Stage rewires the OWNED image chain but does not
+-- delete any tool until the caller has persisted the modified scene metadata.
+-- In particular, a failed save can restore ALL original native links.
+function G.prepare_remove(host,before,after,object_id)
+  if not host or not host.comp or not before or not after or before.id~=after.id then
+    fail('delete requires matching scene and live host')
+  end
+  if not before.hostInitialized or not after.hostInitialized then fail('scene not initialized') end
+  local old,desired=ordered(before),ordered(after)
+  local removed=nil
+  for _,obj in ipairs(old) do if obj.id==object_id then removed=obj;break end end
+  local obj=nil
+  for _,candidate in ipairs(before.objects) do if candidate.id==object_id then obj=candidate;break end end
+  if not obj or obj.kind=='BaseMap' or obj.kind=='Camera' then fail('cannot delete a structural or missing object') end
+  if obj.kind=='Group' then
+    -- A Group is a purely logical folder, and cannot own a pixel-processing tool.
+    if removed then fail('Group unexpectedly contributes an image layer') end
+    return {rollback=function() return true end,finalize=function() return true end}
+  end
+  if not removed or #desired~=#old-1 then fail('delete must remove exactly one visual object') end
+  local eligible={}
+  for _,candidate in ipairs(old) do eligible[candidate.id]=true end
+  for _,candidate in ipairs(desired) do
+    if candidate.id==object_id or not eligible[candidate.id] then fail('delete changed unrelated object identity') end
+    eligible[candidate.id]=nil
+  end
+  for id in pairs(eligible) do if id~=object_id then fail('delete removed another visual object') end end
+  local comp=host.comp
+  local base=find_owned(comp,before,before.objects[1].id,'BaseMap')
+  local camera=find_owned(comp,before,before.objects[2].id,'Camera')
+  local composites={}
+  local upstream=base
+  for _,candidate in ipairs(old) do
+    local merge=find_owned(comp,before,candidate.id,'InternalComposite')
+    local foreground=connected_tool(merge,'Foreground')
+    if not own(foreground,before,candidate.id,candidate.kind) then
+      fail('object foreground has been changed outside CartoRig; deletion refused')
+    end
+    if connected_tool(merge,'Background')~=upstream then
+      fail('managed draw chain changed externally; deletion refused')
+    end
+    composites[candidate.id]=merge
+    upstream=merge
+  end
+  if connected_tool(camera,'Input')~=upstream then
+    fail('camera no longer points to the owned final layer; deletion refused')
+  end
+  local owned={}
+  for _,tool in pairs(comp:GetToolList(false) or {}) do
+    if own(tool,before,object_id) then owned[#owned+1]=tool end
+  end
+  -- All tools removed must belong ONLY to the object being deleted. If an
+  -- author manually spliced an owned tool into a foreign chain, fail closed.
+  local target_composite=composites[object_id]
+  if #owned<2 or not target_composite then fail('managed object tools are missing; deletion refused') end
+  -- Before physically deleting tools, ensure no foreign node or other scene
+  -- uses any of their outputs. Only the expected downstream owned chain socket
+  -- is allowed, because we explicitly bypass that exact socket below.
+  local doomed={}
+  for _,tool in ipairs(owned) do doomed[tool]=true end
+  local permitted_consumer=camera
+  local permitted_socket='Input'
+  for i,candidate in ipairs(old) do
+    if candidate.id==object_id and old[i+1] then
+      permitted_consumer=composites[old[i+1].id]
+      permitted_socket='Background'
+      break
+    end
+  end
+  for _,other in pairs(comp:GetToolList(false) or {}) do
+    if not doomed[other] then
+      if type(other.GetInputList)~='function' then
+        fail('cannot inspect potential dependencies of '..tostring(tool_name(other))..'; deletion refused')
+      end
+      local inspected,fields=pcall(function()return other:GetInputList()end)
+      if not inspected or type(fields)~='table' then
+        fail('cannot inspect native links on '..tostring(tool_name(other))..'; deletion refused')
+      end
+      for inputName,field in pairs(fields) do
+        if type(field.GetConnectedOutput)=='function' then
+          local ok_conn,output=pcall(function()return field:GetConnectedOutput()end)
+          if not ok_conn then fail('cannot inspect Fusion link '..tostring(inputName)) end
+          if output then
+            local ok_src,src=pcall(function()return output:GetTool()end)
+            if not ok_src then fail('cannot resolve downstream Fusion tool') end
+            if doomed[src] and not (src==target_composite and other==permitted_consumer and inputName==permitted_socket) then
+              fail('object is referenced by '..tostring(tool_name(other))..'.'..tostring(inputName)..'; disconnect it before deleting')
+            end
+          end
+        end
+      end
+    end
+  end
+  local backup={}
+  for _,candidate in ipairs(old) do
+    backup[#backup+1]={composites[candidate.id],'Background',connected_tool(composites[candidate.id],'Background')}
+  end
+  backup[#backup+1]={camera,'Input',connected_tool(camera,'Input')}
+  local function disconnect()
+    connect(camera,'Input',nil)
+    for _,candidate in ipairs(old) do connect(composites[candidate.id],'Background',nil) end
+  end
+  local function restore()
+    disconnect()
+    for _,row in ipairs(backup) do connect(row[1],row[2],row[3]) end
+    return true
+  end
+  local ok,err=xpcall(function()
+    disconnect()
+    local source=base
+    for _,candidate in ipairs(desired) do
+      local merge=composites[candidate.id]
+      connect(merge,'Background',source)
+      source=merge
+    end
+    connect(camera,'Input',source)
+    after.lastLayerRef=tool_name(source)
+  end,debug.traceback)
+  if not ok then
+    local recovered,reason=pcall(restore)
+    if not recovered then fail('failed to remove object AND restore graph; recover a saved project: '..tostring(reason)) end
+    fail('object deletion graph stage rolled back: '..tostring(err))
+  end
+  local state='staged'
+  return {
+    rollback=function()
+      if state~='staged' then fail('cannot rollback after object deletion was finalized') end
+      local restored,reason=pcall(restore)
+      if not restored then fail('object delete rollback failed: '..tostring(reason)) end
+      state='rolledback';return true
+    end,
+    finalize=function()
+      if state~='staged' then fail('object delete was not staged') end
+      -- The scene metadata has been committed. Report failures so Scene can
+      -- enter repair mode; never remove unrelated tools to hide a failure.
+      local failed={}
+      for i=#owned,1,-1 do
+        local tool=owned[i]
+        local ok_del,value=pcall(function()return tool:Delete()end)
+        if not ok_del or value==false then failed[#failed+1]=tool_name(tool) end
+      end
+      state='finalized'
+      if #failed>0 then fail('metadata committed but managed nodes need cleanup: '..table.concat(failed,', ')) end
+      return true
+    end,
+  }
+end
+
 return G

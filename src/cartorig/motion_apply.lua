@@ -10,9 +10,9 @@ local function rgb(value)
 end
 local channelMap={
   Region={opacity={tool='object',input='ObjectOpacity',percent=true},fill={tool='object',color={'FillRed','FillGreen','FillBlue'}},highlightStrength={tool='object',input='HighlightStrength',percent=true}},
-  Marker={opacity={tool='object',input='TopLeftAlpha',percent=true},size={tool='mask',inputs={'Width','Height'},scale=1/1080}},
-  Label={opacity={tool='object',input='Alpha1',percent=true}},
-  Route={opacity={tool='object',input='TopLeftAlpha',percent=true},drawProgress={tool='mask',input='WriteLength',percent=true}},
+  Marker={opacity={tool='object',input='ObjectOpacity',percent=true},size={tool='mask',inputs={'Width','Height'},scale=1/1080}},
+  Label={opacity={tool='object',input='ObjectOpacity',percent=true}},
+  Route={opacity={tool='object',input='ObjectOpacity',percent=true},drawProgress={tool='mask',input='WriteLength',percent=true}},
   Camera={zoom={tool='object',input='Zoom'},longitude={tool='object',input='CenterLongitude'},latitude={tool='object',input='CenterLatitude'}},
   BaseMap={['layerOpacity.Ocean']={tool='object',input='OceanLayerOpacity',percent=true}},
 }

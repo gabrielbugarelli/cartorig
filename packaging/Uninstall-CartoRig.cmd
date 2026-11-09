@@ -9,7 +9,7 @@ if exist "%TARGET%\CartoRig Host Diagnostics.lua" del "%TARGET%\CartoRig Host Di
 if exist "%TARGET%\CartoRig" rmdir /S /Q "%TARGET%\CartoRig"
 set "FUSE_FILE=%APPDATA%\Blackmagic Design\DaVinci Resolve\Support\Fusion\Fuses\CartoRigOpacity.fuse"
 if exist "%FUSE_FILE%" del "%FUSE_FILE%"
-for %%F in (CartoRigBase.fuse CartoRigRegion.fuse CartoRigCamera.fuse) do (
+for %%F in (CartoRigBase.fuse CartoRigRegion.fuse CartoRigCamera.fuse CartoRigMarker.fuse CartoRigRoute.fuse CartoRigLabel.fuse) do (
   if exist "%APPDATA%\Blackmagic Design\DaVinci Resolve\Support\Fusion\Fuses\%%F" del "%APPDATA%\Blackmagic Design\DaVinci Resolve\Support\Fusion\Fuses\%%F"
 )
 echo CartoRig rewrite installation removed. Existing project files were not deleted.

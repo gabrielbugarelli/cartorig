@@ -1,0 +1,50 @@
+-- CartoRig Label authorial Fuse: independent native Fusion Control/Motion.
+-- Input is pre-masked, premultiplied white. No Scene UI process is needed
+-- to evaluate these controls at an arbitrary requested frame.
+FuRegisterClass('CartoRigLabel', CT_Tool, {
+  REGS_Name='CartoRig Label',
+  REGS_Category='CartoRig\\Map Objects',
+  REGS_OpIconString='CRL',
+  REGS_OpDescription='Independent Label style and native opacity channel',
+  REG_NoMotionBlurCtrls=true,
+})
+local function clamp(input,req)
+  local value=input:GetValue(req)
+  local number=tonumber(type(value)=='table' and value.Value or value)
+  if not number or number~=number or number==math.huge or number==-math.huge then return 0 end
+  return math.max(0,math.min(1,number))
+end
+function Create()
+  self:AddControlPage('Control')
+  InR=self:AddInput('Text Red','TextRed',{
+    LINKID_DataType='Number',INPID_InputControl='ColorControl',INP_Default=1,
+    INP_MinScale=0,INP_MaxScale=1,IC_ControlGroup=31,IC_ControlID=0,
+  })
+  InG=self:AddInput('Text Green','TextGreen',{
+    LINKID_DataType='Number',INPID_InputControl='ColorControl',INP_Default=1,
+    INP_MinScale=0,INP_MaxScale=1,IC_ControlGroup=31,IC_ControlID=1,
+  })
+  InB=self:AddInput('Text Blue','TextBlue',{
+    LINKID_DataType='Number',INPID_InputControl='ColorControl',INP_Default=1,
+    INP_MinScale=0,INP_MaxScale=1,IC_ControlGroup=31,IC_ControlID=2,
+  })
+  InOpacity=self:AddInput('Object Opacity','ObjectOpacity',{
+    LINKID_DataType='Number',INPID_InputControl='SliderControl',INP_Default=1,
+    INP_MinScale=0,INP_MaxScale=1,INP_MinAllowed=0,INP_MaxAllowed=1,
+  })
+  self:AddControlPage('Motion')
+  self:CloneInput(InOpacity,'MotionOpacity',{INP_DoNotifyChanged=false,INP_InteractivePassive=true})
+  InImage=self:AddInput('Object Matte','Input',{
+    LINKID_DataType='Image',LINK_Main=1,INP_Required=true,
+  })
+  OutImage=self:AddOutput('Output','Output',{LINKID_DataType='Image',LINK_Main=1})
+end
+function Process(req)
+  local img=InImage:GetValue(req)
+  if not img then OutImage:Set(req,nil);return end
+  local opacity=clamp(InOpacity,req)
+  local out=img:Copy()
+  out:Gain(clamp(InR,req)*opacity,clamp(InG,req)*opacity,
+    clamp(InB,req)*opacity,opacity)
+  OutImage:Set(req,out)
+end

@@ -15,7 +15,7 @@ local types = { BaseMap=true, Camera=true, Region=true, Route=true, Marker=true,
 local style = {
   Region={ fill='#8296A4', fillAlpha=100, stroke='#D7E0E7', strokeWidth=1.5, strokeAlpha=100, opacity=100 },
   Route={ stroke='#D6DFE6', strokeWidth=3, strokeAlpha=100, opacity=100, drawProgress=100, trimStart=0, trimEnd=100, arrowhead=false },
-  Marker={ fill='#E0E8ED', stroke='#142637', size=14, strokeWidth=1.5, opacity=100 },
+  Marker={ fill='#E0E8ED', fillAlpha=100, stroke='#142637', size=14, strokeWidth=1.5, opacity=100 },
   Label={ color='#F0F5F8', fontSize=32, halo=true, opacity=100 },
   BaseMap={ ocean='#10283C', land='#394C59', opacity=100, displayMode='Full Map' },
   Camera={ longitude=0, latitude=0, zoom=1, bearing=0, fitPadding=8 },
@@ -59,9 +59,16 @@ end
 local function assert_editable(scene,obj)
   if not obj then fail('object not found') end
   if obj.locked then fail('object locked') end
-  if obj.groupId then
-    local group=find(scene,obj.groupId)
-    if group and group.locked then fail('parent group locked') end
+  -- Hierarchical lock inherits through arbitrarily nested Group folders.
+  local parent=obj.groupId
+  local visited={[obj.id]=true}
+  while parent do
+    if visited[parent] then fail('group hierarchy contains a cycle') end
+    visited[parent]=true
+    local group=find(scene,parent)
+    if not group or group.kind~='Group' then fail('invalid parent group') end
+    if group.locked then fail('ancestor group locked') end
+    parent=group.groupId
   end
 end
 local function assert_point(point)
@@ -140,6 +147,12 @@ function M.duplicate(scene,id)
   local result=copy(obj)
   result.id=next_id(scene,obj.kind)
   result.name=obj.name..' Copy'
+  -- Identity and graph references are never transferable to a duplicate.
+  -- The native duplicate authoring transaction must build its own tools and
+  -- replicate real Fusion curves before it may claim completion.
+  result.hostToolRef=nil
+  result.compositeToolRef=nil
+  result.maskToolRef=nil
   result.drawOrder=#scene.objects+1
   scene.objects[#scene.objects+1]=result
   return result
@@ -156,10 +169,24 @@ function M.snapshot(scene)
   return copy(scene)
 end
 function M.validate(scene)
-  if scene.schema~='cartorig.scene/1' then fail('unsupported scene schema') end
+  if type(scene)~='table' or scene.schema~='cartorig.scene/1' then fail('unsupported scene schema') end
+  if type(scene.id)~='string' or #scene.id<8 or #scene.id>240 then fail('invalid persistent scene ID') end
+  if type(scene.manifestId)~='string' or #scene.manifestId>512 then fail('invalid data manifest identity') end
+  if type(scene.serial)~='number' or scene.serial%1~=0 or scene.serial<2 then fail('invalid scene serial') end
+  if type(scene.objects)~='table' or #scene.objects<2 or #scene.objects>5000 then fail('invalid scene object count') end
   local seen={}
   for i,o in ipairs(scene.objects) do
     if not types[o.kind] or seen[o.id] or o.drawOrder~=i then fail('invalid object graph at index '..i) end
+    if type(o.id)~='string' or #o.id<8 or #o.id>320 or type(o.name)~='string' or #o.name>160 then
+      fail('invalid persisted object identity')
+    end
+    if type(o.visible)~='boolean' or type(o.locked)~='boolean' then fail('invalid object visibility or lock state') end
+    if type(o.style)~='table' then fail('object style not found') end
+    for key,value in pairs(o.style) do
+      if style[o.kind][key]==nil or not valid_style(key,value) then
+        fail('invalid persisted style '..tostring(key)..' on '..tostring(o.id))
+      end
+    end
     seen[o.id]=true
   end
   if scene.objects[1].kind~='BaseMap' or scene.objects[2].kind~='Camera' then fail('structural objects missing') end

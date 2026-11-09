@@ -5,7 +5,10 @@ function T:GetAttrs()return {TOOLS_RegID=self.id}end
 function T:GetInputList()
   local names=self.id=='CartoRigRegion' and {'FillRed','FillGreen','FillBlue','ObjectOpacity','HighlightStrength'}
      or self.id=='CartoRigBase' and {'DisplayMode','OceanLayerOpacity'}
-     or self.id=='CartoRigCamera' and {'CenterLongitude','CenterLatitude','Zoom','Bearing'} or {}
+     or self.id=='CartoRigCamera' and {'CenterLongitude','CenterLatitude','Zoom','Bearing'}
+     or self.id=='CartoRigMarker' and {'FillRed','FillGreen','FillBlue','ObjectOpacity'}
+     or self.id=='CartoRigRoute' and {'StrokeRed','StrokeGreen','StrokeBlue','ObjectOpacity'}
+     or self.id=='CartoRigLabel' and {'TextRed','TextGreen','TextBlue','ObjectOpacity'} or {}
   local inputs={}
   for _,name in ipairs(names) do
     inputs[name]={GetKeyFrames=function()return {[5]={0.25},[20]={0.75}}end}

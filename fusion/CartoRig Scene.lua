@@ -73,13 +73,13 @@ local function run()
       ui:Tree{ID='CR_Objects',ColumnCount=1,SortingEnabled=false,MinimumSize={320,200}},
       ui:HGroup{ui:Button{ID='CR_Reveal',Text='Reveal in Fusion'},ui:Button{ID='CR_Refresh',Text='Refresh'}},
       ui:HGroup{ui:LineEdit{ID='CR_RenameField',PlaceholderText='New object name'},ui:Button{ID='CR_Rename',Text='Rename'}},
-      ui:HGroup{ui:Button{ID='CR_MoveUp',Text='Move Up'},ui:Button{ID='CR_MoveDown',Text='Move Down'}},
+      ui:HGroup{ui:Button{ID='CR_MoveUp',Text='Move Up'},ui:Button{ID='CR_MoveDown',Text='Move Down'},ui:Button{ID='CR_Delete',Text='Delete Selected'}},
       ui:HGroup{ui:Button{ID='CR_Visibility',Text='Hide / Show'},ui:Button{ID='CR_Lock',Text='Lock / Unlock'}},
       ui:Label{ID='CR_Status',Text='Ready'},
       ui:Button{ID='CR_Close',Text='Close Scene'},
     })
   local w=win:GetItems()
-  local chosen=nil;local selected_id=nil
+  local chosen=nil;local selected_id=nil;local pendingDelete=nil
   local routeFrom,routeTo=nil,nil
   local filters={'All','Continent','Country','State','City'}
   for _,kind in ipairs(filters) do w.CR_Filter:AddItem(kind) end
@@ -111,6 +111,7 @@ local function run()
     if #results==0 and #w.CR_Search.Text>0 then status('Location not found in bundled offline data.') end
   end
   local function refresh_objects()
+    selected_id=nil;pendingDelete=nil
     state=engine:current()
     displayed={}
     if state then
@@ -144,6 +145,7 @@ local function run()
     if chosen then status('Selected '..chosen.name..' — '..chosen.kind..'; no scene changes yet.') end
   end
   win.On.CR_Objects.CurrentItemChanged=function()
+    pendingDelete=nil
     local index=item_index(w.CR_Objects.CurrentItem)
     selected_id=index and displayed[index] and displayed[index].id or nil
     if selected_id then guarded(function()engine:select(selected_id);return 'Selected object in Fusion Inspector' end) end
@@ -242,6 +244,25 @@ local function run()
   end
   win.On.CR_MoveUp.Clicked=function()move_selected(-1)end
   win.On.CR_MoveDown.Clicked=function()move_selected(1)end
+  -- Two-step confirmation, scoped to a stable object ID. Never delete
+  -- whatever happens to be in the current row after a tree refresh.
+  win.On.CR_Delete.Clicked=function()
+    guarded(function()
+      if not selected_id then error('Select an authored object to delete') end
+      local obj=Scene.get(engine:current(),selected_id)
+      if not obj or obj.kind=='Camera' or obj.kind=='BaseMap' then
+        error('Base Map and Camera are structural and cannot be deleted')
+      end
+      if pendingDelete~=selected_id then
+        pendingDelete=selected_id
+        return 'Confirm deletion of '..obj.name..': click Delete Selected again. No changes yet.'
+      end
+      pendingDelete=nil
+      state=engine:delete(selected_id)
+      refresh_objects()
+      return 'Deleted CartoRig object and its owned Fusion tools. External nodes preserved.'
+    end)
+  end
   win.On.CR_Visibility.Clicked=function()
     guarded(function()
       if not selected_id then error('Select an authorial scene object') end

@@ -165,6 +165,12 @@ function H:init_base(scene)
     self:tag(white,scene.id,scene.objects[1].id,'InternalBaseSurface')
     local base=new('CartoRigBase','CR2_BASE_'..scene.id,-4,0)
     connect(base,'Input',white)
+    local baseStyle=scene.objects[1].style or {}
+    local or_,og,ob=hex(baseStyle.ocean or '#10283C')
+    base:SetInput('OceanRed',or_);base:SetInput('OceanGreen',og);base:SetInput('OceanBlue',ob)
+    base:SetInput('BaseOpacity',(baseStyle.opacity or 100)/100)
+    base:SetInput('OceanLayerOpacity',1)
+    base:SetInput('DisplayMode',baseStyle.displayMode=='Transparent Overlay' and 1 or 0)
     local camera=new('CartoRigCamera','CR2_CAMERA_'..scene.id,0,0)
     local pose=scene.objects[2].style or {}
     camera:SetInput('CenterLongitude',pose.longitude or 0)
@@ -450,6 +456,112 @@ function H:apply_color_plan(object,plan)
   for _,keyframe in ipairs(plan.channels.fill) do
     self:set_region_fill(object,keyframe.value,keyframe.frame,true)
   end
+end
+
+-- Static Control write adapter. Stage all native changes with readback and
+-- per-input snapshots. The caller commits Scene JSON only after Fusion accepts
+-- every change; if persistence fails, rollback restores original native inputs.
+local styleBinding={
+  Region={fill={'color','Fill'},fillAlpha={'scalar','FillAlpha',0.01},opacity={'scalar','ObjectOpacity',0.01}},
+  Marker={fill={'color','Fill'},fillAlpha={'scalar','FillAlpha',0.01},opacity={'scalar','ObjectOpacity',0.01},size={'masksize','Width','Height',1/1080}},
+  Route={stroke={'color','Stroke'},strokeAlpha={'scalar','StrokeAlpha',0.01},opacity={'scalar','ObjectOpacity',0.01},
+    drawProgress={'maskscalar','WriteLength',0.01},strokeWidth={'maskscalar','BorderWidth',1/1080}},
+  Label={color={'color','Text'},opacity={'scalar','ObjectOpacity',0.01},fontSize={'textsize','Size',1/1080}},
+  Camera={longitude={'scalar','CenterLongitude',1},latitude={'scalar','CenterLatitude',1},zoom={'scalar','Zoom',1},bearing={'scalar','Bearing',1}},
+  BaseMap={ocean={'color','Ocean'},opacity={'scalar','BaseOpacity',0.01},displayMode={'enum','DisplayMode'}},
+}
+local function safe_style_tool(host,scene,object,kind)
+  if kind=='object' then return host:tool_for(object) end
+  if kind=='mask' then
+    local tool=object.maskToolRef and find(host.comp,object.maskToolRef)
+    if not tool or tool:GetData('CartoRig.V2.ObjectId')~=object.id
+      or tool:GetData('CartoRig.V2.SceneId')~=scene.id
+      or tool:GetData('CartoRig.V2.Kind')~='InternalMask' then fail('style mask no longer belongs to selected object') end
+    return tool
+  end
+  if kind=='text' then
+    local match=nil
+    for _,tool in pairs(host.comp:GetToolList(false) or {}) do
+      if tool:GetData('CartoRig.V2.ObjectId')==object.id
+        and tool:GetData('CartoRig.V2.SceneId')==scene.id
+        and tool:GetData('CartoRig.V2.Kind')=='InternalLabelText' then
+        if match then fail('ambiguous Label text renderer') end
+        match=tool
+      end
+    end
+    return match
+  end
+end
+local function active_keys(tool,input)
+  if tool:GetData('CartoRig.V2.Animated.'..input)==true then return true end
+  if type(tool.GetInputList)~='function' then return false end
+  local ok,all=pcall(function() return tool:GetInputList() end)
+  if not ok or type(all)~='table' then return false end
+  local field=all[input]
+  if field and type(field.GetKeyFrames)=='function' then
+    local good,keys=pcall(function()return field:GetKeyFrames()end)
+    if not good then fail('cannot inspect native keyframes for '..input) end
+    if type(keys)=='table' and next(keys) then return true end
+  end
+  if field and type(field.GetConnectedOutput)=='function' then
+    local good,src=pcall(function()return field:GetConnectedOutput()end)
+    if not good then fail('cannot inspect native input connections for '..input) end
+    if src then return true end
+  end
+  return false
+end
+function H:prepare_style(scene,object,key,value)
+  if not scene or not object or not object.id then fail('style requires a scene and object identity') end
+  if object.locked then fail('object is locked') end
+  local binding=styleBinding[object.kind] and styleBinding[object.kind][key]
+  if not binding then
+    fail('Control property '..tostring(key)..' is not yet implemented in native '..object.kind..' renderer')
+  end
+  local mode=binding[1]
+  local kind=(mode=='maskscalar' or mode=='masksize') and 'mask' or (mode=='textsize' and 'text' or 'object')
+  local tool=safe_style_tool(self,scene,object,kind)
+  if not tool or type(tool.GetInput)~='function' then fail('native Control tool or safe input readback unavailable') end
+  local values={}
+  if mode=='color' then
+    local r,g,b=hex(value)
+    local prefix=binding[2]
+    values={{prefix..'Red',r},{prefix..'Green',g},{prefix..'Blue',b}}
+  elseif mode=='enum' then
+    if value~='Full Map' and value~='Transparent Overlay' then fail('invalid display mode') end
+    values={{binding[2],value=='Transparent Overlay' and 1 or 0}}
+  elseif mode=='masksize' then
+    values={{binding[2],value*binding[4]},{binding[3],value*binding[4]}}
+  else
+    values={{binding[2],value*(binding[3] or 1)}}
+  end
+  local snapshot={}
+  for _,row in ipairs(values) do
+    local id=row[1]
+    if active_keys(tool,id) then fail('CONFLICT: '..id..' is animated or connected in Fusion; edit at the playhead') end
+    local good,old=pcall(function()return tool:GetInput(id)end)
+    if not good or old==nil then fail('cannot snapshot '..id..'; refusing a non-recoverable change') end
+    snapshot[#snapshot+1]={id,old}
+  end
+  local function undo()
+    local errors={}
+    for i=#snapshot,1,-1 do
+      local row=snapshot[i]
+      local ok,result=pcall(function()return tool:SetInput(row[1],row[2])end)
+      if not ok or result==false then errors[#errors+1]=row[1] end
+    end
+    if #errors>0 then fail('Control rollback failed on '..table.concat(errors,', ')..'; recover a saved project') end
+    return true
+  end
+  local written={}
+  for _,row in ipairs(values) do
+    local success,result=pcall(function()return tool:SetInput(row[1],row[2])end)
+    if not success or result==false then
+      undo()
+      fail('Fusion rejected static Control value '..row[1])
+    end
+    written[#written+1]=row[1]
+  end
+  return undo
 end
 
 return H

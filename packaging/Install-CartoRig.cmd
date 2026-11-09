@@ -8,7 +8,7 @@ if not exist "%SOURCE%\src\cartorig\scene.lua" (
   echo Missing source files. Extract the complete package before installing.
   pause & exit /b 1
 )
-for %%F in (CartoRigBase.fuse CartoRigRegion.fuse CartoRigCamera.fuse) do (
+for %%F in (CartoRigBase.fuse CartoRigRegion.fuse CartoRigCamera.fuse CartoRigMarker.fuse CartoRigRoute.fuse CartoRigLabel.fuse) do (
   if not exist "%SOURCE%\fuses\%%F" (
     echo ERROR: Missing required renderer %%F. No files were installed.
     pause & exit /b 1
@@ -34,7 +34,7 @@ if not exist "%FUSE_DIR%" mkdir "%FUSE_DIR%"
 if exist "%SOURCE%\fuses\CartoRigOpacity.fuse" (
   copy /Y "%SOURCE%\fuses\CartoRigOpacity.fuse" "%FUSE_DIR%\CartoRigOpacity.fuse" >nul
 )
-for %%F in (CartoRigBase.fuse CartoRigRegion.fuse CartoRigCamera.fuse) do (
+for %%F in (CartoRigBase.fuse CartoRigRegion.fuse CartoRigCamera.fuse CartoRigMarker.fuse CartoRigRoute.fuse CartoRigLabel.fuse) do (
   if not exist "%SOURCE%\fuses\%%F" (
     echo ERROR: Missing required Fuse %%F. Extract the complete package first.
     pause & exit /b 1

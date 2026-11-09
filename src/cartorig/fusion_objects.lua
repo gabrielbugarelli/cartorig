@@ -74,39 +74,49 @@ function O.build(host,scene,object,kind,points)
   local began=false
   if comp.StartUndo then comp:StartUndo('CartoRig: create '..kind);began=true end
   local ok,err=xpcall(function()
-    local fg,mask
+    local raw,mask
     if kind=='Label' then
-      fg=add(comp,created,'TextPlus','CR2_LABEL_'..object.id)
-      fg:SetInput('StyledText',object.text or object.name or '')
+      raw=add(comp,created,'TextPlus','CR2_LABEL_TEXT_'..object.id)
+      raw:SetInput('StyledText',object.text or object.name or '')
       local xy=point(object.anchor)
-      local x,y=xy[1],xy[2]
-      fg:SetInput('Center',{x,y})
-      fg:SetInput('Size',(object.style.fontSize or 32)/1080)
-      local tr,tg,tb=color(object.style.color or '#F0F5F8')
-      fg:SetInput('Red1',tr);fg:SetInput('Green1',tg);fg:SetInput('Blue1',tb)
-      fg:SetInput('Alpha1',(object.style.opacity or 100)/100)
+      raw:SetInput('Center',{xy[1],xy[2]})
+      raw:SetInput('Size',(object.style.fontSize or 32)/1080)
+      raw:SetInput('Red1',1);raw:SetInput('Green1',1)
+      raw:SetInput('Blue1',1);raw:SetInput('Alpha1',1)
+      host:tag(raw,scene.id,object.id,'InternalLabelText')
     else
-      fg=add(comp,created,'Background','CR2_'..kind:upper()..'_'..object.id)
-      assign_rgba(fg,object.style.fill or object.style.stroke or '#D6DFE6',(object.style.opacity or 100)/100)
+      raw=add(comp,created,'Background','CR2_WHITE_'..kind:upper()..'_'..object.id)
+      assign_rgba(raw,'#FFFFFF',1)
+      host:tag(raw,scene.id,object.id,'Internal'..kind..'Fill')
       if kind=='Marker' then
         mask=add(comp,created,'EllipseMask','CR2_MARKER_MASK_'..object.id)
         mask:SetInput('Center',point(object.anchor))
-        -- Preview: width/height are in normalized image coordinates (not final output pixels).
-        local size=(object.style.size or 14)/1080
-        mask:SetInput('Width',size)
-        mask:SetInput('Height',size)
+        -- Mask coordinates are relative to the underlying world canvas.
+        mask:SetInput('Width',(object.style.size or 14)/1080)
+        mask:SetInput('Height',(object.style.size or 14)/1080)
       elseif kind=='Route' then
-        -- Mask serialization is a host adapter responsibility. Do not evaluate dataset text as code.
         local coords={}
         for _,p in ipairs(points) do coords[#coords+1]={p.lon,p.lat} end
         mask=host:_make_polyline_mask(coords,'CR2_ROUTE_MASK_'..object.id,false)
         created[#created+1]=mask
         mask:SetInput('Solid',0)
+        mask:SetInput('WriteLength',(object.style.drawProgress or 100)/100)
         mask:SetInput('BorderWidth',(object.style.strokeWidth or 3)/1080)
       end
-      link(fg,'EffectMask',mask)
+      link(raw,'EffectMask',mask)
     end
+    local fg=add(comp,created,'CartoRig'..kind,'CR2_'..kind:upper()..'_'..object.id)
     host:tag(fg,scene.id,object.id,kind)
+    link(fg,'Input',raw)
+    local colorValue=object.style.fill or object.style.stroke or object.style.color or '#FFFFFF'
+    local rr,gg,bb=color(colorValue)
+    local colorPrefix=kind=='Marker' and 'Fill' or (kind=='Route' and 'Stroke' or 'Text')
+    fg:SetInput(colorPrefix..'Red',rr)
+    fg:SetInput(colorPrefix..'Green',gg)
+    fg:SetInput(colorPrefix..'Blue',bb)
+    if kind~='Label' then fg:SetInput(colorPrefix..'Alpha',
+      ((kind=='Marker' and object.style.fillAlpha) or (kind=='Route' and object.style.strokeAlpha) or 100)/100) end
+    fg:SetInput('ObjectOpacity',(object.style.opacity or 100)/100)
     if mask then host:tag(mask,scene.id,object.id,'InternalMask') end
     local merge=add(comp,created,'Merge','CR2_COMPOSITE_'..object.id)
     host:tag(merge,scene.id,object.id,'InternalComposite')

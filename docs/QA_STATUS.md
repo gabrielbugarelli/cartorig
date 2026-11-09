@@ -68,3 +68,16 @@ substitute for those host gates.
 
 **Required host follow-up:** Test native `GetInput('Polyline')`/`SetInput` round-trip
 on PolygonMask with a keyframed WriteLength channel. No QA gate is marked DONE.
+
+## 2026-11-09 — Native Delete, authorial Fuses and static Control writes
+
+| Gate | Local automated result | Windows Resolve Studio 20 |
+| --- | --- | --- |
+| Delete middle/top object preserving Merge chain and third-party nodes | PASS `test_native_delete.lua` | NOT RUN |
+| Reject deletion consumed by unrelated Fusion tool | PASS `test_native_delete.lua` | NOT RUN |
+| Restore all connections after save/ConnectInput failure | PASS `test_native_delete.lua` | NOT RUN |
+| Marker, Route and Label Control/Motion Fuses, RGBA premultiplication | PASS `test_fuse_authorial_objects.lua` | NOT RUN |
+| Supported native style writes with rollback and spline conflicts | PASS `test_native_control.lua` | NOT RUN |
+| Reject malformed persisted styles and locked ancestor group | PASS `test_scene_integrity.lua` | NOT RUN |
+
+**No host certification:** Native registrations, pixel output, 4K performance, complete object controls, all 16 Motion presets, host Undo/Redo, random-seek, alpha/footage, QA-01..60 and HOST-01..10 still need execution on Resolve Studio 20 Windows.

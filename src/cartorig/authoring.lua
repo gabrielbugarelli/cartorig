@@ -175,6 +175,51 @@ function A:reorder(id,newIndex)
   end
   return draft
 end
+-- Remove the authorial image layer without deleting foreign Fusion tools.
+-- Connect/validate first, commit metadata, and only then delete owned tools.
+-- Apply a supported Control property on its real Fusion tool, then persist
+-- the Scene view. A failed save reverts the exact native input values.
+function A:set_style(id,key,value)
+  local previous,draft=mutation_draft(self)
+  self.m.Scene.set_style(draft,id,key,value)
+  self.m.Scene.validate(draft)
+  local object=self.m.Scene.get(previous,id)
+  local rollback=self.host:prepare_style(previous,object,key,value)
+  local ok,err=pcall(function()
+    self.m.Repository.write(self.comp,draft,self.m.Scene,self.m.Json)
+  end)
+  if not ok then
+    local recovered,reason=pcall(rollback)
+    if not recovered then fail('Control save failed and native rollback failed: '..tostring(reason)) end
+    fail('Control property not saved; restored native values: '..tostring(err))
+  end
+  return draft
+end
+function A:delete(id)
+  local previous,draft=mutation_draft(self)
+  local object=self.m.Scene.get(previous,id)
+  if not object then fail('selected object no longer exists') end
+  self.m.Scene.remove(draft,id)
+  self.m.Scene.validate(draft)
+  if not self.m.GraphOps or type(self.m.GraphOps.prepare_remove)~='function' then
+    fail('native object deletion is unavailable')
+  end
+  local tx=self.m.GraphOps.prepare_remove(self.host,previous,draft,id)
+  local ok,err=pcall(function()
+    self.m.Repository.write(self.comp,draft,self.m.Scene,self.m.Json)
+  end)
+  if not ok then
+    local recovered,reason=pcall(tx.rollback)
+    if not recovered then fail('metadata save failed and graph rollback failed; recover a project copy: '..tostring(reason)) end
+    fail('object deletion cancelled, original graph restored: '..tostring(err))
+  end
+  local clean,reason=pcall(tx.finalize)
+  if not clean then
+    -- Metadata has already been updated. Do not falsely claim success.
+    fail('object removed from scene, but native cleanup needs repair: '..tostring(reason))
+  end
+  return draft
+end
 function A:select(id)
   local state=self:current()
   if not state then fail('no scene') end

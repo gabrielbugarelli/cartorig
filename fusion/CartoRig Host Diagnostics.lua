@@ -56,6 +56,17 @@ local function main()
     end
     return 'Geographic camera channels exposed in the host'
   end)
+  for _,kind in ipairs({'Marker','Route','Label'}) do
+    gate(kind:upper()..'_FUSE_REGISTERED',function()
+      local node=new('CartoRig'..kind)
+      assert(input(node,'ObjectOpacity'),kind..' native opacity unavailable')
+      local prefix=kind=='Marker' and 'Fill' or (kind=='Route' and 'Stroke' or 'Text')
+      for _,channel in ipairs({'Red','Green','Blue'}) do
+        assert(input(node,prefix..channel),kind..' color input missing: '..channel)
+      end
+      return kind..' authorial Fuse registered with Control channels'
+    end)
+  end
   local outer,hole
   gate('POLYLINE_MASK',function()
     assert(bmd and type(bmd.readstring)=='function','bmd.readstring missing')

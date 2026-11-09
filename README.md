@@ -128,3 +128,14 @@ be read, CartoRig refuses the operation rather than risking an irreversible
 edit. Unsupported antimeridian routes fail before mutation. On metadata-write
 failure, the previous mask geometry is restored. This integration is tested
 with a simulated Fusion host, **not yet validated in Resolve Studio 20**.
+
+## 2026-11-09 — Native Delete / Control / Fuses (engineering preview)
+
+- `Scene → Delete Selected` uses two-step confirmation tied to an object ID. Base Map and Camera cannot be deleted.
+- Native Delete stages and validates graph rewiring, checks ALL Fusion connections for external consumers, persists metadata, and only then removes selected object tools. A refused link or failed metadata write restores the chain; any foreign dependency blocks deletion.
+- Marker, Route, and Label now each have an authorial Fuse exposing native `Control` color/opacity and `Motion` opacity channel. Inputs are evaluated at the requested frame in premultiplied RGBA; underlying EllipseMask/PolylineMask/TextPlus remain independent geometry sources.
+- `Authoring:set_style` writes supported native Control values, then persists Scene metadata; failing any operation restores original numeric inputs. RGB, Opacity, Marker Size, Route Width/Draw, Label Size, camera pose and Base Map display mode have tested write paths. Animated channels and unsupported renderer controls fail closed rather than overwriting keys.
+- Saved Scene JSON now validates style values, IDs and group ancestry; locks inherit through nested groups. Model-only duplicate records no longer carry previous host-tool references. Native duplicated objects with all editable curves remain a future implementation.
+- New Lua tests: `test_native_delete`, `test_native_control`, `test_fuse_authorial_objects` plus extended graph, Scene, Fuse and diagnostics contracts. **These are mock-host tests, not Resolve 20 validation.**
+
+**Outstanding scope:** full 10m land/coastline/border rendering, screen-space constant Marker/Label sizes, full 16-preset workflow and lifecycle in Inspector, native Windows GUI installation, all HOST-01..10/QA-01..60 including real alpha/4K/media export. This remains a Draft engineering preview, not CartoRig 1.0.
