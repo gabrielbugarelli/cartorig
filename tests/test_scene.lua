@@ -285,6 +285,41 @@ api.move(stateEntry.id,1)
 check(api.select(id).id==id,"reorder changes Z without mutating identity")
 local custom=api.addCustomPoint(-51.3,.7,"Selected Amapá point")
 check(api.select(custom).role=="Marker","manual geo point creates Marker")
+local multiGroup=api.addGroup("Selected visuals")
+local beforeGroupZ=api.select(id).z
+local beforeGroupKey=api.select(id).node.frames.ObjectOpacity[124]
+local undoBefore=comp.undos
+check(api.groupMany({id,marker,label},multiGroup)==3 and
+      comp.undos==undoBefore+1,"multiple group placements are one Fusion Undo")
+check(api.select(id).parent==multiGroup and
+      api.select(id).z==beforeGroupZ and
+      api.select(id).node.frames.ObjectOpacity[124]==beforeGroupKey,
+      "grouping preserves draw order, stable ID and existing spline")
+undoBefore=comp.undos
+check(api.batch("hide",{id,marker,marker})==2 and
+      comp.undos==undoBefore+1,"batch Hide deduplicates selected IDs")
+check(not api.select(marker).visible and not api.select(id).visible,
+      "batch Hide changes only selected visibility states")
+api.batch("show",{id,marker})
+api.batch("lock",{id,marker})
+undoBefore=comp.undos
+local rejected=pcall(function()api.batch("delete",{id,custom,marker})end)
+check(not rejected and comp.undos==undoBefore and
+      api.select(custom).role=="Marker",
+      "batch Delete rejects any locked ID before modifying unlocked objects")
+api.batch("unlock",{id,marker})
+local oldCount=#api.objects()
+undoBefore=comp.undos
+check(api.batch("delete",{marker,custom})==2 and
+      #api.objects()==oldCount-2 and comp.undos==undoBefore+1,
+      "batch Delete removes exactly two authored objects with single Undo")
+check(api.select(id).parent==multiGroup,
+      "batch Delete does not orphan unrelated grouped region")
+api.batch("delete",{multiGroup})
+check(api.select(id).parent=="" and
+      api.select(id).role=="Region",
+      "deleting organizational Group retains its surviving Region")
+
 local refused=pcall(function()api.addMarker(state[1])end)
 check(not refused,"state bbox center never silently becomes a city marker")
 local other=C.new()
