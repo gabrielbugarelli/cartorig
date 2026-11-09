@@ -196,6 +196,42 @@ local function objectFor(composition,id)
     end
     error("CartoRig object no longer exists in this composition",3)
 end
+-- Read-only selection bridge. IDs, never editable node names, are
+-- authoritative; external selections are explicit and cannot reuse stale IDs.
+function M.selectedInHost(composition)
+    composition=composition or current()
+    local ok,active=pcall(function()return composition.ActiveTool end)
+    if not ok then active=nil end
+    if not active then
+        local selectedOk,list=pcall(function()return composition:GetToolList(true)end)
+        if selectedOk and type(list)=="table" then
+            for _,node in pairs(list) do active=node;break end
+        end
+    end
+    if not active then return {state="NONE"} end
+    local id=meta(active,"ObjectId")
+    if id then
+        for _,entry in ipairs(owned(composition)) do
+            if entry.id==id and entry.node==active then
+                return {state="CARTORIG",id=id,role=entry.role,
+                        nodeName=readable(active)}
+            end
+        end
+    end
+    return {state="NON_CARTORIG",nodeName=readable(active)}
+end
+-- Single read-only snapshot for Scene. The caller must bind the result to
+-- the composition identity before permitting any later mutation.
+function M.snapshot(composition)
+    composition=composition or current()
+    local state=M.state(composition)
+    local objects={}
+    if state=="SCENE_READY" or state=="SCENE_EMPTY" then
+        objects=owned(composition)
+    end
+    return {composition=composition,state=state,objects=objects,
+            selection=M.selectedInHost(composition)}
+end
 local function isLocked(composition,entry)
     if entry.locked then return true end
     local parent=meta(entry.node,"ParentGroup")
