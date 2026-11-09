@@ -154,8 +154,14 @@ local function makeDispatcher(_)
         "uninitialized composition gets context feedback")
   if visited==1 then
    window.On.Initialize.Clicked({})
+   local names={}
+   for _,node in ipairs(compA:GetToolList(false))do
+    names[#names+1]=node.name
+   end
    check(compA:FindTool("CR_Base_Map")~=nil,
-         "Scene initialized from window: "..tostring(w.Status.Text))
+         "Scene initialized from window: "..tostring(w.Status.Text)..
+         "; nodes="..table.concat(names,",")..
+         "; active="..tostring(comp==compA))
    w.Search.Text="Brazil";w.Type.CurrentIndex=2
    window.On.Find.Clicked({})
    window.On.AddRegion.Clicked({})
