@@ -87,7 +87,8 @@ OfxStatus define(OfxParamSetHandle h,const char*type,const char*name,
  return kOfxStatOK;
 }
 OfxStatus paramSetProps(OfxParamSetHandle h,OfxPropertySetHandle*out){
- *out=&reinterpret_cast<TestParams*>(h)->props;return kOfxStatOK;
+ *out=reinterpret_cast<OfxPropertySetHandle>(
+     &reinterpret_cast<TestParams*>(h)->props);return kOfxStatOK;
 }
 OfxStatus paramHandle(OfxParamSetHandle h,const char*name,OfxParamHandle*out,
                        OfxPropertySetHandle*properties){
@@ -95,7 +96,8 @@ OfxStatus paramHandle(OfxParamSetHandle h,const char*name,OfxParamHandle*out,
  auto it=map.find(name);
  if(it==map.end())return kOfxStatErrBadHandle;
  *out=reinterpret_cast<OfxParamHandle>(it->second.get());
- if(properties)*properties=&it->second->props;
+ if(properties)*properties=reinterpret_cast<OfxPropertySetHandle>(
+     &it->second->props);
  return kOfxStatOK;
 }
 std::vector<double> defaultValue(const TestParam&p){
@@ -168,22 +170,24 @@ OfxStatus deleteKey(OfxParamHandle h,OfxTime t){
 OfxStatus editBegin(OfxParamSetHandle,const char*){return kOfxStatOK;}
 OfxStatus editEnd(OfxParamSetHandle){return kOfxStatOK;}
 OfxStatus effectProps(OfxImageEffectHandle h,OfxPropertySetHandle*out){
- *out=&reinterpret_cast<TestEffect*>(h)->props;return kOfxStatOK;
+ *out=reinterpret_cast<OfxPropertySetHandle>(
+    &reinterpret_cast<TestEffect*>(h)->props);return kOfxStatOK;
 }
 OfxStatus effectParams(OfxImageEffectHandle h,OfxParamSetHandle*out){
- *out=&reinterpret_cast<TestEffect*>(h)->params;return kOfxStatOK;
+ *out=reinterpret_cast<OfxParamSetHandle>(
+    &reinterpret_cast<TestEffect*>(h)->params);return kOfxStatOK;
 }
 OfxStatus clipDefine(OfxImageEffectHandle h,const char*name,OfxPropertySetHandle*out){
  auto&e=*reinterpret_cast<TestEffect*>(h);
  auto v=std::make_unique<Props>();auto*raw=v.get();
- e.clips[name]=std::move(v);*out=raw;
+ e.clips[name]=std::move(v);*out=reinterpret_cast<OfxPropertySetHandle>(raw);
  return kOfxStatOK;
 }
 OfxPropertySuiteV1 properties{};
 OfxParameterSuiteV1 parameters{};
 OfxImageEffectSuiteV1 effects{};
 Props hostProps;
-void*fetchSuite(OfxPropertySetHandle,const char*name,int version){
+const void*fetchSuite(OfxPropertySetHandle,const char*name,int version){
  if(version!=1)return nullptr;
  const std::string wanted=name;
  if(wanted==kOfxPropertySuite)return &properties;
@@ -210,7 +214,8 @@ void setup(){
  effects.getPropertySet=&effectProps;
  effects.getParamSet=&effectParams;
  effects.clipDefine=&clipDefine;
- host.host=&hostProps;host.fetchSuite=&fetchSuite;
+ host.host=reinterpret_cast<OfxPropertySetHandle>(&hostProps);
+ host.fetchSuite=&fetchSuite;
 }
 TestParam&get(TestEffect&e,const char*name){
  return *e.params.params.at(name);
@@ -228,7 +233,7 @@ void event(OfxPlugin*plugin,TestEffect&effect,int frame){
  put(args.strings,kOfxPropName,0,std::string("ApplyMotion"));
  put(args.strings,kOfxPropChangeReason,0,std::string(kOfxChangeUserEdited));
  put(args.doubles,kOfxPropTime,0,static_cast<double>(frame));
- auto st=plugin->mainEntry(kOfxActionInstanceChanged,&effect,&args,nullptr);
+ auto st=plugin->mainEntry(kOfxActionInstanceChanged,&effect,reinterpret_cast<OfxPropertySetHandle>(&args),nullptr);
  check(st==kOfxStatOK,std::string(plugin->pluginIdentifier)+" ApplyMotion failed");
 }
 void assertKey(const TestEffect&e,const char*channel,double time,double expected){
@@ -285,7 +290,7 @@ int main(){
   Props args;put(args.strings,kOfxPropName,0,std::string("ApplyMotion"));
   put(args.strings,kOfxPropChangeReason,0,std::string(kOfxChangeUserEdited));
   put(args.doubles,kOfxPropTime,0,100.);
-  check(region->mainEntry(kOfxActionInstanceChanged,&r,&args,nullptr)==
+  check(region->mainEntry(kOfxActionInstanceChanged,&r,reinterpret_cast<OfxPropertySetHandle>(&args),nullptr)==
         kOfxStatFailed,"second Apply must detect collision");
   check(r.params.params.at("HighlightStrength")->keys.size()==count,
         "conflicting Apply cannot erase prior native keys");
