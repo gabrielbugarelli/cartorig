@@ -1,6 +1,7 @@
 // CartoRig 1.0 Fusion rewrite — original OpenFX 1.4 adapter.
 // This is a host candidate; CI export/compile is not Resolve 20 certification.
 #include "cartorig/geo.hpp"
+#include "cartorig/labels.hpp"
 #include <ofxImageEffect.h>
 #include <ofxParam.h>
 #include <ofxProperty.h>
@@ -27,7 +28,7 @@
 
 namespace {
 using namespace cartorig::rc1;
-enum class Type{Map,Region,Route,Marker,Camera};
+enum class Type{Map,Region,Route,Marker,Camera,Label};
 OfxHost* host=nullptr;
 const OfxImageEffectSuiteV1* fx=nullptr;
 const OfxPropertySuiteV1* prop=nullptr;
@@ -168,6 +169,7 @@ std::vector<std::string> presetNames(Type type){
                             "Instant Color Change","Border Draw","Highlight Pulse"};
  case Type::Route:return {"Draw Path","Erase Path","Follow Path"};
  case Type::Marker:return {"Fade In","Pop In"};
+ case Type::Label:return {"Fade In"};
  case Type::Camera:return {"Fly To Location","Zoom To","Fit Transition"};
  }
  return {};
@@ -177,7 +179,8 @@ OfxStatus describe(OfxImageEffectHandle e,Type type){
  require(fx->getPropertySet(e,&p)==kOfxStatOK,"Effect properties not found");
  const std::string label=type==Type::Map?"CartoRig Base Map":
   type==Type::Region?"CartoRig Region":type==Type::Route?"CartoRig Route":
-  type==Type::Marker?"CartoRig Marker":"CartoRig Camera";
+  type==Type::Marker?"CartoRig Marker":
+  type==Type::Label?"CartoRig Label":"CartoRig Camera";
  setString(p,kOfxPropLabel,label.c_str());
  setString(p,kOfxImageEffectPropSupportedContexts,kOfxImageEffectContextFilter);
  setString(p,kOfxImageEffectPropSupportedPixelDepths,kOfxBitDepthByte,0);
@@ -250,6 +253,19 @@ OfxStatus describeContext(OfxImageEffectHandle e,Type type){
   number(ps,controls,"OffsetX","Offset X",0,-500,500);
   number(ps,controls,"OffsetY","Offset Y",0,-500,500);
   boolean(ps,controls,"Ring","Ring Symbol",false);
+ }else if(type==Type::Label){
+  string(ps,controls,"StyledText","Text");
+  string(ps,controls,"FontFamily","Font Family");
+  number(ps,controls,"FontSize","Font Size (px)",32,6,200);
+  color(ps,controls,"TextColor","Text Color",240./255,245./255,248./255);
+  number(ps,controls,"PointLongitude","Anchor Longitude",0,-180,180,false);
+  number(ps,controls,"PointLatitude","Anchor Latitude",0,-85,85,false);
+  choice(ps,controls,"TextAlign","Horizontal Align",{"Left","Center","Right"},1);
+  number(ps,controls,"OffsetX","Offset X (px)",0,-1000,1000);
+  number(ps,controls,"OffsetY","Offset Y (px)",0,-1000,1000);
+  boolean(ps,controls,"Halo","Halo",true);
+  color(ps,controls,"HaloColor","Halo Color",11./255,22./255,33./255);
+  number(ps,controls,"HaloWidth","Halo Width (px)",2,0,20);
  }else if(type==Type::Camera){
   number(ps,controls,"CenterLongitude","Center Longitude",0,-180,180);
   number(ps,controls,"CenterLatitude","Center Latitude",0,-85,85);
@@ -444,6 +460,27 @@ OfxStatus render(OfxImageEffectHandle effect,OfxPropertySetHandle args,Type type
   r.stroke=colorAt(effect,"Stroke",t,{214,223,230,255});
   r.opacity=opacity;
   drawRoute(canvas,camera,r);
+ }else if(type==Type::Label&&enabled&&opacity>0){
+  LabelOptions label;
+  label.text=textAt(effect,"StyledText",t);
+  label.fontFamily=textAt(effect,"FontFamily",t);
+  if(label.fontFamily.empty())label.fontFamily="Sans";
+  label.at={numberAt(effect,"PointLongitude",t,0),
+            numberAt(effect,"PointLatitude",t,0)};
+  label.fontSize=numberAt(effect,"FontSize",t,32);
+  label.offsetX=numberAt(effect,"OffsetX",t,0);
+  label.offsetY=numberAt(effect,"OffsetY",t,0);
+  label.halo=flagAt(effect,"Halo",t,true);
+  label.haloWidth=numberAt(effect,"HaloWidth",t,2);
+  label.fill=colorAt(effect,"TextColor",t,{240,245,248,255});
+  label.haloColor=colorAt(effect,"HaloColor",t,{11,22,33,255});
+  int align=1;
+  if(auto h=parameter(effect,"TextAlign"))
+   param->paramGetValueAtTime(h,t,&align);
+  label.alignment=align==0?TextAlign::Left:
+                  align==2?TextAlign::Right:TextAlign::Center;
+  label.opacity=opacity;
+  drawLabel(canvas,camera,label);
  }else if(type==Type::Marker&&enabled&&opacity>0){
   MarkerOptions m;
   m.at={numberAt(effect,"PointLongitude",t,0),
@@ -533,6 +570,8 @@ OfxStatus applyInspectorMotion(OfxImageEffectHandle effect,
   if(chosen==0)scalar("DrawProgress",0,1);
   else if(chosen==1)scalar("DrawProgress",1,0);
   else scalar("FollowerProgress",0,1);
+ }else if(type==Type::Label){
+  scalar("ObjectOpacity",0,opacity);
  }else if(type==Type::Marker){
   if(chosen==0)scalar("ObjectOpacity",0,opacity);
   else {
@@ -661,18 +700,21 @@ OfxStatus markerAction(const char*n,const void*h,OfxPropertySetHandle a,
                        OfxPropertySetHandle b){return action(Type::Marker,n,h,a,b);}
 OfxStatus cameraAction(const char*n,const void*h,OfxPropertySetHandle a,
                        OfxPropertySetHandle b){return action(Type::Camera,n,h,a,b);}
+OfxStatus labelAction(const char*n,const void*h,OfxPropertySetHandle a,
+                      OfxPropertySetHandle b){return action(Type::Label,n,h,a,b);}
 OfxPlugin plugins[]={
  {kOfxImageEffectPluginApi,1,"com.cartorig.fusionrc1.map",1,0,setHost,mapAction},
  {kOfxImageEffectPluginApi,1,"com.cartorig.fusionrc1.region",1,0,setHost,regionAction},
  {kOfxImageEffectPluginApi,1,"com.cartorig.fusionrc1.route",1,0,setHost,routeAction},
  {kOfxImageEffectPluginApi,1,"com.cartorig.fusionrc1.marker",1,0,setHost,markerAction},
  {kOfxImageEffectPluginApi,1,"com.cartorig.fusionrc1.camera",1,0,setHost,cameraAction},
+ {kOfxImageEffectPluginApi,1,"com.cartorig.fusionrc1.label",1,0,setHost,labelAction},
 };
 }
 extern "C" {
-OfxExport int OfxGetNumberOfPlugins(void){return 5;}
+OfxExport int OfxGetNumberOfPlugins(void){return 6;}
 OfxExport OfxPlugin*OfxGetPlugin(int index){
- if(index<0||index>=5)return nullptr;
+ if(index<0||index>=6)return nullptr;
  return &plugins[index];
 }
 } // extern "C"
