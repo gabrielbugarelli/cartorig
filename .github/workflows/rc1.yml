@@ -145,6 +145,11 @@ jobs:
               if($paths -notcontains $must){throw "Missing packaged path: $must"}
             }
           } finally { $zip.Dispose() }
+      - name: Verify offline installer payload using Windows PowerShell 5.1
+        shell: powershell
+        run: |
+          & powershell.exe -NoProfile -ExecutionPolicy Bypass -File "package/Install-CartoRig.ps1" -VerifyPackageOnly
+          if ($LASTEXITCODE -ne 0) { throw "Offline installer preflight rejected the assembled package." }
       - name: Publish development package (not a stable RC)
         uses: actions/upload-artifact@v4
         with:
