@@ -130,7 +130,9 @@ local function widget(spec)
 end
 local currentDispatcher
 local visited=0
+local createdDispatchers=0
 local function makeDispatcher(_)
+ createdDispatchers=createdDispatchers+1
  local d={On=setmetatable({},{__index=function(t,k)
   local v={};rawset(t,k,v);return v end})}
  function d:AddWindow(props,layout)
@@ -152,6 +154,15 @@ local function makeDispatcher(_)
  function d:ExitLoop()self.exited=true end
  function d:RunLoop()
   visited=visited+1
+  if visited==1 then
+   check(_G.CARTORIG_SCENE_WINDOW_RUNNING==true,
+         "Scene singleton is marked running only while UI loop is active")
+   local countBefore=createdDispatchers
+   local nestedOk,nestedError=pcall(dofile,script)
+   check(nestedOk,"invoking Scene again reuses current window: "..tostring(nestedError))
+   check(createdDispatchers==countBefore and visited==1,
+         "second launch cannot create another dispatcher or UI loop")
+  end
   local window=self.window
   local w=self.items
   local tree=w.ObjectTree
@@ -246,6 +257,9 @@ for cycle=1,20 do
   check(n==0,"every host notification released after closing Scene: "..event)
  end
  check(currentDispatcher.exited,"window dispatcher loop exits cleanly")
+ check(_G.CARTORIG_SCENE_WINDOW_RUNNING==nil,
+       "Scene singleton flag clears after normal window close")
 end
-check(visited==20,"twenty open/close cycles exercised")
+check(visited==20 and createdDispatchers==20,
+      "twenty open/close cycles, one dispatcher per lifetime")
 print("PASS Fusion UI mock: real Tree, Inspector selection, wrong context, no stale delete, 20 notification-clean lifecycles")
