@@ -11,6 +11,8 @@
 #include <cmath>
 #include <cstring>
 #include <cstdlib>
+#include <cctype>
+#include <iterator>
 #include <filesystem>
 #include <fstream>
 #include <memory>
@@ -71,6 +73,30 @@ const Catalog& getCatalog(){
   catalogCache=std::move(next);cachePath=root;
  }
  return *catalogCache;
+}
+std::string installedGeometryFingerprint(){
+ const auto path=installedData()/"manifest.json";
+ std::ifstream file(path,std::ios::binary);
+ require(file.good(),"Natural Earth manifest missing; dataset version cannot be verified");
+ std::string body((std::istreambuf_iterator<char>(file)),
+                  std::istreambuf_iterator<char>());
+ require(body.size()<=100000,"Natural Earth manifest is too large");
+ const auto key=body.find("\"geometry_sha256\"");
+ require(key!=std::string::npos,"Missing Natural Earth geometry SHA256");
+ const auto sep=body.find(':',key);
+ const auto first=body.find('"',sep);
+ require(sep!=std::string::npos&&first!=std::string::npos,
+         "Malformed Natural Earth SHA256 manifest");
+ const auto last=body.find('"',first+1);
+ require(last!=std::string::npos,"Malformed Natural Earth SHA256 delimiter");
+ auto value=body.substr(first+1,last-first-1);
+ require(value.size()==64 &&
+     std::all_of(value.begin(),value.end(),[](unsigned char c){
+      return std::isxdigit(c)!=0;
+     }),"Unsafe Natural Earth geometry fingerprint");
+ std::transform(value.begin(),value.end(),value.begin(),
+                [](unsigned char c){return static_cast<char>(std::tolower(c));});
+ return value;
 }
 std::shared_ptr<const Geometry> getGeometry(const std::string&id){
  std::lock_guard<std::mutex> lock(catalogMutex);
@@ -229,6 +255,11 @@ OfxStatus describeContext(OfxImageEffectHandle e,Type type){
   boolean(ps,controls,"Visible","Base Visible",true);
  }else if(type==Type::Region){
   string(ps,controls,"FeatureId","Geographic Source ID");
+  { auto d=def(ps,kOfxParamTypeString,"DatasetFingerprint",
+               "Natural Earth Geometry Fingerprint");
+    setString(d,kOfxParamPropDefault,"");
+    setInt(d,kOfxParamPropSecret,1);
+  }
   color(ps,controls,"Fill","Fill Color",130./255,150./255,164./255);
   number(ps,controls,"FillAlpha","Fill Alpha",1,0,1);
   boolean(ps,controls,"StrokeVisible","Stroke Visible",true);
@@ -529,6 +560,12 @@ OfxStatus render(OfxImageEffectHandle effect,OfxPropertySetHandle args,Type type
  }else if(type==Type::Region&&enabled&&opacity>0){
   auto id=textAt(effect,"FeatureId",t);
   if(id.empty())throw std::invalid_argument("Region source ID is missing");
+  auto expected=textAt(effect,"DatasetFingerprint",t);
+  auto currentSHA=installedGeometryFingerprint();
+  if(expected!=currentSHA)throw std::runtime_error(
+      "This Region was authored with a different Natural Earth data pack. "
+      "Its geography will not be silently substituted. Restore the original "
+      "pack or explicitly migrate a copy of this scene.");
   // A continent is an explicitly labelled Natural Earth-derived group
   // of real country polygons. Never fabricate a continental source polygon.
   std::vector<std::shared_ptr<const Geometry>> polygons;
