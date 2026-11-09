@@ -428,10 +428,19 @@ local function updateWaypoints()
 end
 function window.On.Objects.CurrentIndexChanged(_)
     if locked then return end
-    local object=objects[(tonumber(item.Objects.CurrentIndex) or -1)+1]
-    if object and object.role=="Route" then
-        perform(updateWaypoints)
-    else setItems(item.Waypoints,{}) end
+    perform(function()
+        verifyContext()
+        local object=objects[(tonumber(item.Objects.CurrentIndex) or -1)+1]
+        if not object then
+            setItems(item.Waypoints,{})
+            return "Select a CartoRig object."
+        end
+        scene.select(object.id)
+        if object.role=="Route" then updateWaypoints()
+        else setItems(item.Waypoints,{}) end
+        return "Selected "..tostring(object.name)..
+               " — native Fusion Inspector: Control | Motion."
+    end)
 end
 local function activeRoute()
     local object=chooseObject("route")
