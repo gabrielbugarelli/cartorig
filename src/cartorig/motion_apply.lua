@@ -14,7 +14,13 @@ local channelMap={
   Label={opacity={tool='object',input='ObjectOpacity',percent=true}},
   Route={opacity={tool='object',input='ObjectOpacity',percent=true},drawProgress={tool='mask',input='WriteLength',percent=true}},
   Camera={zoom={tool='object',input='Zoom'},longitude={tool='object',input='CenterLongitude'},latitude={tool='object',input='CenterLatitude'},bearing={tool='object',input='Bearing'}},
-  BaseMap={['layerOpacity.Ocean']={tool='object',input='OceanLayerOpacity',percent=true}},
+  BaseMap={
+    ['layerOpacity.Ocean']={tool='object',input='OceanLayerOpacity',percent=true},
+    ['layerOpacity.Land']={tool='object',input='LandLayerOpacity',percent=true,requiredMatte='LandInput'},
+    ['layerOpacity.Coastline']={tool='object',input='CoastlineLayerOpacity',percent=true,requiredMatte='CoastlineInput'},
+    ['layerOpacity.CountryBorders']={tool='object',input='CountryBordersLayerOpacity',percent=true,requiredMatte='CountryBordersInput'},
+    ['layerOpacity.StateBorders']={tool='object',input='StateBordersLayerOpacity',percent=true,requiredMatte='StateBordersInput'},
+  },
 }
 M.supported_channels=channelMap
 local function active_tool(host,object,spec)
@@ -83,6 +89,32 @@ local function native_keys_exist(tool,input)
   end
   return false
 end
+local function assert_source_matte(tool,input)
+  if type(tool.GetInputList)~='function' then
+    fail('Layer Fade cannot verify geographic matte '..input..'; source is not installed')
+  end
+  local ok,fields=pcall(function()return tool:GetInputList()end)
+  if not ok or type(fields)~='table' then fail('cannot inspect geographic layer inputs') end
+  local found=fields[input]
+  if not found then
+    for key,candidate in pairs(fields) do
+      if type(candidate)=='table' or type(candidate)=='userdata' then
+        local id=(type(key)=='string') and key or nil
+        if type(candidate.GetAttrs)=='function' then
+          local read,attrs=pcall(function()return candidate:GetAttrs()end)
+          if not read then fail('could not inspect geographic matte identity') end
+          if type(attrs)=='table' then id=attrs.INPS_ID or id end
+        end
+        if id==input then found=candidate;break end
+      end
+    end
+  end
+  if not found or type(found.GetConnectedOutput)~='function' then
+    fail('Layer Fade requires installed geographic matte '..input)
+  end
+  local checked,connected=pcall(function()return found:GetConnectedOutput()end)
+  if not checked or not connected then fail('Layer Fade requires connected geographic matte '..input) end
+end
 local function preflight(host,object,plan)
   if type(plan)~='table' or plan.objectId~=object.id or type(plan.channels)~='table' then fail('plan does not match selected object') end
   local mapped=channelMap[object.kind]
@@ -92,6 +124,7 @@ local function preflight(host,object,plan)
     local spec=mapped[channel]
     if not spec then fail('native renderer has no editable '..channel..' channel for '..object.kind..' yet') end
     local tool=active_tool(host,object,spec)
+    if spec.requiredMatte then assert_source_matte(tool,spec.requiredMatte) end
     if type(tool.AddModifier)~='function' then fail('Fusion keyframe API not available') end
     -- Do not trust only CartoRig scene metadata: Fusion may have hand-edited
     -- curves which were never registered by the Scene window.
