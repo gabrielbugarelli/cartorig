@@ -330,6 +330,10 @@ local brokenCamera=broken:FindTool("CR_Camera")
 check(brokenCamera~=nil,"broken setup has an owned camera")
 brokenCamera:Delete()
 check(api.state()=="SCENE_BROKEN","missing CartoRig Camera triggers SCENE_BROKEN")
+local inspectCamera=api.inspect()
+check(inspectCamera.state=="SCENE_BROKEN" and
+      table.concat(inspectCamera.issues," "):find("Camera count"),
+      "SCENE_BROKEN explains missing core Camera without changing graph")
 local noRepair=pcall(api.initialize)
 check(not noRepair,"Initialize cannot silently overwrite damaged CartoRig objects")
 local manuallyDeleted=C.new()
@@ -340,6 +344,10 @@ check(api.state()=="SCENE_READY","valid tracked scene")
 api.select(lost).node:Delete() -- external Node Editor removal, no Scene delete
 check(api.state()=="SCENE_BROKEN",
       "external deletion mismatches persisted object ledger (QA-26/52)")
+local diagnostic=api.diagnosticsText()
+check(diagnostic:find("Missing or changed Marker object") and
+      diagnostic:find(lost,1,true),
+      "QA-26: read-only diagnostics identify exact deleted object ID")
 check(#api.objects()==0,"broken scene must not present incomplete object list")
 local recoveryDenied=pcall(function()
     api.addRegion(api.search("Rio de Janeiro","state")[1])
