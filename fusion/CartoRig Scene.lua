@@ -18,6 +18,7 @@ local function run()
   local Host=module('fusion_host')
   local Objects=module('fusion_objects')
   local Geo=module('geo')
+  local Coordinates=module('coordinates')
   local Motion=module('motion')
   local Writer=module('motion_apply')
   local Authoring=module('authoring')
@@ -70,6 +71,13 @@ local function run()
       ui:HGroup{ui:Button{ID='CR_RouteFrom',Text='Route From'},ui:Button{ID='CR_RouteTo',Text='Route To'},ui:Button{ID='CR_CreateRoute',Text='Create Route'}},
       ui:Button{ID='CR_UpdateRoute',Text='Update Selected Route Endpoints'},
       ui:Button{ID='CR_ReverseRoute',Text='Reverse Selected Route'},
+      ui:HGroup{ui:LineEdit{ID='CR_CustomLon',PlaceholderText='Longitude (decimal degrees)'},
+        ui:LineEdit{ID='CR_CustomLat',PlaceholderText='Latitude (decimal degrees)'}},
+      ui:HGroup{ui:Button{ID='CR_CustomFrom',Text='Use as Route From'},
+        ui:Button{ID='CR_CustomTo',Text='Use as Route To'}},
+      ui:HGroup{ui:Button{ID='CR_CustomMarker',Text='Add Custom Marker'},
+        ui:Button{ID='CR_CustomLabel',Text='Add Custom Label'},
+        ui:Button{ID='CR_CustomFocus',Text='Focus Custom Point'}},
       ui:Label{ID='CR_RouteState',Text='Route: choose explicit point endpoints'},
       ui:Label{Text='SCENE OBJECTS'},
       ui:Tree{ID='CR_Objects',ColumnCount=1,SortingEnabled=false,MinimumSize={320,200}},
@@ -212,6 +220,36 @@ local function run()
       if target=='from' then routeFrom=feature.point else routeTo=feature.point end
       w.CR_RouteState.Text='Route: From '..(routeFrom and 'set' or 'missing')..' / To '..(routeTo and 'set' or 'missing')
       return 'Route '..target..' selected: '..feature.name
+    end)
+  end
+  local function custom_point()
+    return Coordinates.parse(w.CR_CustomLon.Text,w.CR_CustomLat.Text)
+  end
+  local function set_custom_endpoint(slot)
+    guarded(function()
+      local p=custom_point()
+      if slot=='from' then routeFrom=p else routeTo=p end
+      w.CR_RouteState.Text='Route: From '..(routeFrom and 'set' or 'missing')..' / To '..(routeTo and 'set' or 'missing')
+      return 'Route '..slot..' set to explicit WGS84 coordinates.'
+    end)
+  end
+  win.On.CR_CustomFrom.Clicked=function()set_custom_endpoint('from')end
+  win.On.CR_CustomTo.Clicked=function()set_custom_endpoint('to')end
+  local function add_custom(kind)
+    guarded(function()
+      if not state then error('Initialize Map Scene first') end
+      local draft,object=engine:add_custom_point(kind,custom_point())
+      state=draft;refresh_objects()
+      return 'Added independent '..kind..' at explicitly entered coordinates.'
+    end)
+  end
+  win.On.CR_CustomMarker.Clicked=function()add_custom('Marker')end
+  win.On.CR_CustomLabel.Clicked=function()add_custom('Label')end
+  win.On.CR_CustomFocus.Clicked=function()
+    guarded(function()
+      if not state then error('Initialize Map Scene first') end
+      state=engine:focus_camera(custom_point())
+      return 'Camera focused on custom point without adding keys.'
     end)
   end
   win.On.CR_RouteFrom.Clicked=function()choose_endpoint('from')end

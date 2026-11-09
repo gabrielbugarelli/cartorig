@@ -66,6 +66,15 @@ function A:add_location(feature,kind)
   end
   return draft,object
 end
+-- Custom Marker/Label coordinates carry their declared user-authored provenance.
+function A:add_custom_point(kind,point)
+  if kind~='Marker' and kind~='Label' then fail('custom point supports Marker or Label only') end
+  if not self.m.Geo.valid_point(point) then fail('custom point must be WGS84 lon/lat') end
+  local formatted=string.format('Custom Point (%.5f, %.5f)',point.lon,point.lat)
+  return self:add_location({id=string.format('custom:%.9f:%.9f',point.lon,point.lat),
+    name=formatted,kind='Custom Point',geometryType='Point',point=point,
+    source={dataset='User Authored',version='1'}},kind)
+end
 function A:add_route(from,to)
   local original=self:current()
   if original and self.expectedManifestId and original.manifestId~=self.expectedManifestId then fail('installed geographic dataset differs from the saved scene; mutation blocked') end
