@@ -172,6 +172,7 @@ local function owned(composition)
                 name=meta(tool,"DisplayName") or readable(tool),
                 feature=meta(tool,"FeatureId"),
                 locationKind=meta(tool,"LocationKind"),
+                parent=meta(tool,"ParentGroup"),
                 locked=meta(tool,"Locked") or false,
                 visible=meta(tool,"Visible")~=false,
                 z=tonumber(meta(tool,"Order")) or 0,
