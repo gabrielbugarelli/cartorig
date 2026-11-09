@@ -21,6 +21,11 @@ function T:SetInput(k,v,f)
 end
 function T:GetInput(k)return self.values[k]end
 function T:ConnectInput(k,t)
+    if self.kind=="MediaOut" and k~="Input" then return false end
+    if self.kind=="Merge" and k~="Foreground" and k~="Background" then
+        return false
+    end
+    if not t then return false end
     self.values[k]=t
     return true
 end
@@ -176,7 +181,7 @@ local message=api.connectOutput()
 local merge=media:GetInput("Input")
 check(merge~=nil and merge.kind=="Merge" and merge.values.Background==footage,
       "explicit Connect Output preserves old footage as Merge Background")
-check(merge.values.Source==third:FindTool("CR_Stack_Output"),
+check(merge.values.Foreground==third:FindTool("CR_Stack_Output"),
       "CartoRig stack becomes distinct Merge foreground")
 check(type(message)=="string","success gives human-readable host status")
 print("PASS: Fusion Scene 1.0 mock context isolation, geo search, CRUD, locks, camera, route")
