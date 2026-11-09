@@ -150,10 +150,12 @@ local function makeDispatcher(_)
   local window=self.window
   local w=self.items
   local tree=w.ObjectTree
-  check(tree~=nil and tree.columns[1]=="Scene object",
-        "native Tree widget initialized")
-  check(w.Status.Text:find("COMP_WITHOUT_CARTORIG")~=nil,
-        "uninitialized composition gets context feedback")
+  check(tree~=nil and (visited==20 or tree.columns[1]=="Scene object"),
+        "native Tree widget initialized or disabled in NO_COMP")
+  if visited~=20 then
+    check(w.Status.Text:find("COMP_WITHOUT_CARTORIG")~=nil,
+          "uninitialized composition gets context feedback")
+  end
   if visited==1 then
    window.On.Initialize.Clicked({})
    local names={}
