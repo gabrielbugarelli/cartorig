@@ -30,7 +30,7 @@ C.__index=C
 function C.new()
     local comp=setmetatable({nodes={},CurrentTime=0,undos=0},C)
     local output=T.new("MediaOut");output.name="MediaOut1"
-    output.Input={GetConnectedOutput=function()return nil end}
+    output.Input={GetConnectedOutput=function()return output.values.Input end}
     comp.nodes[1]=output
     return comp
 end
@@ -77,6 +77,12 @@ check(created,"initialize new scene")
 check(api.isInitialized(),"initialized current composition")
 check(#api.objects()==2,"Base Map and Camera are sole defaults")
 check(comp:FindTool("CR_Stack_Output")~=nil,"output created")
+local mediaOut=comp:FindTool("MediaOut1")
+local stack=comp:FindTool("CR_Stack_Output")
+check(mediaOut:GetInput("Input")==stack,
+      "blank MediaOut connects only the CartoRig scene")
+check(api.connectOutput()=="CartoRig already connected to MediaOut.",
+      "explicit Connect Output does not create duplicate merges")
 check(comp:FindTool("CR_Base_Map"):GetInput("CountryA")==nil,
       "no injected default editorial region")
 local state=api.search("Rio de Janeiro","state")
@@ -158,4 +164,19 @@ check(#api.objects()==0,"no cross-composition scene leak")
 comp=C.new()
 api.initialize()
 check(#api.objects()==2,"second composition starts neutral")
+local third=C.new()
+local media=third:FindTool("MediaOut1")
+local footage=third:AddTool("MediaIn",0,0)
+media:ConnectInput("Input",footage)
+comp=third
+api.initialize()
+check(media:GetInput("Input")==footage,
+      "initialize must preserve third-party MediaOut connection")
+local message=api.connectOutput()
+local merge=media:GetInput("Input")
+check(merge~=nil and merge.kind=="Merge" and merge.values.Background==footage,
+      "explicit Connect Output preserves old footage as Merge Background")
+check(merge.values.Source==third:FindTool("CR_Stack_Output"),
+      "CartoRig stack becomes distinct Merge foreground")
+check(type(message)=="string","success gives human-readable host status")
 print("PASS: Fusion Scene 1.0 mock context isolation, geo search, CRUD, locks, camera, route")
