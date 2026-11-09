@@ -29,6 +29,21 @@ function T:ConnectInput(k,t)
     self.values[k]=t
     return true
 end
+local function deepCopy(v)
+    if type(v)~="table" then return v end
+    local copy={}
+    for k,item in pairs(v) do copy[k]=deepCopy(item) end
+    return copy
+end
+function T:SaveSettings()
+    return {values=deepCopy(self.values),frames=deepCopy(self.frames or {})}
+end
+function T:LoadSettings(settings)
+    if type(settings)~="table" then return false end
+    self.values=deepCopy(settings.values or {})
+    self.frames=deepCopy(settings.frames or {})
+    return true
+end
 function T:Delete()self.deleted=true;return true end
 local C={}
 C.__index=C
@@ -99,6 +114,24 @@ check(#api.objects()==3,"region appended without editing other objects")
 local selected=api.select(id)
 check(comp.active==selected.node,"node selected for native Inspector")
 check(selected.feature==state[1].id,"feature reference persisted")
+selected.node:SetInput("Fill",{1,0,0,1})
+selected.node.frames={ObjectOpacity={[100]=0,[124]=1}}
+local copiedId=api.duplicate(id)
+local original=api.select(id)
+local copied=api.select(copiedId)
+check(copiedId~=id and copied.role=="Region" and copied.feature==original.feature,
+      "Duplicate receives independent object ID with same geographic source")
+check(copied.node.frames.ObjectOpacity[124]==1,
+      "Duplicate copies native keyframe settings")
+original.node.frames.ObjectOpacity[124]=.42
+check(copied.node.frames.ObjectOpacity[124]==1,
+      "Editing original animation cannot modify copy")
+copied.node:SetInput("Fill",{0,0,1,1})
+check(original.node:GetInput("Fill")[1]==1 and
+      copied.node:GetInput("Fill")[1]==0,
+      "Region style overrides are independent after duplicate")
+api.delete(copiedId)
+check(#api.objects()==3,"Removing duplicate never deletes original")
 api.rename(id,"Rio state in blue")
 check(api.select(id).name=="Rio state in blue","rename doesn't modify ID")
 api.visibility(id,false)
