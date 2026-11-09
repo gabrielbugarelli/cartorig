@@ -56,8 +56,8 @@ Mask textMask(const LabelOptions&label){
   SIZE box{};
   if(!GetTextExtentPoint32W(dc,text.c_str(),static_cast<int>(text.size()),&box))
    throw std::runtime_error("Cannot measure text");
-  mask.width=std::clamp(box.cx+8,1,8192);
-  mask.height=std::clamp(box.cy+8,1,512);
+  mask.width=std::clamp(static_cast<int>(box.cx)+8,1,8192);
+  mask.height=std::clamp(static_cast<int>(box.cy)+8,1,512);
   BITMAPINFO b{};
   b.bmiHeader.biSize=sizeof(BITMAPINFOHEADER);
   b.bmiHeader.biWidth=mask.width;
