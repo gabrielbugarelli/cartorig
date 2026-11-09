@@ -29,6 +29,10 @@ struct Preset {
 };
 struct Request {
   int start=0,delay=0,duration=24;
+  int pulseCount=2,pulseCycle=18;
+  double pulsePeak=.35;
+  // Layer Fade must bind exactly one layer, never global LayerOpacity.
+  std::string layerChannel;
   std::unordered_map<std::string,double> target;
   Conflict conflict=Conflict::Reject;
   Easing easing=Easing::Smooth;
@@ -48,13 +52,15 @@ public:
   void remove(Removal mode);
   bool customized() const;
   std::string activePreset() const{return active_;}
+  std::vector<std::string> activePresets() const;
   std::vector<std::string> conflicts(const std::string&id,
                                      int first,int last) const;
 private:
   std::vector<Preset> catalog_;
   std::unordered_map<std::string,Track> tracks_;
   std::string active_;
-  std::unordered_map<std::string,std::map<int,Key>> ownedSnapshot_;
+  using Snapshot=std::unordered_map<std::string,std::map<int,Key>>;
+  std::unordered_map<std::string,Snapshot> snapshots_;
   Request lastRequest_;
   void install(const Preset&,const Request&);
 };
