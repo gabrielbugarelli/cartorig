@@ -52,7 +52,16 @@ jobs:
           index=json.loads((root/'data/catalog_index.json').read_text())
           assert index['schema']=='cartorig.offline.catalog/1'
           assert len(index['locations'])==manifest['catalog_index']['location_count']
-          for required in ('packaging/Install-CartoRig.cmd','fusion/CartoRig Scene.lua','fuses/CartoRigOpacity.fuse','src/cartorig/authoring.lua'):
+          ids={x['id'] for x in index['locations']}
+          assert len(ids)==len(index['locations']), 'duplicate offline location ID'
+          country_ids={x['id'] for x in index['locations'] if x['kind']=='Country'}
+          continent_entries=[x for x in index['locations'] if x['kind']=='Continent']
+          assert continent_entries,'no source-derived continent groups in indexed Admin-0'
+          for x in continent_entries:
+              assert x['geometryType']=='Composite' and not x.get('geometry'),x['name']
+              assert x['memberIds'] and len(x['memberIds'])==len(set(x['memberIds'])),x['name']
+              assert set(x['memberIds']).issubset(country_ids),x['name']
+          for required in ('packaging/Install-CartoRig.cmd','fusion/CartoRig Scene.lua','fuses/CartoRigOpacity.fuse','fuses/CartoRigRegion.fuse','fuses/CartoRigBase.fuse','src/cartorig/authoring.lua'):
               assert (root/required).is_file(),required
           print('PASS: self-contained offline preview package, seven datasets, SHA256 and indexed search')
           PY_VERIFY

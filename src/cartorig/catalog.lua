@@ -138,7 +138,19 @@ function M.load_index(data_root,json)
       if type(v.featureFile)~='string' or not v.featureFile:match('^features_%w+%.jsonl$') then fail('invalid feature file name') end
       if type(v.featureOffset)~='number' or v.featureOffset<0 or type(v.featureBytes)~='number' or v.featureBytes<=0 or v.featureBytes>30000000 then fail('invalid feature offset') end
     end
-    seen[v.id]=true
+    seen[v.id]=v
+  end
+  for _,record in ipairs(parsed.locations) do
+    if record.kind=='Continent' then
+      if #record.memberIds==0 then fail('empty continent composite') end
+      local members={}
+      for _,id in ipairs(record.memberIds) do
+        if type(id)~='string' or members[id] or seen[id]==nil or seen[id].kind~='Country' then
+          fail('continent composite references missing, duplicate or non-country member')
+        end
+        members[id]=true
+      end
+    end
   end
   return parsed.locations
 end

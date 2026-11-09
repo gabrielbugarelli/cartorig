@@ -1,0 +1,6 @@
+local root=assert(arg[1]);local Catalog=dofile(root..'/src/cartorig/catalog.lua')
+local Json=dofile(root..'/src/cartorig/json.lua')
+local ok=Catalog.load_index(root..'/tests/fixtures/continent_ok',Json)
+assert(#ok==2 and ok[2].kind=='Continent' and ok[2].memberIds[1]==ok[1].id)
+assert(not pcall(function()Catalog.load_index(root..'/tests/fixtures/continent_bad',Json)end))
+print('PASS offline index: continent member integrity validation and missing-reference rejection')
