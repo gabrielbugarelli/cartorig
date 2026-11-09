@@ -410,11 +410,25 @@ function M.datasetFingerprint()
     return currentDatasetFingerprint()
 end
 local function norm(s)
-    s=tostring(s or ""):lower()
-    local replace={["á"]="a",["à"]="a",["â"]="a",["ã"]="a",["ä"]="a",
-        ["é"]="e",["è"]="e",["ê"]="e",["í"]="i",["ó"]="o",
-        ["ô"]="o",["õ"]="o",["ú"]="u",["ü"]="u",["ç"]="c"}
-    for from,to in pairs(replace)do s=s:gsub(from,to)end
+    -- Lua string.lower() only folds ASCII; uppercase UTF-8 accents otherwise
+    -- make ordinary searches such as "SÃO PAULO" fail offline.
+    -- Fold the Latin diacritics found in Natural Earth names before lowering.
+    s=tostring(s or "")
+    local replace={
+        ["á"]="a",["à"]="a",["â"]="a",["ã"]="a",["ä"]="a",["å"]="a",
+        ["Á"]="a",["À"]="a",["Â"]="a",["Ã"]="a",["Ä"]="a",["Å"]="a",
+        ["é"]="e",["è"]="e",["ê"]="e",["ë"]="e",
+        ["É"]="e",["È"]="e",["Ê"]="e",["Ë"]="e",
+        ["í"]="i",["ì"]="i",["î"]="i",["ï"]="i",
+        ["Í"]="i",["Ì"]="i",["Î"]="i",["Ï"]="i",
+        ["ó"]="o",["ò"]="o",["ô"]="o",["õ"]="o",["ö"]="o",
+        ["Ó"]="o",["Ò"]="o",["Ô"]="o",["Õ"]="o",["Ö"]="o",
+        ["ú"]="u",["ù"]="u",["û"]="u",["ü"]="u",
+        ["Ú"]="u",["Ù"]="u",["Û"]="u",["Ü"]="u",
+        ["ç"]="c",["Ç"]="c",["ñ"]="n",["Ñ"]="n"
+    }
+    for from,to in pairs(replace) do s=s:gsub(from,to) end
+    s=s:lower()
     return s:gsub("^%s+",""):gsub("%s+$","")
 end
 local function cols(line)
