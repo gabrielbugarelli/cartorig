@@ -11,9 +11,17 @@ end
 local function assert_mutable(scene,obj)
   if not obj then fail('object missing') end
   if obj.locked then fail('object locked') end
-  if obj.groupId then
-    local parent=locate(scene,obj.groupId)
-    if parent and parent.locked then fail('group locked') end
+  -- Lock applies transitively, including nested group folders. Never allow
+  -- lower-level Route operations to bypass Scene's ancestor lock policy.
+  local cursor=obj.groupId
+  local visited={[obj.id]=true}
+  while cursor do
+    if visited[cursor] then fail('group cycle detected') end
+    visited[cursor]=true
+    local group=locate(scene,cursor)
+    if not group or group.kind~='Group' then fail('dangling parent group') end
+    if group.locked then fail('ancestor group locked') end
+    cursor=group.groupId
   end
 end
 local function reachable(scene,id,target)

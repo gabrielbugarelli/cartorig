@@ -121,6 +121,18 @@ function M.set_lock(scene,id,value)
   local obj=find(scene,id)
   if not obj then fail('object not found') end
   if type(value)~='boolean' then fail('lock must be boolean') end
+  -- An object may unlock itself, but no descendant may override a locked
+  -- parent folder. This includes toggling its own Lock property.
+  local cursor=obj.groupId
+  local visited={[obj.id]=true}
+  while cursor do
+    if visited[cursor] then fail('group hierarchy contains a cycle') end
+    visited[cursor]=true
+    local parent=find(scene,cursor)
+    if not parent or parent.kind~='Group' then fail('invalid parent group') end
+    if parent.locked then fail('ancestor group locked') end
+    cursor=parent.groupId
+  end
   obj.locked=value
 end
 function M.select(scene,id)
