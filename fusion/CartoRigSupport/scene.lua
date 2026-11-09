@@ -86,21 +86,75 @@ local function transaction(composition,title,fn)
     return result
 end
 function M.composition()return current()end
-function M.isInitialized(composition)
-    composition=composition or current()
-    local map=composition:FindTool("CR_Base_Map")
-    local camera=composition:FindTool("CR_Camera")
-    if not map or not camera or not composition:FindTool("CR_Stack_Output") then
-        return false
+local function coreNodes(composition)
+    local map,camera,output=nil,nil,nil
+    local counts={map=0,camera=0,output=0}
+    eachTool(composition,function(tool)
+        local role=meta(tool,"Role")
+        if role=="Base Map" then
+            map=tool;counts.map=counts.map+1
+        elseif role=="Camera" then
+            camera=tool;counts.camera=counts.camera+1
+        elseif role=="Stack Output" then
+            output=tool;counts.output=counts.output+1
+        end
+    end)
+    -- Output nodes created by older development builds have no metadata.
+    -- This fallback is only allowed while there is a unique identified
+    -- Base Map and Camera; never bind to arbitrary user-owned pipes.
+    if counts.output==0 and counts.map==1 and counts.camera==1 then
+        output=composition:FindTool("CR_Stack_Output")
+        if output then counts.output=1 end
     end
-    return meta(map,"Role")=="Base Map" and meta(camera,"Role")=="Camera"
+    return map,camera,output,counts
+end
+function M.state(composition)
+    composition=composition or current()
+    local map,camera,output,counts=coreNodes(composition)
+    local anyCartoRig=false
+    local duplicated=false
+    local ids={}
+    eachTool(composition,function(tool)
+        local id=meta(tool,"ObjectId")
+        local role=meta(tool,"Role")
+        if id or role then anyCartoRig=true end
+        if id then
+            if ids[id] then duplicated=true end
+            ids[id]=true
+        end
+    end)
+    if duplicated or counts.map>1 or counts.camera>1 or counts.output>1 or
+       (anyCartoRig and not(map and camera and output)) then
+        return "SCENE_BROKEN"
+    end
+    if not map or not camera or not output then return "COMP_WITHOUT_CARTORIG" end
+    if meta(map,"Initialized")~=true or meta(map,"SchemaVersion")~=1 then
+        return "SCENE_BROKEN"
+    end
+    local authored=0
+    eachTool(composition,function(tool)
+        local role=meta(tool,"Role")
+        if meta(tool,"ObjectId") and role~="Camera" and role~="Base Map" then
+            authored=authored+1
+        end
+    end)
+    return authored==0 and "SCENE_EMPTY" or "SCENE_READY"
+end
+function M.isInitialized(composition)
+    local state=M.state(composition)
+    return state=="SCENE_READY" or state=="SCENE_EMPTY"
 end
 local function getCore(composition)
-    if not M.isInitialized(composition) then
-        error("Initialize CartoRig in the current Fusion composition first",3)
+    local state=M.state(composition)
+    if state=="SCENE_BROKEN" then
+        error("CartoRig scene is broken. Do not initialize over existing nodes; "..
+              "recover an editable copy after inspecting missing objects",3)
     end
-    return composition:FindTool("CR_Base_Map"),composition:FindTool("CR_Camera"),
-           composition:FindTool("CR_Stack_Output")
+    if state=="COMP_WITHOUT_CARTORIG" then
+        error("Initialize CartoRig in the active Fusion composition first",3)
+    end
+    local map,camera,output=coreNodes(composition)
+    return map,camera,output
 end
 local function owned(composition)
     local results={}
@@ -190,7 +244,9 @@ local function bindCamera(node)
        if not handle or type(handle.SetExpression)~="function" then
            error("Cannot bind "..pair[1].." to the shared Fusion camera")
        end
-       assertHost(handle:SetExpression("CR_Camera."..pair[2]),
+       local camera=select(2,coreNodes(current()))
+       local name=camera and readable(camera) or "CR_Camera"
+       assertHost(handle:SetExpression(name.."."..pair[2]),
                   "Bind shared geo camera")
     end
 end
@@ -216,6 +272,9 @@ end
 function M.initialize()
     local composition=current()
     if M.isInitialized(composition)then return false,"Already initialized"end
+    if M.state(composition)=="SCENE_BROKEN" then
+        error("CartoRig scene is broken. Initialization is not a repair command.")
+    end
     if composition:FindTool("CR_Base_Map") or composition:FindTool("CR_Camera") then
         error("Reserved CartoRig node names already present. No changes made.")
     end
@@ -236,6 +295,7 @@ function M.initialize()
         local stack=assertHost(composition:AddTool("PipeRouter",5,0),
                                "CartoRig stack output")
         rename(stack,"CR_Stack_Output")
+        stamp(stack,"Role","Stack Output")
         stamp(map,"Role","Base Map");stamp(map,"ObjectId",newid(composition))
         stamp(map,"DisplayName","Base Map");stamp(map,"Order",0)
         stamp(camera,"Role","Camera");stamp(camera,"ObjectId",newid(composition))
