@@ -174,7 +174,20 @@ function H:init_base(scene)
     local or_,og,ob=hex(baseStyle.ocean or '#10283C')
     base:SetInput('OceanRed',or_);base:SetInput('OceanGreen',og);base:SetInput('OceanBlue',ob)
     base:SetInput('BaseOpacity',(baseStyle.opacity or 100)/100)
-    base:SetInput('OceanLayerOpacity',1)
+    base:SetInput('OceanLayerOpacity',(baseStyle.oceanOpacity or 100)/100)
+    local channels={
+      {id='Land',token='land',default='#394C59'},
+      {id='Coastline',token='coastline',default='#B5C1CC'},
+      {id='CountryBorders',token='countryBorders',default='#96AAB9'},
+      {id='StateBorders',token='stateBorders',default='#8295A4'},
+    }
+    for _,channel in ipairs(channels) do
+      local red,green,blue=hex(baseStyle[channel.token] or channel.default)
+      base:SetInput(channel.id..'Red',red)
+      base:SetInput(channel.id..'Green',green)
+      base:SetInput(channel.id..'Blue',blue)
+      base:SetInput(channel.id..'LayerOpacity',(baseStyle[channel.token..'Opacity'] or 100)/100)
+    end
     base:SetInput('DisplayMode',baseStyle.displayMode=='Transparent Overlay' and 1 or 0)
     local camera=new('CartoRigCamera','CR2_CAMERA_'..scene.id,0,0)
     local pose=scene.objects[2].style or {}
