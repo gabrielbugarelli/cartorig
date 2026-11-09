@@ -17,12 +17,15 @@ local style = {
   Route={ stroke='#D6DFE6', strokeWidth=3, strokeAlpha=100, opacity=100, drawProgress=100, trimStart=0, trimEnd=100, arrowhead=false },
   Marker={ fill='#E0E8ED', fillAlpha=100, stroke='#142637', size=14, strokeWidth=1.5, opacity=100 },
   Label={ color='#F0F5F8', fontSize=32, halo=true, opacity=100 },
-  BaseMap={ ocean='#10283C', land='#394C59', opacity=100, displayMode='Full Map' },
+  BaseMap={ ocean='#10283C', land='#394C59', coastline='#B5C1CC',
+    countryBorders='#96AAB9', stateBorders='#8295A4',opacity=100,
+    landOpacity=100,coastlineOpacity=100,countryBordersOpacity=100,stateBordersOpacity=100,
+    displayMode='Full Map' },
   Camera={ longitude=0, latitude=0, zoom=1, bearing=0, fitPadding=8 },
   Group={},
 }
-local colors={ fill=true,stroke=true,color=true,ocean=true,land=true }
-local pct={ fillAlpha=true,strokeAlpha=true,opacity=true,drawProgress=true,trimStart=true,trimEnd=true,fitPadding=true }
+local colors={ fill=true,stroke=true,color=true,ocean=true,land=true,coastline=true,countryBorders=true,stateBorders=true }
+local pct={ fillAlpha=true,strokeAlpha=true,opacity=true,drawProgress=true,trimStart=true,trimEnd=true,fitPadding=true,landOpacity=true,coastlineOpacity=true,countryBordersOpacity=true,stateBordersOpacity=true }
 local positive={ strokeWidth=true,size=true,fontSize=true,zoom=true }
 local function valid_style(key, value)
   if colors[key] then return type(value)=='string' and value:match('^#%x%x%x%x%x%x$')~=nil end

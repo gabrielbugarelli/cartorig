@@ -103,6 +103,14 @@ local cam=author:current().objects[2]
 author:set_style(cam.id,'zoom',3)
 assert(comp:FindTool(cam.hostToolRef):GetInput('Zoom')==3)
 local bas=author:current().objects[1]
+author:set_style(bas.id,'land','#AABBCC')
+assert(math.abs(comp:FindTool(bas.hostToolRef):GetInput('LandRed')-170/255)<1e-9)
+author:set_style(bas.id,'coastline','#445566')
+assert(math.abs(comp:FindTool(bas.hostToolRef):GetInput('CoastlineBlue')-102/255)<1e-9)
+author:set_style(bas.id,'countryBordersOpacity',45)
+assert(comp:FindTool(bas.hostToolRef):GetInput('CountryBordersLayerOpacity')==0.45)
+author:set_style(bas.id,'stateBorders','#102030')
+assert(comp:FindTool(bas.hostToolRef):GetInput('StateBordersGreen')==32/255)
 author:set_style(bas.id,'displayMode','Transparent Overlay')
 assert(comp:FindTool(bas.hostToolRef):GetInput('DisplayMode')==1)
 -- Region Stroke is now a separate Color/Alpha/Visibility channel.

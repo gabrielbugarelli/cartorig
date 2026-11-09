@@ -170,6 +170,13 @@ function H:init_base(scene)
     base:SetInput('OceanRed',or_);base:SetInput('OceanGreen',og);base:SetInput('OceanBlue',ob)
     base:SetInput('BaseOpacity',(baseStyle.opacity or 100)/100)
     base:SetInput('OceanLayerOpacity',1)
+    local colors={Land='land',Coastline='coastline',CountryBorders='countryBorders',StateBorders='stateBorders'}
+    local defaults={Land='#394C59',Coastline='#B5C1CC',CountryBorders='#96AAB9',StateBorders='#8295A4'}
+    for channel,token in pairs(colors) do
+      local cr,cg,cb=hex(baseStyle[token] or defaults[channel])
+      base:SetInput(channel..'Red',cr);base:SetInput(channel..'Green',cg);base:SetInput(channel..'Blue',cb)
+      base:SetInput(channel..'LayerOpacity',(baseStyle[token..'Opacity'] or 100)/100)
+    end
     base:SetInput('DisplayMode',baseStyle.displayMode=='Transparent Overlay' and 1 or 0)
     local camera=new('CartoRigCamera','CR2_CAMERA_'..scene.id,0,0)
     local pose=scene.objects[2].style or {}
@@ -515,7 +522,12 @@ local styleBinding={
     drawProgress={'maskscalar','WriteLength',0.01},strokeWidth={'maskscalar','BorderWidth',1/1080}},
   Label={color={'color','Text'},opacity={'scalar','ObjectOpacity',0.01},fontSize={'textsize','Size',1/1080}},
   Camera={longitude={'scalar','CenterLongitude',1},latitude={'scalar','CenterLatitude',1},zoom={'scalar','Zoom',1},bearing={'scalar','Bearing',1}},
-  BaseMap={ocean={'color','Ocean'},opacity={'scalar','BaseOpacity',0.01},displayMode={'enum','DisplayMode'}},
+  BaseMap={ocean={'color','Ocean'},land={'color','Land'},coastline={'color','Coastline'},
+    countryBorders={'color','CountryBorders'},stateBorders={'color','StateBorders'},
+    landOpacity={'scalar','LandLayerOpacity',0.01},coastlineOpacity={'scalar','CoastlineLayerOpacity',0.01},
+    countryBordersOpacity={'scalar','CountryBordersLayerOpacity',0.01},
+    stateBordersOpacity={'scalar','StateBordersLayerOpacity',0.01},
+    opacity={'scalar','BaseOpacity',0.01},displayMode={'enum','DisplayMode'}},
 }
 local function safe_style_tool(host,scene,object,kind)
   if kind=='object' then return host:tool_for(object) end
