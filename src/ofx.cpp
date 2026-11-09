@@ -509,7 +509,23 @@ OfxStatus render(OfxImageEffectHandle effect,OfxPropertySetHandle args,Type type
  }else if(type==Type::Region&&enabled&&opacity>0){
   auto id=textAt(effect,"FeatureId",t);
   if(id.empty())throw std::invalid_argument("Region source ID is missing");
-  const auto geom=getGeometry(id);
+  // A continent is an explicitly labelled Natural Earth-derived group
+  // of real country polygons. Never fabricate a continental source polygon.
+  std::vector<std::shared_ptr<const Geometry>> polygons;
+  std::size_t pos=0;
+  while(pos<id.size()){
+   const auto split=id.find('|',pos);
+   auto feature=id.substr(pos,split==std::string::npos?
+                              std::string::npos:split-pos);
+   require(!feature.empty()&&feature.size()<256,
+           "Composite Region contains an invalid geographic feature ID");
+   polygons.push_back(getGeometry(feature));
+   require(polygons.size()<=300,
+           "Composite Region exceeds supported source feature count");
+   if(split==std::string::npos)break;
+   pos=split+1;
+   require(pos<id.size(),"Composite Region has trailing delimiter");
+  }
   RegionStyle style;
   style.fill=colorAt(effect,"Fill",t,{130,150,164,255});
   style.stroke=colorAt(effect,"Stroke",t,{215,224,231,255});
@@ -526,7 +542,8 @@ OfxStatus render(OfxImageEffectHandle effect,OfxPropertySetHandle args,Type type
   if(auto h=parameter(effect,"ContourScope"))param->paramGetValueAtTime(h,t,&contour);
   style.highlightStroke=mode==1;
   style.outerContoursOnly=contour==1;
-  drawRegion(canvas,*geom,camera,style);
+  for(const auto&geom:polygons)
+   drawRegion(canvas,*geom,camera,style);
  }else if(type==Type::Route&&enabled&&opacity>0){
   RouteOptions r;
   r.from={numberAt(effect,"FromLongitude",t,0),
