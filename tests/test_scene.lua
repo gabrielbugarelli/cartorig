@@ -76,6 +76,26 @@ function C:AddTool(k,x,y)
     local node=T.new(k);self.nodes[#self.nodes+1]=node
     return node
 end
+function C:CopySettings(list)
+    local settings={}
+    for _,node in ipairs(list or self:GetToolList(false)) do
+        settings[#settings+1]={
+            kind=node.kind,name=node.name,
+            data=deepCopy(node.data),values=deepCopy(node.values)
+        }
+    end
+    return settings
+end
+function C:Paste(settings)
+    if type(settings)~="table" then return false end
+    for _,record in ipairs(settings) do
+        local node=self:AddTool(record.kind)
+        node.name=record.name
+        node.data=deepCopy(record.data)
+        node.values=deepCopy(record.values)
+    end
+    return true
+end
 function C:StartUndo(title)
     if self.rejectStartUndo then return false end
     self.undos=self.undos+1
@@ -354,6 +374,35 @@ local recoveryDenied=pcall(function()
 end)
 check(not recoveryDenied,
       "broken scene must reject further authoring rather than overwriting nodes")
+local prior=comp
+local priorObjects=#prior:GetToolList(false)
+local noHostCopy=pcall(api.recoverCopy)
+check(not noHostCopy and #prior:GetToolList(false)==priorObjects,
+      "unsupported Recover Copy fails without changing source composition")
+local recoveryTarget=nil
+_G.fu={
+    GetCurrentComp=function()return comp end,
+    NewComp=function()
+        recoveryTarget=setmetatable({nodes={},undos=0},C)
+        return recoveryTarget
+    end
+}
+local recovered=api.recoverCopy()
+check(recovered.recovered and recovered.missing==1 and
+      recovered.composition==recoveryTarget,
+      "Recover Copy reconciles only a physically deleted authored marker")
+check(comp==prior and api.state()=="SCENE_BROKEN" and
+      #prior:GetToolList(false)==priorObjects,
+      "source composition remains damaged but completely unchanged")
+comp=recoveryTarget
+check(api.isInitialized() and api.state()=="SCENE_READY",
+      "recovery copy is independently authorable")
+local copyLedger=comp:FindTool("CR_Base_Map"):GetData(
+    "CartoRig.Fusion.RC1.ObjectRegistry")
+check(copyLedger[lost]==nil,
+      "new copy removes missing authoring ID from copied registry only")
+comp=prior
+
 comp=other
 check(not api.isInitialized(),"second composition does not inherit first")
 check(#api.objects()==0,"no cross-composition scene leak")
