@@ -646,6 +646,72 @@ function M.reverseRoute(id)
         return true
     end)
 end
+local function cloneData(value,depth)
+    depth=depth or 0
+    if depth>12 then error("Unsafe CartoRig nested object metadata",3) end
+    if type(value)~="table" then return value end
+    local result={}
+    for k,v in pairs(value) do
+        if type(k)=="string" or type(k)=="number" then
+            result[k]=cloneData(v,depth+1)
+        end
+    end
+    return result
+end
+function M.duplicate(id)
+    local composition=current()
+    local item=objectFor(composition,id)
+    if isLocked(composition,item) then error("Object is locked",2) end
+    local registry={
+        Region="ofx.com.cartorig.fusionrc1.region",
+        Route="ofx.com.cartorig.fusionrc1.route",
+        Marker="ofx.com.cartorig.fusionrc1.marker",
+        Label="ofx.com.cartorig.fusionrc1.label"
+    }
+    local typeId=registry[item.role]
+    if not typeId then
+        error("Duplicate is available only for individual Region, Route, "..
+              "Marker and Label objects",2)
+    end
+    if type(item.node.SaveSettings)~="function" then
+        error("This Fusion host cannot copy native settings or animation safely",2)
+    end
+    local captured=item.node:SaveSettings()
+    if type(captured)~="table" then
+        error("Fusion did not return a copy of the source's complete settings",2)
+    end
+    -- Capturing through the host's native settings contract is essential:
+    -- manual Fusion Spline tangents must not be approximated with sampled keys.
+    return transaction(composition,"CartoRig: Duplicate "..item.role,function()
+        local duplicate=newTool(composition,typeId,item.role,4,maxOrder(composition))
+        local ok,result=pcall(function()
+            if type(duplicate.LoadSettings)~="function" or
+               duplicate:LoadSettings(captured)==false then
+                error("Fusion refused to restore a native animation settings clone")
+            end
+            rename(duplicate,unique(composition,"CR_"..item.role))
+            local copiedName=tostring(item.name or item.role)
+            setObjectData(composition,duplicate,item.role,
+                          copiedName:sub(1,94).." Copy",
+                          item.feature,item.locationKind)
+            local parent=meta(item.node,"ParentGroup")
+            if parent and parent~="" then
+                stamp(duplicate,"ParentGroup",parent)
+            end
+            local waypoints=meta(item.node,"Waypoints")
+            if waypoints then stamp(duplicate,"Waypoints",cloneData(waypoints))end
+            -- LoadSettings can restore Source pointers from the copied graph.
+            -- Rebuild the complete owned render chain from managed draw order.
+            rewire(composition)
+        end)
+        if not ok then
+            pcall(function()duplicate:Delete()end)
+            error(result)
+        end
+        trySelect(composition,duplicate)
+        return meta(duplicate,"ObjectId")
+    end)
+end
 function M.rename(id,name)
     name=tostring(name or ""):match("^%s*(.-)%s*$")
     if #name<1 or #name>100 or name:find("[%z\1-\31]")then
