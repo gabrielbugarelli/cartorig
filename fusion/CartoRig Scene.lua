@@ -105,9 +105,10 @@ local window=dispatcher:AddWindow({
         ui:Button{ID="AddRoute",Text="Add Route"}
     },
     ui:HGroup{
-        ui:Button{ID="InspectScene",Text="Inspect scene",Weight=0.24},
-        ui:Label{ID="Status",Text="Status: Ready.",WordWrap=true,Weight=0.54},
-        ui:Button{ID="Copy",Text="Copy diagnostics",Weight=0.22}
+        ui:Button{ID="InspectScene",Text="Inspect",Weight=0.16},
+        ui:Button{ID="RecoverCopy",Text="Recover copy",Weight=0.22},
+        ui:Label{ID="Status",Text="Status: Ready.",WordWrap=true,Weight=0.42},
+        ui:Button{ID="Copy",Text="Copy diagnostics",Weight=0.20}
     },
     ui:HGroup{
         ui:Label{Text="Offline · Fusion-only · no independent timeline",Weight=0.72},
@@ -121,6 +122,7 @@ local rendering=false
 local context=nil
 local locked=false
 local pendingDelete=nil
+local pendingRecovery=nil
 local kinds={"all","continent","country","state","city"}
 local function setItems(widget,texts)
     widget:Clear()
@@ -183,6 +185,7 @@ local function refresh()
     local comp,key,name=compositionKey()
     context=key
     pendingDelete=nil
+    pendingRecovery=nil
     local snapshot=scene.snapshot(comp)
     local state=snapshot.state
     item.Context.Text="Composition: "..name.." ["..state.."]"
@@ -241,6 +244,7 @@ local function refresh()
         pcall(function()item[name].Enabled=canEdit end)
     end
     pcall(function()item.Initialize.Enabled=state=="COMP_WITHOUT_CARTORIG"end)
+    pcall(function()item.RecoverCopy.Enabled=state=="SCENE_BROKEN"end)
     if state=="SCENE_BROKEN" then
         return "SCENE_BROKEN: inspect diagnostics; authoring disabled."
     end
@@ -648,6 +652,32 @@ function window.On.InspectScene.Clicked(_)
         end
         return report.state.." ("..#report.issues.." issue(s)): "..
                report.issues[1]..". Copy diagnostics for the complete report."
+    end)
+end
+function window.On.RecoverCopy.Clicked(_)
+    perform(function()
+        local comp,key=compositionKey()
+        if key~=context then
+            error("WRONG_CONTEXT: refresh before starting recovery")
+        end
+        local report=scene.inspect(comp)
+        if report.state~="SCENE_BROKEN" then
+            error("Recover Copy is only available for a damaged Scene")
+        end
+        if pendingRecovery~=key then
+            pendingRecovery=key
+            return "Recovery will create a NEW unlinked Fusion composition. "..
+                   "Click Recover copy again to confirm; original will remain unchanged."
+        end
+        pendingRecovery=nil
+        local result=scene.recoverCopy()
+        -- NewComp may activate a different composition; require explicit
+        -- Refresh and object reselection before any further edit.
+        context=nil
+        choices={};objects={};groups={}
+        item.ObjectTree:Clear()
+        treeIds={};treeRows={}
+        return result.warning.." Missing authored nodes: "..result.missing
     end)
 end
 function window.On.Copy.Clicked(_)
