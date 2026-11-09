@@ -103,6 +103,7 @@ local function treeWidget(spec)
   return child
  end
  function t:AddTopLevelItem(row)self.roots[#self.roots+1]=row end
+ function t:HasFocus()return true end
  function t:SelectedItems()
   local all={}
   local function visit(row)
@@ -176,6 +177,15 @@ local function makeDispatcher(_)
    check(#selected==1,"newly authored Region selected by stable ID")
    window.On.ObjectTree.ItemSelectionChanged({})
    check(compA.ActiveTool==region,"tree selection activates native inspector node")
+   window.On.CartoRigSceneWindow.KeyPress({Key=16777265})
+   check(w.RenameValue.Text=="Brazil","F2 puts selected object name in rename field")
+   window.On.Delete.Clicked({})
+   check(not region.deleted and w.Status.Text:find("Confirm Delete"),
+         "first Delete only requests confirmation")
+   window.On.CartoRigSceneWindow.KeyPress({Key=16777216})
+   window.On.Delete.Clicked({})
+   check(not region.deleted and w.Status.Text:find("Confirm Delete"),
+         "Escape cancels pending deletion, next Delete requires new confirmation")
    local foreign=compA:AddTool("Blur")
    compA:SetActiveTool(foreign)
    d.On.Comp_Activate_Tool({Args={tool=foreign}})
