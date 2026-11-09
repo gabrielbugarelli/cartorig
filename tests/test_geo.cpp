@@ -50,6 +50,11 @@ int main(){
   auto center=project(camera.center,camera,800,600);
   check(std::abs(center.x-400)<.01&&std::abs(center.y-300)<.01,"camera center");
   check(std::abs(shortestLongitude(179,-179)-2)<.01,"antimeridian");
+  Camera unwrapped;
+  unwrapped.center={181,0};unwrapped.zoom=4;
+  auto seamCenter=project({-179,0},unwrapped,800,600);
+  check(std::abs(seamCenter.x-400)<.01&&std::abs(seamCenter.y-300)<.01,
+        "unwrapped native camera 181° stays geographically centered at -179°");
   auto target=fit(shape.bounds,800,600);
   check(target.zoom>0&&target.zoom<=50,"region fit");
   Surface canvas(800,600);canvas.clear({0,0,0,0});
