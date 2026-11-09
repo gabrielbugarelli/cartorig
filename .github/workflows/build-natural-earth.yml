@@ -43,6 +43,19 @@ jobs:
           manifest=json.loads((root/'data/manifest.json').read_text())
           assert len(manifest['datasets'])==7
           assert len(manifest['index_files'])==3
+          assert len(manifest['layer_indexes'])==4
+          assert {x['dataset'] for x in manifest['layer_indexes']}=={'land','coastline','lakes','boundaries'}
+          for layer in manifest['layer_indexes']:
+              idx=root/'data'/layer['filename']
+              geo=root/'data'/layer['data_file']
+              assert idx.is_file() and geo.is_file(),layer['dataset']
+              assert hashlib.sha256(idx.read_bytes()).hexdigest()==layer['sha256'],idx
+              assert hashlib.sha256(geo.read_bytes()).hexdigest()==layer['data_sha256'],geo
+              layer_index=json.loads(idx.read_text(encoding='utf-8'))
+              assert layer_index['schema']=='cartorig.offline.layers/1'
+              assert layer_index['dataset']==layer['dataset']
+              assert len(layer_index['features'])==layer['feature_count']
+              assert all(0<=x['featureOffset'] and 0<x['featureBytes']<=30_000_000 for x in layer_index['features'])
           for record in manifest['datasets']:
               p=root/'data'/record['filename']
               assert p.is_file() and hashlib.sha256(p.read_bytes()).hexdigest()==record['output_sha256'],p
