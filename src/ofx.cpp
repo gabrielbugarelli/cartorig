@@ -5,6 +5,7 @@
 #include <ofxImageEffect.h>
 #include <ofxParam.h>
 #include <ofxProperty.h>
+#include <ofxMessage.h>
 #include <algorithm>
 #include <array>
 #include <cmath>
@@ -33,6 +34,7 @@ OfxHost* host=nullptr;
 const OfxImageEffectSuiteV1* fx=nullptr;
 const OfxPropertySuiteV1* prop=nullptr;
 const OfxParameterSuiteV1* param=nullptr;
+const OfxMessageSuiteV2* messages=nullptr;
 std::mutex catalogMutex;
 std::unique_ptr<Catalog> catalogCache;
 std::filesystem::path cachePath;
@@ -804,8 +806,9 @@ OfxStatus applyInspectorMotion(OfxImageEffectHandle effect,
    const double conflictStart=(type==Type::Region&&chosen==3&&first>=1)?
            first-1:first;
    if(existingTime>=conflictStart&&existingTime<=last&&policy==0){
-    logFailure("Motion conflict: existing native keyframes. Cancelled.");
-    return kOfxStatFailed;
+    throw std::runtime_error(
+       "The preset affects an already animated property. "
+       "Choose Cancel or explicitly Replace affected channels.");
    }
   }
  }
@@ -858,7 +861,21 @@ OfxStatus onLoad(){
       host->host,kOfxPropertySuite,1));
  param=static_cast<const OfxParameterSuiteV1*>(host->fetchSuite(
       host->host,kOfxParameterSuite,1));
+ // Messages are an optional host suite: never reject a host without it.
+ messages=static_cast<const OfxMessageSuiteV2*>(host->fetchSuite(
+      host->host,kOfxMessageSuite,2));
  return fx&&prop&&param?kOfxStatOK:kOfxStatErrMissingHostFeature;
+}
+void userError(const void*handle,const std::string&reason) noexcept {
+ try{
+  if(messages&&handle)
+   messages->setPersistentMessage(const_cast<void*>(handle),
+       kOfxMessageError,"CartoRig","%s",reason.c_str());
+ }catch(...){}
+}
+void clearUserError(const void*handle) noexcept{
+ try{if(messages&&handle)
+   messages->clearPersistentMessage(const_cast<void*>(handle));}catch(...){}
 }
 void setHost(OfxHost*h){host=h;}
 OfxStatus action(Type type,const char*name,const void*handle,
@@ -875,14 +892,27 @@ OfxStatus action(Type type,const char*name,const void*handle,
    return describeContext((OfxImageEffectHandle)handle,type);
   if(!std::strcmp(name,kOfxImageEffectActionRender))
    return render((OfxImageEffectHandle)handle,input,type);
-  if(!std::strcmp(name,kOfxActionInstanceChanged))
-   return applyInspectorMotion((OfxImageEffectHandle)handle,input,type);
+  if(!std::strcmp(name,kOfxActionInstanceChanged)){
+   const auto status=applyInspectorMotion((OfxImageEffectHandle)handle,input,type);
+   if(status==kOfxStatOK)clearUserError(handle);
+   return status;
+  }
   if(!std::strcmp(name,kOfxActionCreateInstance)||
      !std::strcmp(name,kOfxActionDestroyInstance))return kOfxStatOK;
   return kOfxStatReplyDefault;
  }catch(const std::exception&e){
-  logFailure(e.what());return kOfxStatFailed;
- }catch(...){logFailure("Unspecified render or host error");return kOfxStatFailed;}
+  logFailure(e.what());
+  if(!std::strcmp(name,kOfxActionInstanceChanged)||
+     !std::strcmp(name,kOfxImageEffectActionRender))userError(handle,e.what());
+  return kOfxStatFailed;
+ }catch(...){
+  logFailure("Unspecified render or host error");
+  if(!std::strcmp(name,kOfxActionInstanceChanged)||
+     !std::strcmp(name,kOfxImageEffectActionRender))
+    userError(handle,"CartoRig encountered a host integration error. "
+                     "No success was recorded; inspect the diagnostic log.");
+  return kOfxStatFailed;
+ }
 }
 OfxStatus mapAction(const char*n,const void*h,OfxPropertySetHandle a,
                     OfxPropertySetHandle b){return action(Type::Map,n,h,a,b);}
