@@ -222,13 +222,20 @@ OfxStatus describeContext(OfxImageEffectHandle e,Type type){
   number(ps,controls,"StateBorderLayerOpacity","State Border Layer Opacity",1,0,1);
   boolean(ps,controls,"Visible","Base Visible",true);
  }else if(type==Type::Region){
-  string(ps,controls,"FeatureId","Publisher Region ID");
-  color(ps,controls,"Fill","Fill",.79,.165,.165);
-  color(ps,controls,"Stroke","Stroke",.83,.69,.22);
-  number(ps,controls,"StrokeWidth","Stroke Width (px)",1.5,0,32);
+  string(ps,controls,"FeatureId","Geographic Source ID");
+  color(ps,controls,"Fill","Fill Color",130./255,150./255,164./255);
+  number(ps,controls,"FillAlpha","Fill Alpha",1,0,1);
+  boolean(ps,controls,"StrokeVisible","Stroke Visible",true);
+  color(ps,controls,"Stroke","Stroke Color",215./255,224./255,231./255);
+  number(ps,controls,"StrokeWidth","Stroke Width (px)",1.5,0,24);
+  number(ps,controls,"StrokeAlpha","Stroke Alpha",1,0,1);
   number(ps,controls,"StrokeProgress","Stroke Progress",1,0,1);
   number(ps,controls,"HighlightStrength","Highlight Strength",0,0,1);
-  color(ps,controls,"HighlightColor","Highlight Color",.9,.77,.42);
+  color(ps,controls,"HighlightColor","Highlight Color",230./255,198./255,107./255);
+  choice(ps,controls,"HighlightMode","Highlight Mode",
+         {"Fill Tint","Stroke Tint"});
+  choice(ps,controls,"ContourScope","Contour Scope",
+         {"All Rings","Outer Rings"});
  }else if(type==Type::Route){
   number(ps,controls,"FromLongitude","From Longitude",-47.88,-180,180,false);
   number(ps,controls,"FromLatitude","From Latitude",-15.79,-85,85,false);
@@ -440,10 +447,23 @@ OfxStatus render(OfxImageEffectHandle effect,OfxPropertySetHandle args,Type type
   auto id=textAt(effect,"FeatureId",t);
   if(id.empty())throw std::invalid_argument("Region source ID is missing");
   const auto geom=getGeometry(id);
-  auto fill=colorAt(effect,"Fill",t,{201,42,42,255});
-  auto stroke=colorAt(effect,"Stroke",t,{212,175,55,255});
-  drawGeometry(canvas,*geom,camera,fill,stroke,
-               numberAt(effect,"StrokeWidth",t,1.5),opacity);
+  RegionStyle style;
+  style.fill=colorAt(effect,"Fill",t,{130,150,164,255});
+  style.stroke=colorAt(effect,"Stroke",t,{215,224,231,255});
+  style.highlight=colorAt(effect,"HighlightColor",t,{230,198,107,255});
+  style.fillAlpha=numberAt(effect,"FillAlpha",t,1);
+  style.strokeAlpha=numberAt(effect,"StrokeAlpha",t,1);
+  style.strokeWidth=numberAt(effect,"StrokeWidth",t,1.5);
+  style.strokeProgress=numberAt(effect,"StrokeProgress",t,1);
+  style.highlightStrength=numberAt(effect,"HighlightStrength",t,0);
+  style.strokeVisible=flagAt(effect,"StrokeVisible",t,true);
+  style.objectOpacity=opacity;
+  int mode=0,contour=0;
+  if(auto h=parameter(effect,"HighlightMode"))param->paramGetValueAtTime(h,t,&mode);
+  if(auto h=parameter(effect,"ContourScope"))param->paramGetValueAtTime(h,t,&contour);
+  style.highlightStroke=mode==1;
+  style.outerContoursOnly=contour==1;
+  drawRegion(canvas,*geom,camera,style);
  }else if(type==Type::Route&&enabled&&opacity>0){
   RouteOptions r;
   r.from={numberAt(effect,"FromLongitude",t,0),
