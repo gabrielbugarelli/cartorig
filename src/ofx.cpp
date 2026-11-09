@@ -400,7 +400,7 @@ struct HostImage {
  OfxImageClipHandle clip=nullptr;
  int x0=0,y0=0,x1=0,y1=0,row=0;
  void*data=nullptr;
- bool isFloat=false;
+ bool isFloat=false,sourcePremultiplied=false;
  void get(OfxImageEffectHandle e,const char*clipName,double time){
   if(fx->clipGetHandle(e,clipName,&clip,nullptr)!=kOfxStatOK||!clip)return;
   if(fx->clipGetImage(clip,time,nullptr,&p)!=kOfxStatOK||!p)return;
@@ -413,6 +413,16 @@ struct HostImage {
   char*depth=nullptr;
   prop->propGetString(p,kOfxImageEffectPropPixelDepth,0,&depth);
   isFloat=depth&&std::string(depth)==kOfxBitDepthFloat;
+  char*alphaMode=nullptr;
+  if(prop->propGetString(p,kOfxImageEffectPropPreMultiplication,
+                         0,&alphaMode)!=kOfxStatOK&&clip){
+   OfxPropertySetHandle clipProps=nullptr;
+   if(fx->clipGetPropertySet(clip,&clipProps)==kOfxStatOK&&clipProps)
+    prop->propGetString(clipProps,kOfxImageEffectPropPreMultiplication,
+                        0,&alphaMode);
+  }
+  sourcePremultiplied=alphaMode&&
+       std::string(alphaMode)==kOfxImagePreMultiplied;
  }
  void release(){if(p)fx->clipReleaseImage(p);p=nullptr;}
  ~HostImage(){release();}
@@ -420,12 +430,20 @@ struct HostImage {
  std::array<double,4> pixel(int x,int y)const{
   if(!usable()||x<x0||x>=x1||y<y0||y>=y1)return {0,0,0,0};
   const auto*bytes=static_cast<const uint8_t*>(data)+(y-y0)*row;
+  std::array<double,4> rgba{};
   if(isFloat){
    const float* v=reinterpret_cast<const float*>(bytes)+(x-x0)*4;
-   return{v[0],v[1],v[2],v[3]};
+   rgba={v[0],v[1],v[2],v[3]};
+  }else{
+   const auto* v=bytes+(x-x0)*4;
+   rgba={v[0]/255.,v[1]/255.,v[2]/255.,v[3]/255.};
   }
-  const auto* v=bytes+(x-x0)*4;
-  return{v[0]/255.,v[1]/255.,v[2]/255.,v[3]/255.};
+  if(sourcePremultiplied){
+   if(rgba[3]>1e-9){
+    for(int i=0;i<3;++i)rgba[i]/=rgba[3];
+   }else rgba[0]=rgba[1]=rgba[2]=0;
+  }
+  return rgba;
  }
  void put(int x,int y,Color rgba)const{
   if(!usable()||x<x0||x>=x1||y<y0||y>=y1)return;
@@ -468,7 +486,9 @@ OfxStatus render(OfxImageEffectHandle effect,OfxPropertySetHandle args,Type type
   if(auto h=parameter(effect,"DisplayMode"))
    param->paramGetValueAtTime(h,t,&displayMode);
   const double baseOpacity=numberAt(effect,"LayerOpacity",t,1);
-  if(displayMode==0&&flagAt(effect,"Visible",t,true)){
+  if(displayMode==1){
+   canvas.clear({0,0,0,0});
+  }else if(displayMode==0&&flagAt(effect,"Visible",t,true)){
    auto ocean=colorAt(effect,"Ocean",t,{16,40,60,255});
    ocean.a=static_cast<uint8_t>(std::lround(ocean.a*baseOpacity*
                        numberAt(effect,"OceanLayerOpacity",t,1)));
@@ -907,7 +927,7 @@ void clearUserError(const void*handle) noexcept{
 }
 void setHost(OfxHost*h){host=h;}
 OfxStatus action(Type type,const char*name,const void*handle,
-                 OfxPropertySetHandle input,OfxPropertySetHandle){
+                 OfxPropertySetHandle input,OfxPropertySetHandle output){
  try{
   if(!std::strcmp(name,kOfxActionLoad))return onLoad();
   if(!std::strcmp(name,kOfxActionUnload)){
@@ -918,6 +938,12 @@ OfxStatus action(Type type,const char*name,const void*handle,
    return describe((OfxImageEffectHandle)handle,type);
   if(!std::strcmp(name,kOfxImageEffectActionDescribeInContext))
    return describeContext((OfxImageEffectHandle)handle,type);
+  if(!std::strcmp(name,kOfxImageEffectActionGetClipPreferences)){
+   if(!output)return kOfxStatReplyDefault;
+   setString(output,kOfxImageEffectPropPreMultiplication,
+             kOfxImageUnPreMultiplied);
+   return kOfxStatOK;
+  }
   if(!std::strcmp(name,kOfxImageEffectActionRender))
    return render((OfxImageEffectHandle)handle,input,type);
   if(!std::strcmp(name,kOfxActionInstanceChanged)){
