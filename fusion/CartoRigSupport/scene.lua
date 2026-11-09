@@ -551,6 +551,95 @@ function M.connectOutput()
         return "CartoRig connected to previously empty MediaOut."
     end)
 end
+-- Optional recovery into a NEW, unlinked Fusion composition. This never
+-- edits the damaged source. Only missing authored objects or orphaned Group
+-- metadata can be reconciled; a missing Camera/Base Map cannot be recreated
+-- losslessly, so automatic recovery is rejected before making a copy.
+function M.recoverCopy()
+    local source=current()
+    local report=M.inspect(source)
+    if report.state~="SCENE_BROKEN" then
+        error("Recover Copy is only for a broken CartoRig scene",2)
+    end
+    local map,camera,out,counts=coreNodes(source)
+    if counts.map~=1 or counts.camera~=1 or counts.output~=1 or
+       not map or not camera or not out then
+        error("Recovery needs the original Base Map and Camera. "..
+              "Duplicate the Resolve composition and inspect the copy manually.",2)
+    end
+    local host=_G.fu or _G.fusion
+    if not host or type(host.NewComp)~="function" or
+       type(source.CopySettings)~="function" then
+        error("This Fusion host does not expose safe new-composition copying. "..
+              "Use Resolve's duplicate/export composition command.",2)
+    end
+    local all=tools(source)
+    local settings=assertHost(source:CopySettings(all),
+                              "Capture native Fusion settings for recovery")
+    if type(settings)~="table" or next(settings)==nil then
+        error("Fusion did not provide a complete settings snapshot; "..
+              "no recovery copy was made.",2)
+    end
+    local copied=assertHost(host:NewComp(),
+                            "Create an independent Fusion recovery composition")
+    if type(copied.Paste)~="function" then
+        error("The new Fusion composition cannot restore native settings. "..
+              "The original remains unchanged.",2)
+    end
+    local ok,restored=pcall(function()return copied:Paste(settings)end)
+    if not ok or restored==false then
+        error("Fusion failed to paste the scene into its recovery copy. "..
+              "The original remains untouched.",2)
+    end
+    local newMap,newCamera,newOutput,newCounts=coreNodes(copied)
+    if newCounts.map~=1 or newCounts.camera~=1 or newCounts.output~=1 or
+       not newMap or not newCamera or not newOutput then
+        error("Fusion created a copy, but its core nodes did not survive. "..
+              "The original remains untouched; inspect the new copy.",2)
+    end
+    local registry={}
+    local roles={}
+    eachTool(copied,function(node)
+        local id=meta(node,"ObjectId")
+        local role=meta(node,"Role")
+        if id then
+            if roles[id] then
+                error("Recovery copy contains duplicate object IDs. "..
+                      "Original composition is unchanged.")
+            end
+            roles[id]=role
+            if role~="Base Map" and role~="Camera" then
+                registry[id]=role
+            end
+        end
+    end)
+    -- On the COPY only: preserve the authored local visibility of children
+    -- whose organizational Group was physically removed.
+    for _,node in pairs(tools(copied)) do
+        local parent=meta(node,"ParentGroup")
+        if parent and parent~="" and roles[parent]~="Group" then
+            stamp(node,"ParentGroup","")
+            if meta(node,"Role")~="Group" then
+                input(node,"Visible",meta(node,"Visible")~=false and 1 or 0)
+            end
+        end
+    end
+    stamp(newMap,"ObjectRegistry",registry)
+    stamp(newMap,"SceneId",newid(copied))
+    if M.state(copied)~="SCENE_READY" and M.state(copied)~="SCENE_EMPTY" then
+        error("Recovery copy needs manual inspection. Original remains unchanged.",2)
+    end
+    rewire(copied)
+    local oldCount=0
+    local oldRegistry=meta(map,"ObjectRegistry") or {}
+    for _ in pairs(oldRegistry)do oldCount=oldCount+1 end
+    local newCount=0
+    for _ in pairs(registry)do newCount=newCount+1 end
+    return {composition=copied,recovered=true,
+            missing=math.max(0,oldCount-newCount),
+            warning="Recovery is a NEW unlinked Fusion composition; "..
+                    "review remaining objects and reconnect/export explicitly."}
+end
 function M.rebuild()
     local composition=current()
     return transaction(composition,"CartoRig: Rebuild object stack",function()
