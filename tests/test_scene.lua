@@ -298,6 +298,14 @@ check(api.select(label).node:GetInput("Visible")==0,
 api.visibility(group,true)
 check(api.select(label).node:GetInput("Visible")==1,
       "Group show restores member's local visibility")
+local groupUndo=comp.undos
+check(api.batch("hide",{group})==1 and comp.undos==groupUndo+1 and
+      api.select(label).node:GetInput("Visible")==0 and
+      api.select(label).visible,
+      "batch Hide of Group inherits visibility but retains child local Visible")
+api.batch("show",{group})
+check(api.select(label).node:GetInput("Visible")==1 and api.select(label).visible,
+      "batch Show of Group restores child inherited visibility")
 api.ungroup(group)
 check(#api.objects()==5,"Ungroup keeps its former Label")
 local stateEntry=api.select(id)
