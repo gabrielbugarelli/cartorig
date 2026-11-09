@@ -21,7 +21,8 @@ T.__index=function(t,key)
  return t.inputs[key]
 end
 function T.new(kind)
- return setmetatable({kind=kind,name=kind,inputs={},data={},values={}},T)
+ return setmetatable({kind=kind,name=kind,inputs={},data={},values={},
+                      deleted=false},T)
 end
 function T:GetAttrs()return {TOOLS_Name=self.name} end
 function T:SetAttrs(p)self.name=p.TOOLS_Name;return true end
