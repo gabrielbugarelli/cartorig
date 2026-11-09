@@ -299,11 +299,22 @@ OfxStatus describeContext(OfxImageEffectHandle e,Type type){
   boolean(ps,controls,"Visible","Visibility",true);
  }
  choice(ps,motion,"MotionPreset","Motion Preset",presetNames(type));
- number(ps,motion,"StartFrame","Start Frame",0,0,1000000,false);
+ boolean(ps,motion,"UsePlayhead","Start at Playhead",true);
+ number(ps,motion,"StartFrame","Manual Start Frame",0,0,1000000,false);
  number(ps,motion,"Delay","Delay (frames)",0,0,100000,false);
- number(ps,motion,"Duration","Duration (frames)",24,1,100000,false);
+ boolean(ps,motion,"UsePresetDuration","Use Preset Duration",true);
+ number(ps,motion,"Duration","Custom Duration (frames)",24,1,100000,false);
  choice(ps,motion,"Easing","Easing",{"Ease In/Out","Linear","Hold"});
  choice(ps,motion,"ConflictPolicy","Existing keys",{"Cancel","Replace affected"});
+ if(type==Type::Region){
+   number(ps,motion,"PulseCount","Pulse Count",2,1,8,false);
+   number(ps,motion,"PulseCycleFrames","Pulse Cycle (frames)",18,2,120,false);
+   number(ps,motion,"PulsePeak","Peak Strength",.35,0,1,false);
+ }
+ if(type==Type::Map){
+   choice(ps,motion,"LayerFadeTarget","Layer to Fade",
+          {"Ocean","Land","Coastline","Country Borders","State Borders"});
+ }
  color(ps,motion,"MotionTargetFill","Target Fill",.83,.69,.22);
  number(ps,motion,"MotionTargetOpacity","Target Opacity",1,0,1,false);
  number(ps,motion,"MotionTargetZoom","Target Zoom",4,.1,50,false);
@@ -607,10 +618,30 @@ OfxStatus applyInspectorMotion(OfxImageEffectHandle effect,
  require(chosen>=0&&static_cast<std::size_t>(chosen)<names.size(),
          "Invalid Motion selection");
  const auto preset=names[static_cast<std::size_t>(chosen)];
- const int start=static_cast<int>(numberAt(effect,"StartFrame",time,0))
-       +static_cast<int>(numberAt(effect,"Delay",time,0));
- const int duration=static_cast<int>(numberAt(effect,"Duration",time,24));
- require(start>=0&&duration>=1&&duration<=100000&&start+duration<1000000000,
+ // OFX event time is the composition playhead; do not default to frame 0.
+ const bool atPlayhead=flagAt(effect,"UsePlayhead",time,true);
+ const double startBase=atPlayhead?time:numberAt(effect,"StartFrame",time,0);
+ require(std::isfinite(startBase)&&startBase>=0&&startBase<=1000000000,
+         "Invalid Motion Start Frame");
+ const int delay=static_cast<int>(numberAt(effect,"Delay",time,0));
+ const std::array<int,6> regionDurations{24,24,24,1,36,36};
+ int suggested=24;
+ if(type==Type::Region)suggested=regionDurations[static_cast<std::size_t>(chosen)];
+ else if(type==Type::Route)suggested=chosen==2?60:30;
+ else if(type==Type::Map||type==Type::Marker||type==Type::Label)suggested=18;
+ else if(type==Type::Camera)suggested=chosen==1?30:45;
+ int duration=flagAt(effect,"UsePresetDuration",time,true)?
+       suggested:static_cast<int>(numberAt(effect,"Duration",time,suggested));
+ if(type==Type::Region&&chosen==5){
+  const int count=static_cast<int>(numberAt(effect,"PulseCount",time,2));
+  const int cycle=static_cast<int>(numberAt(effect,"PulseCycleFrames",time,18));
+  require(count>=1&&count<=8&&cycle>=2&&cycle<=120,
+          "Invalid pulse count or cycle length");
+  if(flagAt(effect,"UsePresetDuration",time,true))duration=count*cycle;
+ }
+ const int start=static_cast<int>(std::lround(startBase))+delay;
+ require(delay>=0&&start>=0&&duration>=1&&duration<=100000&&
+         static_cast<long long>(start)+duration<1000000000LL,
          "Invalid Motion timing");
  const double first=static_cast<double>(start),last=first+duration;
  std::vector<KeyOperation> writes;
@@ -628,7 +659,17 @@ OfxStatus applyInspectorMotion(OfxImageEffectHandle effect,
  };
  const auto opacity=base("ObjectOpacity",1.);
  if(type==Type::Map){
-  scalar("LayerOpacity",0,base("LayerOpacity",1));
+  int display=0,layer=0;
+  if(auto h=parameter(effect,"DisplayMode"))param->paramGetValueAtTime(h,time,&display);
+  if(auto h=parameter(effect,"LayerFadeTarget"))param->paramGetValueAtTime(h,time,&layer);
+  require(display==0,"Layer Fade requires Full Map; switch out of Transparent Overlay");
+  require(layer>=0&&layer<=4,"Invalid Base Map target layer");
+  if(layer==4)require(flagAt(effect,"StateBorderVisible",time,false),
+                       "Enable State Borders before fading that layer");
+  const std::array<const char*,5> channels{
+    "OceanLayerOpacity","LandLayerOpacity","CoastlineLayerOpacity",
+    "CountryBorderLayerOpacity","StateBorderLayerOpacity"};
+  scalar(channels[static_cast<std::size_t>(layer)],0,1);
  }else if(type==Type::Region){
   if(chosen==0)scalar("ObjectOpacity",0,opacity);
   else if(chosen==1)scalar("ObjectOpacity",opacity,0);
@@ -640,8 +681,24 @@ OfxStatus applyInspectorMotion(OfxImageEffectHandle effect,
    };
    writes.push_back({"Fill",first,true,convert(from),0});
    writes.push_back({"Fill",chosen==3?first+1:last,true,convert(target),0});
-  }else if(chosen==4)scalar("StrokeProgress",0,1);
-  else if(chosen==5)pulse("HighlightStrength",0,1,0);
+  }else if(chosen==4){
+   require(flagAt(effect,"StrokeVisible",time,true),
+           "Border Draw requires visible stroke");
+   scalar("StrokeProgress",0,1);
+  }else if(chosen==5){
+   const int count=static_cast<int>(numberAt(effect,"PulseCount",time,2));
+   const int cycle=static_cast<int>(numberAt(effect,"PulseCycleFrames",time,18));
+   const double peak=numberAt(effect,"PulsePeak",time,.35);
+   require(count>=1&&count<=8&&cycle>=2&&cycle<=120&&
+           std::isfinite(peak)&&peak>=0&&peak<=1,
+           "Invalid Highlight Pulse parameters");
+   for(int i=0;i<count;++i){
+    const double begin=first+i*cycle;
+    if(i==0)writes.push_back({"HighlightStrength",begin,false,{},0});
+    writes.push_back({"HighlightStrength",begin+cycle*.5,false,{},peak});
+    writes.push_back({"HighlightStrength",begin+cycle,false,{},0});
+   }
+  }
  }else if(type==Type::Route){
   if(chosen==0)scalar("DrawProgress",0,1);
   else if(chosen==1)scalar("DrawProgress",1,0);
