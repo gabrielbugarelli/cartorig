@@ -120,6 +120,7 @@ local treeIds,treeRows={},{}
 local rendering=false
 local context=nil
 local locked=false
+local pendingDelete=nil
 local kinds={"all","continent","country","state","city"}
 local function setItems(widget,texts)
     widget:Clear()
@@ -181,6 +182,7 @@ end
 local function refresh()
     local comp,key,name=compositionKey()
     context=key
+    pendingDelete=nil
     local snapshot=scene.snapshot(comp)
     local state=snapshot.state
     item.Context.Text="Composition: "..name.." ["..state.."]"
@@ -456,6 +458,17 @@ function window.On.Duplicate.Clicked(_)
 end
 function window.On.Delete.Clicked(_)
     perform(function()
+        verifyContext()
+        local ids=selectedIds()
+        if #ids==0 then error("Select objects to delete")end
+        table.sort(ids)
+        local fingerprint=context..":"..table.concat(ids,"|")
+        if pendingDelete~=fingerprint then
+            pendingDelete=fingerprint
+            return "Confirm Delete ("..#ids.." object(s)): click Delete again "..
+                   "or press Escape to cancel. Undo remains available."
+        end
+        pendingDelete=nil
         return batchAction("delete")
     end)
 end
@@ -488,6 +501,7 @@ local function updateWaypoints()
 end
 function window.On.ObjectTree.ItemSelectionChanged(_)
     if locked or rendering then return end
+    pendingDelete=nil
     perform(function()
         verifyContext()
         local ids=selectedIds()
@@ -583,6 +597,47 @@ function window.On.AddRoute.Clicked(_)
         refresh()
         return "Added georeferenced Route "..id..
             ". Draw animation is optional in the native Motion tab."
+    end)
+end
+-- Shortcuts are consumed only when the Scene tree actually owns keyboard focus.
+-- Qt::Key numeric codes are used alongside UIManager string variants.
+function window.On.CartoRigSceneWindow.KeyPress(ev)
+    local focused=false
+    pcall(function()focused=item.ObjectTree:HasFocus()end)
+    if not focused then return end
+    local key=ev and ev.Key
+    if key=="Key_Escape" or key=="Escape" or key==16777216 then
+        pendingDelete=nil
+        item.Status.Text="Operation cancelled; no Scene objects changed."
+    elseif key=="Key_F2" or key=="F2" or key==16777265 then
+        perform(function()
+            local entry=selectedObject()
+            item.RenameValue.Text=entry.name
+            pcall(function()item.RenameValue:SetFocus("OtherFocusReason")end)
+            return "Rename "..entry.name.." and click Rename to commit."
+        end)
+    elseif key=="Key_Delete" or key=="Delete" or key==16777223 then
+        window.On.Delete.Clicked({})
+    elseif key=="Key_D" or key=="D" or key==68 then
+        local modifier=ev and ev.Modifiers
+        local ctrl=(modifier=="ControlModifier" or modifier=="Ctrl" or
+            (type(modifier)=="number" and
+             math.floor(modifier/67108864)%2==1))
+        if ctrl then window.On.Duplicate.Clicked({})end
+    end
+end
+function window.On.Search.ReturnPressed(_)
+    window.On.Find.Clicked({})
+end
+function window.On.Results.Activated(_)
+    perform(function()
+        local loc=selectedResult()
+        if loc.geometry=="Point" then
+            return loc.name..": Add Marker, Focus Camera, or use as Route endpoint."
+        elseif loc.geometry=="Polygon" then
+            return loc.name..": Add Region or Focus Camera."
+        end
+        return loc.name..": inspect available geography actions."
     end)
 end
 function window.On.InspectScene.Clicked(_)
