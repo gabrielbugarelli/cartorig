@@ -158,6 +158,21 @@ function M.state(composition)
         end
         if next(actual)~=nil then return "SCENE_BROKEN" end
     end
+    -- Referential integrity is as important as the object ledger:
+    -- an orphaned ParentGroup must never become an invisible edit target.
+    local byId={}
+    eachTool(composition,function(tool)
+        local id=meta(tool,"ObjectId")
+        if id then byId[id]=meta(tool,"Role") end
+    end)
+    local orphan=false
+    eachTool(composition,function(tool)
+        local parent=meta(tool,"ParentGroup")
+        if parent and parent~="" and byId[parent]~="Group" then
+            orphan=true
+        end
+    end)
+    if orphan then return "SCENE_BROKEN" end
     local authored=0
     eachTool(composition,function(tool)
         local role=meta(tool,"Role")
@@ -166,6 +181,91 @@ function M.state(composition)
         end
     end)
     return authored==0 and "SCENE_EMPTY" or "SCENE_READY"
+end
+-- Human-readable, read-only evidence for diagnosis. Never changes nodes.
+function M.inspect(composition)
+    if not composition then
+        local ok,result=pcall(current)
+        if not ok then
+            return {state="NO_COMP",issues={"No active Fusion composition."},
+                    objects=0}
+        end
+        composition=result
+    end
+    local issues={}
+    local roles,ids={},{}
+    local map,camera,output,counts=coreNodes(composition)
+    if counts.map~=1 then
+        issues[#issues+1]="Base Map count is "..counts.map.."; expected exactly one."
+    end
+    if counts.camera~=1 then
+        issues[#issues+1]="Camera count is "..counts.camera.."; expected exactly one."
+    end
+    if counts.output~=1 then
+        issues[#issues+1]="Stack Output count is "..counts.output.."; expected one."
+    end
+    local duplicateIDs={}
+    local present,parents={},{}
+    eachTool(composition,function(tool)
+        local id=meta(tool,"ObjectId")
+        if id then
+            if present[id] then duplicateIDs[id]=true end
+            present[id]=meta(tool,"Role")
+            local parent=meta(tool,"ParentGroup")
+            if parent and parent~=""then parents[#parents+1]={id=id,parent=parent}end
+        end
+    end)
+    for id in pairs(duplicateIDs) do
+        issues[#issues+1]="Duplicate CartoRig object ID: "..id
+    end
+    for _,pair in ipairs(parents) do
+        if present[pair.parent]~="Group" then
+            issues[#issues+1]="Orphaned Group reference on "..pair.id
+        end
+    end
+    if map then
+        local registry=meta(map,"ObjectRegistry")
+        if registry==nil then
+            issues[#issues+1]="Legacy scene: persistent object ledger unavailable."
+        elseif type(registry)~="table" then
+            issues[#issues+1]="The persistent object registry is invalid."
+        else
+            for id,role in pairs(registry) do
+                if present[id]~=role then
+                    issues[#issues+1]="Missing or changed "..tostring(role)..
+                        " object: "..tostring(id)
+                end
+            end
+            for id,role in pairs(present) do
+                if role~="Base Map" and role~="Camera" and
+                   not registry[id] then
+                    issues[#issues+1]="Unregistered object: "..tostring(id)
+                end
+            end
+        end
+    end
+    table.sort(issues)
+    local count=0
+    for _ in pairs(present)do count=count+1 end
+    local status=M.state(composition)
+    if status=="SCENE_BROKEN" and #issues==0 then
+        issues[#issues+1]="Scene metadata or graph integrity is inconsistent."
+    end
+    return {state=status,issues=issues,objects=count,
+            recovery="Duplicate this Fusion composition using Resolve before "..
+                     "attempting any repair. The original is read-only."}
+end
+function M.diagnosticsText(composition)
+    local report=M.inspect(composition)
+    local message={"CartoRig Scene: "..report.state,
+                   "Authored objects: "..report.objects}
+    for _,issue in ipairs(report.issues)do
+        message[#message+1]="- "..issue
+    end
+    if report.state=="SCENE_BROKEN" then
+        message[#message+1]=report.recovery
+    end
+    return table.concat(message,"\n")
 end
 function M.isInitialized(composition)
     local state=M.state(composition)
