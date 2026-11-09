@@ -69,7 +69,11 @@ local function run()
       ui:HGroup{ui:Button{ID='CR_AddRegion',Text='Add as Region'},ui:Button{ID='CR_AddMarker',Text='Add Marker'},ui:Button{ID='CR_AddLabel',Text='Add Label'}},
       ui:HGroup{ui:Button{ID='CR_FocusCamera',Text='Focus Camera'},ui:Button{ID='CR_FitLocation',Text='Fit Location'}},
       ui:HGroup{ui:Button{ID='CR_RouteFrom',Text='Route From'},ui:Button{ID='CR_RouteTo',Text='Route To'},ui:Button{ID='CR_CreateRoute',Text='Create Route'}},
-      ui:Button{ID='CR_UpdateRoute',Text='Update Selected Route Endpoints'},
+      ui:HGroup{ui:Label{Text='Path Type'},ui:ComboBox{ID='CR_PathType'},
+        ui:LineEdit{ID='CR_Curvature',PlaceholderText='Curvature (-100..100)',Text='0'}},
+      ui:HGroup{ui:Button{ID='CR_AddWaypoint',Text='Add Waypoint (coordinates)'},
+        ui:Button{ID='CR_ClearWaypoints',Text='Clear Waypoints'}},
+      ui:Button{ID='CR_UpdateRoute',Text='Update Selected Route Geometry'},
       ui:Button{ID='CR_ReverseRoute',Text='Reverse Selected Route'},
       ui:HGroup{ui:LineEdit{ID='CR_CustomLon',PlaceholderText='Longitude (decimal degrees)'},
         ui:LineEdit{ID='CR_CustomLat',PlaceholderText='Latitude (decimal degrees)'}},
@@ -92,8 +96,10 @@ local function run()
   local w=win:GetItems()
   local chosen=nil;local selected_id=nil;local pendingDelete=nil;local pendingReverse=nil
   local routeFrom,routeTo=nil,nil
+  local routeWaypoints=nil
   local filters={'All','Continent','Country','State','City'}
   for _,kind in ipairs(filters) do w.CR_Filter:AddItem(kind) end
+  w.CR_PathType:AddItem('Straight');w.CR_PathType:AddItem('Curved')
   local function status(msg)w.CR_Status.Text=tostring(msg);log(msg) end
   local function refresh_context()
     local active=fus and fus.GetCurrentComp and fus:GetCurrentComp() or comp
@@ -133,6 +139,14 @@ local function run()
     populate_tree(w.CR_Objects,displayed,'Scene objects')
     w.CR_Context.Text=state and ('Active CartoRig scene: '..state.id) or 'Composition has no CartoRig scene'
   end
+  local function route_options()
+    local curvature=tonumber(w.CR_Curvature.Text)
+    if not curvature or curvature~=curvature or curvature==math.huge or curvature==-math.huge
+      or curvature<-100 or curvature>100 then error('Curvature must be between -100 and 100') end
+    local pathType=w.CR_PathType.CurrentText
+    if pathType~='Straight' and pathType~='Curved' then error('Choose Straight or Curved') end
+    return {pathType=pathType,curvature=curvature,waypoints=routeWaypoints or {}}
+  end
   local function item_index(item)
     if not item then return nil end
     local ok,t=pcall(function()return item.Text[0]end)
@@ -161,6 +175,14 @@ local function run()
     selected_id=index and displayed[index] and displayed[index].id or nil
     if selected_id then guarded(function()
       local selected=Scene.get(engine:current(),selected_id)
+      if selected and selected.kind=='Route' then
+        routeFrom=Scene.copy(selected.route.from)
+        routeTo=Scene.copy(selected.route.to)
+        routeWaypoints=Scene.copy(selected.route.waypoints)
+        w.CR_PathType.CurrentIndex=selected.route.pathType=='Curved' and 1 or 0
+        w.CR_Curvature.Text=tostring(selected.route.curvature or 0)
+        w.CR_RouteState.Text='Route: editing '..selected.name..' ('..#routeWaypoints..' waypoints)'
+      end
       if selected and selected.kind=='Group' then return 'Organizational Group selected in Scene (no render tool)' end
       engine:select(selected_id);return 'Selected object in Fusion Inspector'
     end) end
@@ -233,6 +255,23 @@ local function run()
       return 'Route '..slot..' set to explicit WGS84 coordinates.'
     end)
   end
+  win.On.CR_AddWaypoint.Clicked=function()
+    guarded(function()
+      local p=custom_point()
+      routeWaypoints=routeWaypoints or {}
+      if #routeWaypoints>=100 then error('Route waypoint limit reached') end
+      routeWaypoints[#routeWaypoints+1]=p
+      w.CR_RouteState.Text='Route: '..#routeWaypoints..' explicit waypoints pending'
+      return 'Waypoint appended. Confirm by Create Route or Update Selected Route Geometry.'
+    end)
+  end
+  win.On.CR_ClearWaypoints.Clicked=function()
+    guarded(function()
+      routeWaypoints={}
+      w.CR_RouteState.Text='Route waypoints cleared (not yet saved)'
+      return 'Pending waypoints cleared; Confirm with Create/Update.'
+    end)
+  end
   win.On.CR_CustomFrom.Clicked=function()set_custom_endpoint('from')end
   win.On.CR_CustomTo.Clicked=function()set_custom_endpoint('to')end
   local function add_custom(kind)
@@ -257,7 +296,7 @@ local function run()
   win.On.CR_CreateRoute.Clicked=function()
     guarded(function()
       if not routeFrom or not routeTo then error('Specify both route point endpoints') end
-      local draft,object=engine:add_route(routeFrom,routeTo)
+      local draft,object=engine:add_route(routeFrom,routeTo,route_options())
       state=draft;refresh_objects()
       return 'Added Route '..object.id..' with native Fusion line mask.'
     end)
@@ -269,7 +308,9 @@ local function run()
       local current=engine:current()
       local object=Scene.get(current,selected_id)
       if not object or object.kind~='Route' then error('Selected object is not a Route') end
-      state=engine:update_route(selected_id,{from=routeFrom,to=routeTo})
+      local changes=route_options()
+      changes.from=routeFrom;changes.to=routeTo
+      state=engine:update_route(selected_id,changes)
       refresh_objects()
       return 'Updated Route geometry in its existing Fusion mask; Draw Progress keys preserved.'
     end)

@@ -75,12 +75,24 @@ function A:add_custom_point(kind,point)
     name=formatted,kind='Custom Point',geometryType='Point',point=point,
     source={dataset='User Authored',version='1'}},kind)
 end
-function A:add_route(from,to)
+function A:add_route(from,to,options)
   local original=self:current()
   if original and self.expectedManifestId and original.manifestId~=self.expectedManifestId then fail('installed geographic dataset differs from the saved scene; mutation blocked') end
   if not original then fail('initialize map scene first') end
   local draft=self.m.Scene.snapshot(original)
   local object=self.m.Scene.add_route(draft,from,to)
+  if options~=nil then
+    if type(options)~='table' then fail('Route options must be explicit') end
+    if not self.m.SceneOps or type(self.m.SceneOps.update_route)~='function' then
+      fail('Route editor unavailable for authored geometry')
+    end
+    for key in pairs(options) do
+      if key~='waypoints' and key~='pathType' and key~='curvature' then
+        fail('unsupported creation option '..tostring(key))
+      end
+    end
+    self.m.SceneOps.update_route(draft,object.id,options)
+  end
   local points=self.m.Geo.route_samples(object.route,48)
   local ok,err=xpcall(function()
     self.m.Objects.build(self.host,draft,object,'Route',points)
