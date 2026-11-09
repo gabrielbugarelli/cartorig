@@ -11,6 +11,8 @@ import json
 import urllib.request
 import zipfile
 from pathlib import Path
+import sys
+sys.path.insert(0, str(Path(__file__).resolve().parent))  # works for standalone build and importlib test loading
 from layer_index import write_layer_index
 
 DATASETS = {
