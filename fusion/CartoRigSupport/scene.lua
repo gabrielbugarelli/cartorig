@@ -388,6 +388,27 @@ local function dataDirectory()
     end
     return root.."data"
 end
+local function currentDatasetFingerprint()
+    local path=dataDirectory()
+    local file=io.open(path.."/manifest.json","rb")
+    if not file then
+        error("The Natural Earth dataset manifest is missing. "..
+              "Restore the complete offline CartoRig bundle.",3)
+    end
+    local content=file:read("*a")
+    file:close()
+    if type(content)~="string" or #content>100000 then
+        error("Invalid Natural Earth data manifest",3)
+    end
+    local sha=content:match('"geometry_sha256"%s*:%s*"([0-9a-fA-F]+)"')
+    if not sha or #sha~=64 then
+        error("Natural Earth geometry fingerprint missing from manifest",3)
+    end
+    return sha:lower()
+end
+function M.datasetFingerprint()
+    return currentDatasetFingerprint()
+end
 local function norm(s)
     s=tostring(s or ""):lower()
     local replace={["á"]="a",["à"]="a",["â"]="a",["ã"]="a",["ä"]="a",
@@ -495,6 +516,7 @@ function M.addRegion(loc)
                            "Region",2,maxOrder(composition))
         local ok,err=pcall(function()
             input(node,"FeatureId",featureId)
+            input(node,"DatasetFingerprint",currentDatasetFingerprint())
             bindCamera(node)
             setObjectData(composition,node,"Region",loc.name,featureId,loc.kind)
             if geometry=="Composite" then
