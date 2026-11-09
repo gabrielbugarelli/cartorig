@@ -15,7 +15,7 @@ local ui=fusion.UIManager
 local dispatcher=bmd.UIDispatcher(ui)
 local window=dispatcher:AddWindow({
     ID="CartoRigSceneWindow",WindowTitle="CartoRig — Scene",
-    Geometry={140,70,540,895},Spacing=7,Margin=12
+    Geometry={140,80,470,655},Spacing=7,Margin=12
 },ui:VGroup{
     ID="Root",Spacing=8,
     ui:HGroup{
@@ -73,36 +73,44 @@ local window=dispatcher:AddWindow({
         ui:Button{ID="Duplicate",Text="Duplicate",Weight=0.22},
         ui:Button{ID="Delete",Text="Delete",Weight=0.19}
     },
-    ui:Label{Text="ROUTE — explicit point coordinates; never assume a region centroid"},
-    ui:HGroup{
-        ui:Label{Text="Origin lon",Weight=0.18},
-        ui:LineEdit{ID="FromLon",PlaceholderText="-47.8828",Weight=0.32},
-        ui:Label{Text="Origin lat",Weight=0.17},
-        ui:LineEdit{ID="FromLat",PlaceholderText="-15.7939",Weight=0.33}
-    },
-    ui:HGroup{
-        ui:Label{Text="Target lon",Weight=0.18},
-        ui:LineEdit{ID="ToLon",PlaceholderText="-51.3000",Weight=0.32},
-        ui:Label{Text="Target lat",Weight=0.17},
-        ui:LineEdit{ID="ToLat",PlaceholderText="0.7000",Weight=0.33}
-    },
-    ui:HGroup{
-        ui:Label{Text="Route waypoints",Weight=0.29},
-        ui:ComboBox{ID="Waypoints",Weight=0.71}
-    },
-    ui:HGroup{
-        ui:LineEdit{ID="WayLon",PlaceholderText="Waypoint lon",Weight=0.24},
-        ui:LineEdit{ID="WayLat",PlaceholderText="Waypoint lat",Weight=0.24},
-        ui:Button{ID="AddWaypoint",Text="Add",Weight=0.12},
-        ui:Button{ID="WayUp",Text="Up",Weight=0.10},
-        ui:Button{ID="WayDown",Text="Down",Weight=0.10},
-        ui:Button{ID="WayRemove",Text="Remove",Weight=0.13}
-    },
-    ui:Button{ID="ReverseRoute",Text="Reverse selected Route (keep styles and curves)"},
-    ui:HGroup{
-        ui:Button{ID="UseFrom",Text="Origin from result"},
-        ui:Button{ID="UseTo",Text="Target from result"},
-        ui:Button{ID="AddRoute",Text="Add Route"}
+    ui:TabBar{ID="AuthoringTabs"},
+    ui:Stack{ID="AuthoringStack",CurrentIndex=0,
+        ui:VGroup{ID="ObjectPanel",
+            ui:Label{Text="Select a tree object to edit its native Control / Motion tabs."}
+        },
+        ui:VGroup{ID="RoutePanel",
+        ui:Label{Text="ROUTE — explicit point coordinates; never assume a region centroid"},
+        ui:HGroup{
+            ui:Label{Text="Origin lon",Weight=0.18},
+            ui:LineEdit{ID="FromLon",PlaceholderText="-47.8828",Weight=0.32},
+            ui:Label{Text="Origin lat",Weight=0.17},
+            ui:LineEdit{ID="FromLat",PlaceholderText="-15.7939",Weight=0.33}
+        },
+        ui:HGroup{
+            ui:Label{Text="Target lon",Weight=0.18},
+            ui:LineEdit{ID="ToLon",PlaceholderText="-51.3000",Weight=0.32},
+            ui:Label{Text="Target lat",Weight=0.17},
+            ui:LineEdit{ID="ToLat",PlaceholderText="0.7000",Weight=0.33}
+        },
+        ui:HGroup{
+            ui:Label{Text="Route waypoints",Weight=0.29},
+            ui:ComboBox{ID="Waypoints",Weight=0.71}
+        },
+        ui:HGroup{
+            ui:LineEdit{ID="WayLon",PlaceholderText="Waypoint lon",Weight=0.24},
+            ui:LineEdit{ID="WayLat",PlaceholderText="Waypoint lat",Weight=0.24},
+            ui:Button{ID="AddWaypoint",Text="Add",Weight=0.12},
+            ui:Button{ID="WayUp",Text="Up",Weight=0.10},
+            ui:Button{ID="WayDown",Text="Down",Weight=0.10},
+            ui:Button{ID="WayRemove",Text="Remove",Weight=0.13}
+        },
+        ui:Button{ID="ReverseRoute",Text="Reverse selected Route (keep styles and curves)"},
+        ui:HGroup{
+            ui:Button{ID="UseFrom",Text="Origin from result"},
+            ui:Button{ID="UseTo",Text="Target from result"},
+            ui:Button{ID="AddRoute",Text="Add Route"}
+        },
+        }
     },
     ui:HGroup{
         ui:Button{ID="InspectScene",Text="Inspect",Weight=0.16},
@@ -116,6 +124,10 @@ local window=dispatcher:AddWindow({
     }
 })
 local item=window:GetItems()
+item.AuthoringTabs:AddTab("Objects")
+item.AuthoringTabs:AddTab("Route")
+item.AuthoringTabs.CurrentIndex=0
+item.AuthoringStack.CurrentIndex=0
 local choices,objects,groups={},{},{}
 local treeIds,treeRows={},{}
 local rendering=false
@@ -283,6 +295,10 @@ local function perform(action)
     locked=false
 end
 perform(refresh)
+function window.On.AuthoringTabs.CurrentChanged(_)
+    local index=tonumber(item.AuthoringTabs.CurrentIndex)or 0
+    item.AuthoringStack.CurrentIndex=math.max(0,math.min(1,index))
+end
 function window.On.Refresh.Clicked(_)
     perform(refresh)
 end
