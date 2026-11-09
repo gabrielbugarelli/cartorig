@@ -213,6 +213,9 @@ function M.objects()
     return owned(composition)
 end
 local function objectFor(composition,id)
+    if M.state(composition)=="SCENE_BROKEN" then
+        error("SCENE_BROKEN: inspect or recover a copy before modifying objects",3)
+    end
     for _,entry in ipairs(owned(composition)) do
         if entry.id==id then return entry end
     end
@@ -1085,6 +1088,130 @@ function M.ungroup(id)
         assertHost(entry.node:Delete(),"Remove Group after moving its children")
         persistRegistry(composition,entry.node,"Group",true)
         return true
+    end)
+end
+-- Batch operations preflight all selected IDs before opening ONE host Undo.
+-- Group is organizational; hiding and deleting groups never changes geo IDs.
+function M.batch(action,ids)
+    local allowed={show=true,hide=true,lock=true,unlock=true,delete=true}
+    if not allowed[action] then error("Unsupported Scene batch action",2) end
+    if type(ids)~="table" or #ids==0 then
+        error("Select at least one CartoRig object",2)
+    end
+    local composition=current()
+    local base,camera,output=getCore(composition)
+    local seen,selected,drop={}, {},{}
+    for _,id in ipairs(ids) do
+        if type(id)~="string" or id=="" then
+            error("Invalid Scene object selection",2)
+        end
+        if not seen[id] then
+            seen[id]=true
+            local entry=objectFor(composition,id)
+            if action=="delete" and
+               (entry.role=="Camera" or entry.role=="Base Map") then
+                error("Base Map and Camera cannot be deleted",2)
+            end
+            if (action=="show" or action=="hide") and entry.role=="Camera" then
+                error("Camera cannot be hidden as a visual object",2)
+            end
+            if action~="unlock" and isLocked(composition,entry) then
+                error("Object or parent Group is locked: "..entry.name,2)
+            end
+            if action=="unlock" and entry.role~="Group" and
+               meta(entry.node,"ParentGroup") then
+                local parent=objectFor(composition,meta(entry.node,"ParentGroup"))
+                if parent.locked then
+                    error("Unlock the parent Group first: "..parent.name,2)
+                end
+            end
+            selected[#selected+1]=entry
+            if action=="delete" then drop[id]=true end
+        end
+    end
+    return transaction(composition,"CartoRig: "..action.." selected objects",function()
+        if action=="show" or action=="hide" then
+            local visible=action=="show"
+            for _,entry in ipairs(selected) do
+                stamp(entry.node,"Visible",visible)
+            end
+            -- Recalculate effective group visibility, but preserve each
+            -- object's independent local Visible state and all keyframes.
+            for _,entry in ipairs(owned(composition))do
+                if entry.role~="Camera" and entry.role~="Group" then
+                    local parent=meta(entry.node,"ParentGroup")
+                    local effective=meta(entry.node,"Visible")~=false
+                    if parent and parent~="" then
+                        local group=objectFor(composition,parent)
+                        effective=effective and group.visible
+                    end
+                    input(entry.node,"Visible",effective and 1 or 0)
+                end
+            end
+        elseif action=="lock" or action=="unlock" then
+            for _,entry in ipairs(selected)do
+                stamp(entry.node,"Locked",action=="lock")
+            end
+        elseif action=="delete" then
+            for _,entry in ipairs(owned(composition)) do
+                if not drop[entry.id] then
+                    local parent=meta(entry.node,"ParentGroup")
+                    if parent and drop[parent] then
+                        stamp(entry.node,"ParentGroup","")
+                        if entry.role~="Group" then
+                            input(entry.node,"Visible",entry.visible and 1 or 0)
+                        end
+                    end
+                end
+            end
+            local tail=base
+            for _,entry in ipairs(owned(composition)) do
+                if not drop[entry.id] and entry.role~="Base Map"
+                   and entry.role~="Camera" and entry.role~="Group" then
+                    connect(entry.node,tail)
+                    tail=entry.node
+                end
+            end
+            connect(output,tail)
+            for _,entry in ipairs(selected) do
+                assertHost(entry.node:Delete(),"Delete owned CartoRig node")
+                persistRegistry(composition,entry.node,entry.role,true)
+            end
+        end
+        return #selected
+    end)
+end
+-- Organize multiple selected visuals using one host Undo unit. Draw order,
+-- coordinates, and animation stay unchanged.
+function M.groupMany(ids,groupId)
+    if type(ids)~="table" or #ids==0 then
+        error("Select objects to group",2)
+    end
+    local composition=current()
+    getCore(composition)
+    local group=objectFor(composition,groupId)
+    if group.role~="Group" or isLocked(composition,group) then
+        error("Destination must be an unlocked Group",2)
+    end
+    local seen,selected={},{}
+    for _,id in ipairs(ids) do
+        if not seen[id] then
+            seen[id]=true
+            local entry=objectFor(composition,id)
+            if entry.role=="Base Map" or entry.role=="Camera"
+               or entry.role=="Group" or isLocked(composition,entry) then
+                error("Only unlocked authored visuals may enter a Group",2)
+            end
+            selected[#selected+1]=entry
+        end
+    end
+    return transaction(composition,"CartoRig: Group selected objects",function()
+        for _,entry in ipairs(selected) do
+            stamp(entry.node,"ParentGroup",groupId)
+            input(entry.node,"Visible",
+                  (entry.visible and group.visible) and 1 or 0)
+        end
+        return #selected
     end)
 end
 function M.move(id,direction)
