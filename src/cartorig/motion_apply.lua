@@ -13,7 +13,7 @@ local channelMap={
   Marker={opacity={tool='object',input='ObjectOpacity',percent=true},size={tool='mask',inputs={'Width','Height'},scale=1/1080}},
   Label={opacity={tool='object',input='ObjectOpacity',percent=true}},
   Route={opacity={tool='object',input='ObjectOpacity',percent=true},drawProgress={tool='mask',input='WriteLength',percent=true}},
-  Camera={zoom={tool='object',input='Zoom'},longitude={tool='object',input='CenterLongitude'},latitude={tool='object',input='CenterLatitude'}},
+  Camera={zoom={tool='object',input='Zoom'},longitude={tool='object',input='CenterLongitude'},latitude={tool='object',input='CenterLatitude'},bearing={tool='object',input='Bearing'}},
   BaseMap={['layerOpacity.Ocean']={tool='object',input='OceanLayerOpacity',percent=true}},
 }
 M.supported_channels=channelMap

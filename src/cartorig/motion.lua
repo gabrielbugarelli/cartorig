@@ -99,6 +99,22 @@ function M.prepare(object,preset_id,opts,existing)
     ramp('longitude',oldlon,oldlon+delta)
     ramp('latitude',object.style.latitude,endpose.latitude)
     ramp('zoom',object.style.zoom,endpose.zoom)
+    -- Fly-to bearing is opt-in; Fit Reset-to-North is explicit.
+    local with_bearing=(preset_id=='MO-CAM-01' and opts.animateBearing==true)
+      or (preset_id=='MO-CAM-03' and opts.bearingMode=='Reset')
+    if opts.bearingMode~=nil and opts.bearingMode~='Reset' and opts.bearingMode~='Preserve' then
+      fail('bearingMode must be Preserve or Reset')
+    end
+    if with_bearing then
+      local previous=object.style.bearing or 0
+      local target=(preset_id=='MO-CAM-03') and 0 or endpose.bearing
+      if not finite(target) or target < -180 or target > 180 then
+        fail('target bearing must be -180..180 when animating bearing')
+      end
+      local bearing_delta=(target-previous+180)%360-180
+      if bearing_delta==-180 and target-previous>0 then bearing_delta=180 end
+      ramp('bearing',previous,previous+bearing_delta)
+    end
   elseif preset_id=='MO-CAM-02' then
     if not finite(opts.targetZoom) or opts.targetZoom<0.1 or opts.targetZoom>50 then fail('targetZoom must be within 0.1..50') end
     ramp('zoom',object.style.zoom,opts.targetZoom)
