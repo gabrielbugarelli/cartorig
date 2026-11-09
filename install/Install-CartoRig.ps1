@@ -11,7 +11,8 @@ $catalog=Join-Path $bundle 'Contents\Resources\data\catalog.tsv'
 $plugin=Join-Path $bundle 'Contents\Win64\CartoRigFusion.ofx'
 $script=Join-Path $root 'Fusion\Scripts\Comp\CartoRig Scene.lua'
 $support=Join-Path $root 'Fusion\Scripts\Comp\CartoRigSupport\scene.lua'
-foreach($path in @($manifest,$geometry,$catalog,$plugin,$script,$support)){
+$treeSupport=Join-Path $root 'Fusion\Scripts\Comp\CartoRigSupport\scene_tree.lua'
+foreach($path in @($manifest,$geometry,$catalog,$plugin,$script,$support,$treeSupport)){
     if(!(Test-Path -LiteralPath $path -PathType Leaf)){
         throw "Incomplete CartoRig package: $path"
     }
@@ -67,6 +68,7 @@ $supportDir=Join-Path $compHome 'CartoRigSupport'
 New-Item -ItemType Directory -Force -Path $supportDir | Out-Null
 Copy-Item -LiteralPath $script -Destination (Join-Path $compHome 'CartoRig Scene.lua') -Force
 Copy-Item -LiteralPath $support -Destination (Join-Path $supportDir 'scene.lua') -Force
+Copy-Item -LiteralPath $treeSupport -Destination (Join-Path $supportDir 'scene_tree.lua') -Force
 $dataDir=Join-Path $destination 'Contents\Resources\data'
 # Windows PowerShell 5.1 Set-Content -Encoding UTF8 writes a BOM.
 # The Fusion Lua script reads this as raw bytes; a BOM corrupts the path.
