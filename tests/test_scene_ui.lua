@@ -228,6 +228,8 @@ local function makeDispatcher(_)
    check(w.Status.Text:find("WRONG_CONTEXT")~=nil,
          "composition switch is invalidated before user mutation")
    window.On.Delete.Clicked({})
+   check(w.Status.Text:find("^WRONG_CONTEXT:"),
+         "wrong-composition Delete reports a stable error code, not success")
    window.On.Delete.Clicked({})
    check(region.deleted~=true and compB:FindTool("CR_Base_Map")==nil,
          "QA-59: repeated wrong-context Delete cannot change either composition")
