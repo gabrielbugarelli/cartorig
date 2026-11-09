@@ -66,12 +66,26 @@ function H:tag(node,scene_id,object_id,kind)
   node:SetData('CartoRig.V2.Kind',kind)
   return node
 end
+-- Node names are presentation, not stable identity: Resolve users may rename
+-- an owned node in the Node Editor. Resolve by persisted ownership tags and
+-- reject ambiguous duplicates instead of editing the wrong object.
 function H:tool_for(object)
-  if not object or not object.hostToolRef then return nil end
-  local tool=find(self.comp,object.hostToolRef)
-  if not tool then return nil end
-  if tool:GetData('CartoRig.V2.ObjectId')~=object.id then return nil end
-  return tool
+  if not object or not object.id then return nil end
+  local candidate=object.hostToolRef and find(self.comp,object.hostToolRef) or nil
+  local function valid(t)
+    return t and t:GetData('CartoRig.V2.Owned')==true
+      and t:GetData('CartoRig.V2.ObjectId')==object.id
+      and t:GetData('CartoRig.V2.Kind')==object.kind
+  end
+  if valid(candidate) then return candidate end
+  local match
+  for _,tool in pairs(self.comp:GetToolList(false) or {}) do
+    if valid(tool) then
+      if match then fail('multiple Fusion tools claim object ID '..object.id) end
+      match=tool
+    end
+  end
+  return match
 end
 function H:select(object)
   local tool=self:tool_for(object)

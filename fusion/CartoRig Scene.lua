@@ -21,6 +21,7 @@ local function run()
   local Motion=module('motion')
   local Writer=module('motion_apply')
   local Authoring=module('authoring')
+  local GraphOps=module('graph_ops')
   local Manifest=module('manifest')
   local fus=rawget(_G,'fusion') or rawget(_G,'fu')
   local comp=rawget(_G,'comp')
@@ -30,7 +31,7 @@ local function run()
   local ui=fus and fus.UIManager
   if not ui or not bridge or type(bridge.UIDispatcher)~='function' then error('Resolve Fusion UIManager is unavailable') end
   local bundleId=Manifest.load(dir..'/CartoRig/data/manifest.json',Json).id
-  local engine=Authoring.new(comp,{Scene=Scene,Repository=Repository,Json=Json,Host=Host,Objects=Objects,Geo=Geo,Motion=Motion,Writer=Writer},bridge,bundleId)
+  local engine=Authoring.new(comp,{Scene=Scene,Repository=Repository,Json=Json,Host=Host,Objects=Objects,Geo=Geo,Motion=Motion,Writer=Writer,GraphOps=GraphOps},bridge,bundleId)
   local host=engine.host
   local entries={};local results={};local displayed={}
   local state=engine:current()
@@ -70,6 +71,7 @@ local function run()
       ui:Tree{ID='CR_Objects',ColumnCount=1,SortingEnabled=false,MinimumSize={320,200}},
       ui:HGroup{ui:Button{ID='CR_Reveal',Text='Reveal in Fusion'},ui:Button{ID='CR_Refresh',Text='Refresh'}},
       ui:HGroup{ui:LineEdit{ID='CR_RenameField',PlaceholderText='New object name'},ui:Button{ID='CR_Rename',Text='Rename'}},
+      ui:HGroup{ui:Button{ID='CR_MoveUp',Text='Move Up'},ui:Button{ID='CR_MoveDown',Text='Move Down'}},
       ui:HGroup{ui:Button{ID='CR_Visibility',Text='Hide / Show'},ui:Button{ID='CR_Lock',Text='Lock / Unlock'}},
       ui:Label{ID='CR_Status',Text='Ready'},
       ui:Button{ID='CR_Close',Text='Close Scene'},
@@ -208,6 +210,24 @@ local function run()
       return 'Renamed object. Stable identity and Fusion tools were preserved.'
     end)
   end
+  local function move_selected(delta)
+    guarded(function()
+      if not selected_id then error('Select an authored scene object') end
+      local current=engine:current()
+      local index=nil
+      for i,obj in ipairs(current.objects) do if obj.id==selected_id then index=i;break end end
+      if not index or index<=2 then error('Base Map and Camera have fixed structural positions') end
+      local destination=index+delta
+      if destination<3 or destination>#current.objects then
+        return 'Object is already at the edge of the layer stack.'
+      end
+      state=engine:reorder(selected_id,destination)
+      refresh_objects()
+      return 'Fusion draw order updated and saved.'
+    end)
+  end
+  win.On.CR_MoveUp.Clicked=function()move_selected(-1)end
+  win.On.CR_MoveDown.Clicked=function()move_selected(1)end
   win.On.CR_Visibility.Clicked=function()
     guarded(function()
       if not selected_id then error('Select an authorial scene object') end

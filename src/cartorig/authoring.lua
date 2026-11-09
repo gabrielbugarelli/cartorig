@@ -120,6 +120,29 @@ function A:set_visible(id,visible)
   end
   return draft
 end
+-- Draw order changes MUST update the actual native Fusion composite chain,
+-- not merely the Scene tree. Persist only after graph rewiring succeeds.
+function A:reorder(id,newIndex)
+  local previous,draft=mutation_draft(self)
+  self.m.Scene.reorder(draft,id,newIndex)
+  self.m.Scene.validate(draft)
+  local Graph=self.m.GraphOps
+  if not Graph or type(Graph.reorder)~='function' then
+    fail('managed Fusion graph reorder adapter unavailable')
+  end
+  Graph.reorder(self.host,previous,draft)
+  local ok,err=pcall(function()
+    self.m.Repository.write(self.comp,draft,self.m.Scene,self.m.Json)
+  end)
+  if not ok then
+    local restored,reason=pcall(function()Graph.reorder(self.host,draft,previous)end)
+    if not restored then
+      fail('reorder metadata save failed AND graph restoration failed; stop editing: '..tostring(reason))
+    end
+    fail('reorder metadata save failed; original graph restored: '..tostring(err))
+  end
+  return draft
+end
 function A:select(id)
   local state=self:current()
   if not state then fail('no scene') end
