@@ -182,7 +182,23 @@ local function verifyContext()
     return comp
 end
 local function refresh()
-    local comp,key,name=compositionKey()
+    local active,comp,key,name=pcall(compositionKey)
+    if not active then
+        context=nil;pendingDelete=nil;pendingRecovery=nil
+        choices={};objects={};groups={}
+        treeIds={};treeRows={}
+        item.ObjectTree:Clear()
+        setItems(item.Results,{})
+        setItems(item.Groups,{})
+        item.Context.Text="NO_COMP — open a Fusion Composition"
+        for _,name in ipairs({"Initialize","ConnectOutput","AddRegion",
+            "AddMarker","AddLabel","AddRoute","Focus","Fit","Select",
+            "Show","Hide","Lock","Unlock","Delete","Duplicate",
+            "CreateGroup","SetGroup","Ungroup","Rename"}) do
+            pcall(function()item[name].Enabled=false end)
+        end
+        return "NO_COMP: open a Fusion composition, then Refresh Scene."
+    end
     context=key
     pendingDelete=nil
     pendingRecovery=nil
