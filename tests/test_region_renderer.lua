@@ -22,7 +22,7 @@ function comp:StartUndo(x)self.undo=x end
 function comp:EndUndo(ok)self.result=ok end
 local out=comp:AddTool('MediaOut')
 local host=Host.new(comp,{readstring=function(source)
-  assert(source:find('Polyline {',1,true));return {value=source}
+  assert(source:find('Polyline {',1,true) or source:find('FuID {',1,true));return {value=source}
 end})
 local scene=Scene.new('region-scene-0001','naturalearth-10m')
 assert(host:init_base(scene))
@@ -62,6 +62,26 @@ assert(style.inputs.ObjectOpacity[25]==0 and style.inputs.ObjectOpacity[49]==1)
 local pulse=Motion.prepare(obj,'MO-REG-06',{start=0,frameCount=90,pulseCount=2,cycle=18,peak=35},{})
 assert(Writer.apply(host,obj,pulse))
 assert(math.abs(style.inputs.HighlightStrength[9]-0.35)<1e-9)
+-- Geographic seam wrapping is clipped into separate native mask pieces, with
+-- both hole masks preserved instead of drawing a world-spanning edge.
+local seamFeature={id='seam-island',name='Seam Island',type='Country',geometryType='Polygon',
+  geometry={type='Polygon',coordinates={
+    {{170,-10},{-170,-10},{-170,10},{170,10},{170,-10}},
+    {{175,-4},{-175,-4},{-175,4},{175,4},{175,-4}},
+  }}}
+local seamObject=Scene.add_location(scene,seamFeature,'Region')
+assert(host:add_region(scene,seamObject,seamFeature))
+local seamOuter,seamHoles=0,0
+for _,t in ipairs(comp:GetToolList())do
+  if t:GetData('CartoRig.V2.ObjectId')==seamObject.id
+    and t:GetData('CartoRig.V2.Kind')=='InternalMask' then
+    local source=t.inputs.Polyline and t.inputs.Polyline.static
+    assert(source and type(source.value)=='string')
+    if (t.Name or ''):find('Hole',1,true) then seamHoles=seamHoles+1
+    else seamOuter=seamOuter+1 end
+  end
+end
+assert(seamOuter==2 and seamHoles==2,'antimeridian clipped outer+hole rings on both sides')
 -- Fail-closed: when the real Fuse is missing, no extra scene nodes may remain.
 comp.failStyle=true
 local before=#comp:GetToolList()
