@@ -35,11 +35,10 @@ std::vector<std::string> columns(const std::string&line){
 }
 bool finite(double x){return std::isfinite(x);}
 double clamp01(double x){return std::clamp(x,0.0,1.0);}
-double mercator(double lat){
- lat=std::clamp(lat,-85.,85.);
- const double rad=lat*pi/180.;
- return std::log(std::tan(pi/4.+rad/2.));
-}
+// Baseline projection CR-PS-2.0: equirectangular, not Web Mercator.
+// We retain geographic longitude / latitude as stored, with camera bearing
+// applied in screen space. Camera scaling must be common to every object.
+double equiLatitude(double lat){return std::clamp(lat,-90.,90.);}
 double deltaLon(double lon,double center){
  double d=std::remainder(lon-center,360.);
  if(d==-180.)d=180.;
@@ -54,15 +53,15 @@ std::vector<ScreenPoint> transformRing(const std::vector<GeoPoint>&points,
  std::vector<ScreenPoint> out;
  if(start>=end||end>points.size())return out;
  const double scale=width*camera.zoom/360.0;
- const double yScale=width*camera.zoom/(2*pi);
+ const double yScale=width*camera.zoom/360.0;
  const double angle=camera.bearing*pi/180.,c=std::cos(angle),s=std::sin(angle);
- const double baseline=mercator(camera.center.lat);
+ const double baseline=equiLatitude(camera.center.lat);
  double previous=deltaLon(points[start].lon,camera.center.lon);
  for(std::size_t i=start;i<end;++i){
   double d=i==start?previous:previous+
     std::remainder(points[i].lon-points[i-1].lon,360.);
   previous=d;
-  const double x=d*scale, y=-(mercator(points[i].lat)-baseline)*yScale;
+  const double x=d*scale, y=-(equiLatitude(points[i].lat)-baseline)*yScale;
   out.push_back({width*.5+x*c-y*s,height*.5+x*s+y*c});
  }
  return out;
@@ -176,7 +175,7 @@ Camera fit(const Bounds& b,int width,int height,double pad){
  Camera camera;
  camera.center={(b.west+b.east)*.5,(b.south+b.north)*.5};
  const double dx=std::max(.001,(b.east-b.west)/360.);
- const double dy=std::max(.001,(mercator(b.north)-mercator(b.south))/(2*pi));
+ const double dy=std::max(.001,(equiLatitude(b.north)-equiLatitude(b.south))/360.);
  const double use=1.-2.*pad;
  camera.zoom=std::clamp(std::min(use/dx,use*height/(width*dy)),.1,50.);
  camera.validate();return camera;
