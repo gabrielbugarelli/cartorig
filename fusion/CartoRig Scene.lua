@@ -172,6 +172,9 @@ local function verifyContext()
         item.Context.Text="Composition: "..key
         error("Active composition changed. Refresh and select your scene.")
     end
+    if scene.state(comp)=="SCENE_BROKEN" then
+        error("SCENE_BROKEN: inspect diagnostics; editing is disabled")
+    end
     return comp
 end
 local function refresh()
@@ -234,6 +237,7 @@ end
 local function perform(action)
     if locked then return end
     locked=true
+    item.Status.Text="Working..."
     local ok,result=pcall(action)
     if ok then
         item.Status.Text="Status: "..tostring(result or "Applied.")
@@ -580,6 +584,69 @@ function window.On.Copy.Clicked(_)
 end
 function window.On.Close.Clicked(_)dispatcher:ExitLoop()end
 function window.On.CartoRigSceneWindow.Close(_)dispatcher:ExitLoop()end
+-- Event-based Node Editor -> Scene synchronization; no frame-polling timer.
+-- Notification handles are strongly retained and removed on window close.
+local notifications={}
+local function clearTreeSelection()
+    rendering=true
+    for _,row in pairs(treeRows) do row.Selected=false end
+    rendering=false
+end
+local function syncFromNodeEditor()
+    if locked or rendering then return end
+    local ok,comp,key=pcall(function()
+        local active,identity=compositionKey()
+        return active,identity
+    end)
+    if not ok then
+        item.Status.Text="NO_COMP: open a Fusion composition and refresh."
+        return
+    end
+    if key~=context then
+        clearTreeSelection()
+        choices={};objects={};groups={}
+        item.ObjectTree:Clear()
+        treeIds={};treeRows={}
+        item.Status.Text="WRONG_CONTEXT: active composition changed. Refresh Scene."
+        return
+    end
+    local selection=scene.selectedInHost(comp)
+    clearTreeSelection()
+    if selection.state=="CARTORIG" and treeRows[selection.id] then
+        rendering=true
+        treeRows[selection.id].Selected=true
+        rendering=false
+        item.Status.Text="Node Editor -> Scene: "..selection.nodeName
+    elseif selection.state=="NON_CARTORIG" then
+        item.Status.Text="Non-CartoRig selection: choose a Scene object."
+    else
+        item.Status.Text="No active Fusion tool."
+    end
+end
+local function watch(event,callback)
+    if not (ui.AddNotify and ui.RemoveNotify) then return false end
+    local ok,handle=pcall(function()return ui:AddNotify(event)end)
+    if not ok or not handle then return false end
+    notifications[#notifications+1]={event=event,handle=handle}
+    dispatcher.On[event]=callback
+    return true
+end
+watch("Comp_Activate_Tool",function(_)syncFromNodeEditor()end)
+watch("AddTool",function(_)
+    if not locked and not rendering then
+        perform(refresh)
+    end
+end)
+watch("DeleteTool",function(_)
+    if not locked and not rendering then
+        perform(refresh)
+    end
+end)
 window:Show()
 dispatcher:RunLoop()
 window:Hide()
+for _,notice in ipairs(notifications)do
+    pcall(function()ui:RemoveNotify(notice.event)end)
+end
+notifications={}
+
