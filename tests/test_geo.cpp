@@ -1,4 +1,5 @@
 #include "cartorig/geo.hpp"
+#include "cartorig/labels.hpp"
 #include <array>
 #include <cmath>
 #include <filesystem>
@@ -63,6 +64,16 @@ int main(){
   MarkerOptions marker;marker.at={-44,-23.5};marker.ring=true;
   drawMarker(canvas,camera,marker);
   check(canvas.pixel(400,300).a>0,"marker centered on geoanchor");
+  LabelOptions label;
+  label.at={-44,-23.5};label.text="São Paulo";
+  label.fontSize=32;label.halo=true;label.haloWidth=2;
+  auto beforeLabel=canvas.rgba;
+  drawLabel(canvas,camera,label);
+  check(canvas.rgba!=beforeLabel,"georeferenced Unicode text label renders");
+  label.fontSize=-1;bool badLabel=false;
+  try{drawLabel(canvas,camera,label);}
+  catch(const std::invalid_argument&){badLabel=true;}
+  check(badLabel,"label rejects invalid font size");
   bool refused=false;
   try{
     auto wrong=route;wrong.trimStart=.9;wrong.trimEnd=.4;
