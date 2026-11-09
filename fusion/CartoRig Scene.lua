@@ -38,6 +38,7 @@ local function run()
   local entries={};local results={};local displayed={}
   local state=engine:current()
   local dataDir=dir..'/CartoRig/data'
+  engine.host.dataRoot=dataDir
   local bundle_path=dataDir..'/ne_110m_admin_0_countries.geojson'
   local ok_data,load_error=pcall(function()
     local index=io.open(dataDir..'/catalog_index.json','rb')

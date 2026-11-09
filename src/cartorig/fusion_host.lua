@@ -6,6 +6,8 @@ local module_source=debug.getinfo(1,'S').source
 local module_dir=module_source:match('^@(.+)[/\\][^/\\]+$')
 if not module_dir then error('CartoRig Fusion host: cannot locate installed geographic module') end
 local GeoClip=dofile(module_dir..'/geo_clip.lua')
+local LayerCatalog=dofile(module_dir..'/layer_catalog.lua')
+local Json=dofile(module_dir..'/json.lua')
 local function fail(message)error('CartoRig Fusion host: '..message,2)end
 local function attr(tool)
   local ok,a=pcall(function()return tool:GetAttrs()end)
@@ -157,6 +159,20 @@ function H:init_base(scene)
   if foreign>0 and not can_inspect then
     fail('cannot inspect existing MediaOut Input; preserving all user nodes. Use a fresh Composition or a Fusion host with GetConnectedOutput')
   end
+  local geoLayers={
+    {source='land',input='LandInput',id=0},
+    {source='coastline',input='CoastlineInput',id=1},
+    {source='boundaries',input='CountryBordersInput',id=2},
+  }
+  if self.dataRoot then
+    for _,layer in ipairs(geoLayers) do
+      local index=LayerCatalog.load_index(self.dataRoot,layer.source,Json)
+      if #index.features==0 then fail('offline '..layer.source..' index is empty') end
+      local file=io.open(self.dataRoot..'/'..index.featureFile,'rb')
+      if not file then fail('offline '..layer.source..' source geometry missing') end
+      file:close()
+    end
+  end
   local created={}
   local function new(id,name,x,y)
     local node=add(self.comp,id,name,x,y);created[#created+1]=node;return node
@@ -170,6 +186,16 @@ function H:init_base(scene)
     self:tag(white,scene.id,scene.objects[1].id,'InternalBaseSurface')
     local base=new('CartoRigBase','CR2_BASE_'..scene.id,-4,0)
     connect(base,'Input',white)
+    if self.dataRoot then
+      for i,layer in ipairs(geoLayers) do
+        local matte=new('CartoRigGeoMatte','CR2_GEO_'..layer.source..'_'..scene.id,-4,i+2)
+        self:tag(matte,scene.id,scene.objects[1].id,'InternalGeoMatte')
+        matte:SetInput('Layer',layer.id)
+        matte:SetInput('StrokePx',1)
+        connect(matte,'Input',white)
+        connect(base,layer.input,matte)
+      end
+    end
     local baseStyle=scene.objects[1].style or {}
     local or_,og,ob=hex(baseStyle.ocean or '#10283C')
     base:SetInput('OceanRed',or_);base:SetInput('OceanGreen',og);base:SetInput('OceanBlue',ob)
