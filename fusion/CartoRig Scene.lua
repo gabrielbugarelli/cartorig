@@ -172,9 +172,9 @@ local function verifyContext()
         treeIds={};treeRows={}
         setItems(item.Results,{})
         item.ObjectTree:Clear()
-        context=key
-        item.Context.Text="Composition: "..key
-        error("Active composition changed. Refresh and select your scene.")
+        context=nil
+        item.Context.Text="WRONG_CONTEXT: refresh active composition"
+        error("Active composition changed. Refresh before any edit.")
     end
     if scene.state(comp)=="SCENE_BROKEN" then
         error("SCENE_BROKEN: inspect diagnostics; editing is disabled")
