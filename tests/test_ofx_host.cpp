@@ -13,6 +13,11 @@
 #include <string>
 #include <unordered_map>
 #include <vector>
+#include <filesystem>
+#include <fstream>
+#include <cstdint>
+#include <cstdlib>
+#include <array>
 
 extern "C" int OfxGetNumberOfPlugins(void);
 extern "C" OfxPlugin* OfxGetPlugin(int);
@@ -23,6 +28,7 @@ struct Props {
  std::unordered_map<std::string,std::vector<std::string>> strings;
  std::unordered_map<std::string,std::vector<int>> integers;
  std::unordered_map<std::string,std::vector<double>> doubles;
+ std::unordered_map<std::string,std::vector<void*>> pointers;
 };
 template<typename V>void put(std::unordered_map<std::string,std::vector<V>>&m,
                              const char*key,int index,V v){
@@ -64,6 +70,12 @@ OfxStatus getDouble(OfxPropertySetHandle h,const char*k,int i,double*out){
   *out=*v;return kOfxStatOK;
  }return kOfxStatErrUnknown;
 }
+OfxStatus getPointer(OfxPropertySetHandle h,const char*k,int i,void**out){
+ if(auto v=find(reinterpret_cast<Props*>(h)->pointers,k,i)){
+  *out=*v;return kOfxStatOK;
+ }return kOfxStatErrUnknown;
+}
+
 struct TestParam {
  std::string type;
  Props props;
@@ -73,10 +85,29 @@ struct TestParams {
  Props props;
  std::unordered_map<std::string,std::unique_ptr<TestParam>> params;
 };
+struct TestImage {
+ Props props;
+ std::vector<uint8_t> pixels;
+ int width=0,height=0;
+ TestImage(int w,int h,uint8_t alpha=0):pixels(static_cast<std::size_t>(w)*h*4,0),
+         width(w),height(h){
+  for(std::size_t i=3;i<pixels.size();i+=4)pixels[i]=alpha;
+  for(int i=0;i<4;++i){
+   put(props.integers,kOfxImagePropBounds,i,
+       i==2?width:i==3?height:0);
+  }
+  put(props.integers,kOfxImagePropRowBytes,0,w*4);
+  put(props.pointers,kOfxImagePropData,0,static_cast<void*>(pixels.data()));
+  put(props.strings,kOfxImageEffectPropPixelDepth,0,std::string(kOfxBitDepthByte));
+  put(props.strings,kOfxImageEffectPropPreMultiplication,0,
+      std::string(kOfxImageUnPreMultiplied));
+ }
+};
 struct TestEffect {
  Props props;
  TestParams params;
  std::unordered_map<std::string,std::unique_ptr<Props>> clips;
+ std::unordered_map<std::string,std::unique_ptr<TestImage>> images;
 };
 OfxStatus define(OfxParamSetHandle h,const char*type,const char*name,
                  OfxPropertySetHandle*out){
@@ -183,6 +214,27 @@ OfxStatus clipDefine(OfxImageEffectHandle h,const char*name,OfxPropertySetHandle
  e.clips[name]=std::move(v);*out=reinterpret_cast<OfxPropertySetHandle>(raw);
  return kOfxStatOK;
 }
+OfxStatus clipHandle(OfxImageEffectHandle h,const char*name,
+                     OfxImageClipHandle*out,OfxPropertySetHandle*props){
+ auto&images=reinterpret_cast<TestEffect*>(h)->images;
+ auto it=images.find(name?name:"");
+ if(it==images.end())return kOfxStatErrBadHandle;
+ *out=reinterpret_cast<OfxImageClipHandle>(it->second.get());
+ if(props)*props=reinterpret_cast<OfxPropertySetHandle>(&it->second->props);
+ return kOfxStatOK;
+}
+OfxStatus clipImage(OfxImageClipHandle h,OfxTime,const OfxRectD*,
+                    OfxPropertySetHandle*out){
+ *out=reinterpret_cast<OfxPropertySetHandle>(
+       &reinterpret_cast<TestImage*>(h)->props);
+ return kOfxStatOK;
+}
+OfxStatus clipRelease(OfxPropertySetHandle){return kOfxStatOK;}
+OfxStatus clipProps(OfxImageClipHandle h,OfxPropertySetHandle*out){
+ *out=reinterpret_cast<OfxPropertySetHandle>(
+       &reinterpret_cast<TestImage*>(h)->props);
+ return kOfxStatOK;
+}
 OfxPropertySuiteV1 properties{};
 OfxParameterSuiteV1 parameters{};
 OfxImageEffectSuiteV1 effects{};
@@ -201,6 +253,7 @@ void setup(){
  properties.propSetDouble=&setDouble;
  properties.propGetString=&getString;properties.propGetInt=&getInt;
  properties.propGetDouble=&getDouble;
+ properties.propGetPointer=&getPointer;
  parameters.paramDefine=&define;
  parameters.paramSetGetPropertySet=&paramSetProps;
  parameters.paramGetHandle=&paramHandle;
@@ -214,6 +267,10 @@ void setup(){
  effects.getPropertySet=&effectProps;
  effects.getParamSet=&effectParams;
  effects.clipDefine=&clipDefine;
+ effects.clipGetHandle=&clipHandle;
+ effects.clipGetImage=&clipImage;
+ effects.clipReleaseImage=&clipRelease;
+ effects.clipGetPropertySet=&clipProps;
  host.host=reinterpret_cast<OfxPropertySetHandle>(&hostProps);
  host.fetchSuite=&fetchSuite;
 }
