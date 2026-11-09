@@ -1,0 +1,133 @@
+-- CartoRigGeoMatte: native Fusion Shape/ImageChannel rasterization from the
+-- bundled, seek-indexed Natural Earth vector catalogue. No network or Python.
+-- Experimental host integration: actual Resolve 20 image quality requires QA.
+FuRegisterClass('CartoRigGeoMatte', CT_Tool, {
+  REGS_Name='CartoRig Geographic Matte',
+  REGS_Category='CartoRig\\Internal',
+  REGS_OpIconString='CRG',
+  REGS_OpDescription='Offline WGS84 base map land and line source mattes',
+  REG_NoMotionBlurCtrls=true,
+})
+local ROOT_CACHE={}
+local function fail(s)error('CartoRig geographic matte: '..s,2)end
+local function data_dirs()
+  local override=rawget(_G,'CARTORIG_GEO_TEST_ROOT')
+  local source=rawget(_G,'CARTORIG_GEO_TEST_SOURCE')
+  if override and source then return override,source end
+  local appdata=os.getenv('APPDATA')
+  if not appdata or appdata=='' then fail('Windows APPDATA unavailable; cannot locate installed offline bundle') end
+  local common=appdata..'/Blackmagic Design/DaVinci Resolve/Support/Fusion/Scripts/Comp/CartoRig'
+  return common..'/data',common
+end
+local function load_records(dataset)
+  local root,source=data_dirs()
+  local key=root..'|'..dataset
+  if ROOT_CACHE[key] then return ROOT_CACHE[key] end
+  local Json=dofile(source..'/json.lua')
+  local Layer=dofile(source..'/layer_catalog.lua')
+  local GeoClip=dofile(source..'/geo_clip.lua')
+  local Geo=dofile(source..'/geo.lua')
+  local index=Layer.load_index(root,dataset,Json)
+  local result={}
+  local features=Layer.query(index,{-180,-90,180,90},10000)
+  for _,row in ipairs(features) do
+    local geo=Layer.load_feature(root,index,row,Json).geometry
+    local polygons=nil
+    local paths=nil
+    if geo.type=='Polygon' then polygons=GeoClip.split_polygons({geo.coordinates})
+    elseif geo.type=='MultiPolygon' then polygons=GeoClip.split_polygons(geo.coordinates)
+    elseif geo.type=='LineString' then paths={geo.coordinates}
+    elseif geo.type=='MultiLineString' then paths=geo.coordinates
+    else fail('unsupported indexed geometry: '..tostring(geo.type)) end
+    if polygons then
+      for _,p in ipairs(polygons) do result[#result+1]={rings=p} end
+    elseif paths then
+      for _,line in ipairs(paths) do
+        if #line>=2 then
+          local pts={}
+          for _,p in ipairs(line) do pts[#pts+1]={lon=p[1],lat=p[2]} end
+          for _,part in ipairs(Geo.split_antimeridian(pts)) do
+            if #part>=2 then result[#result+1]={path=part} end
+          end
+        end
+      end
+    end
+  end
+  if #result==0 then fail('empty geographic layer '..dataset) end
+  ROOT_CACHE[key]=result
+  return result
+end
+local function numeric(input,req,default)
+  local raw=input:GetValue(req)
+  local x=tonumber(type(raw)=='table' and raw.Value or raw)
+  if not x or x~=x or x==math.huge or x==-math.huge then return default end
+  return x
+end
+function Create()
+  self:AddControlPage('Control')
+  InLayer=self:AddInput('Natural Earth Layer','Layer',{
+    LINKID_DataType='Number',INPID_InputControl='ComboControl',INP_Integer=true,
+    INP_Default=0,{CCS_AddString='Land'},{CCS_AddString='Coastline'},
+    {CCS_AddString='Country Borders'},
+  })
+  InStrokePx=self:AddInput('Line Width (px)','StrokePx',{
+    LINKID_DataType='Number',INPID_InputControl='SliderControl',INP_Default=1,
+    INP_MinScale=0.25,INP_MaxScale=12,INP_MinAllowed=0.25,INP_MaxAllowed=12,
+  })
+  InImage=self:AddInput('World Frame Reference','Input',{
+    LINKID_DataType='Image',INP_Required=true,LINK_Main=1,
+  })
+  OutImage=self:AddOutput('Output','Output',{LINKID_DataType='Image',LINK_Main=1})
+end
+local function vertex(shape,point,first,aspect)
+  local x=((point.lon or point[1])+180)/360
+  local y=((point.lat or point[2])+90)/180*aspect
+  if first then shape:MoveTo(x,y) else shape:LineTo(x,y) end
+end
+local function render_layer(img,records,isline,widthpx)
+  local aspect=img.Height*img.YScale/(img.Width*img.XScale)
+  local shape=Shape()
+  local vertices=0
+  for _,record in ipairs(records) do
+    if record.rings then
+      for _,ring in ipairs(record.rings) do
+        for i,p in ipairs(ring) do vertex(shape,p,i==1,aspect);vertices=vertices+1 end
+        shape:Close()
+      end
+    elseif record.path then
+      for i,p in ipairs(record.path) do vertex(shape,p,i==1,aspect);vertices=vertices+1 end
+    end
+    if vertices>4000000 then fail('native vector path exceeds four million vertex budget') end
+  end
+  if vertices==0 then fail('empty indexed geometry') end
+  if isline then
+    shape=shape:OutlineOfShape(widthpx/img.Width,'OLT_Solid','OJT_Round',4,'SWM_Normal',4)
+  end
+  local ic=ImageChannel(img,4)
+  ic:SetStyleFill(FillStyle())
+  ic:ShapeFill(shape)
+  local cs=ChannelStyle()
+  cs.Color=Pixel({R=1,G=1,B=1,A=1})
+  ic:PutToImage('CM_Merge',cs)
+end
+function Process(req)
+  local image=InImage:GetValue(req)
+  if not image then OutImage:Set(req,nil);return end
+  local dataset=({'land','coastline','boundaries'})[math.floor(numeric(InLayer,req,0))+1]
+  if not dataset then OutImage:Set(req,nil);print('CartoRig: invalid base layer selection');return end
+  local ok,out_or_error=pcall(function()
+    local records=load_records(dataset)
+    local img=image:Copy()
+    img:Clear()
+    local width=numeric(InStrokePx,req,1)
+    if width<0.25 or width>12 then fail('invalid stroke width') end
+    render_layer(img,records,dataset~="land",width)
+    return img
+  end)
+  if not ok then
+    print('CartoRig geographic layer failed: '..tostring(out_or_error))
+    OutImage:Set(req,nil)
+    return
+  end
+  OutImage:Set(req,out_or_error)
+end
