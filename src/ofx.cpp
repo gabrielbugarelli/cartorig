@@ -243,12 +243,22 @@ OfxStatus describeContext(OfxImageEffectHandle e,Type type){
   number(ps,controls,"ToLatitude","To Latitude",.7,-85,85,false);
   color(ps,controls,"Stroke","Stroke Color",.84,.875,.902);
   number(ps,controls,"StrokeWidth","Stroke Width (px)",3,0,32);
+  choice(ps,controls,"PathType","Path Type",{"Straight","Curved"});
   number(ps,controls,"Curvature","Curvature",0,-100,100,false);
+  number(ps,controls,"StrokeAlpha","Stroke Alpha",1,0,1);
+  { // Internal stable route waypoint list (Scene provides the list editor).
+    auto d=def(ps,kOfxParamTypeString,"WaypointsEncoded",
+               "Waypoints (managed in Scene)");
+    setString(d,kOfxParamPropDefault,"");
+    setInt(d,kOfxParamPropSecret,1);
+  }
   number(ps,controls,"DrawProgress","Draw Progress",1,0,1);
   number(ps,controls,"TrimStart","Trim Start",0,0,1);
   number(ps,controls,"TrimEnd","Trim End",1,0,1);
   boolean(ps,controls,"Arrowhead","Arrowhead",false);
   number(ps,controls,"ArrowheadSize","Arrowhead Size",12,2,64);
+  choice(ps,controls,"ArrowheadDirection","Arrowhead Direction",
+         {"Forward","Reverse"});
   number(ps,controls,"FollowerProgress","Follower Progress",0,0,1);
  }else if(type==Type::Marker){
   number(ps,controls,"PointLongitude","Point Longitude",0,-180,180,false);
@@ -331,6 +341,33 @@ Color colorAt(OfxImageEffectHandle e,const char*name,double t,Color fallback){
                                   &components[2],&components[3]);
  auto byte=[](double x){return static_cast<uint8_t>(std::clamp(std::lround(x*255),0l,255l));};
  return {byte(components[0]),byte(components[1]),byte(components[2]),byte(components[3])};
+}
+std::vector<GeoPoint> decodeWaypoints(const std::string&encoded){
+ if(encoded.size()>4096)throw std::invalid_argument("Waypoint list too long");
+ std::vector<GeoPoint> points;
+ if(encoded.empty())return points;
+ std::size_t pos=0;
+ while(pos<encoded.size()){
+  const auto end=encoded.find(';',pos);
+  const auto part=encoded.substr(pos,(end==std::string::npos?
+                                   encoded.size():end)-pos);
+  const auto comma=part.find(',');
+  if(comma==std::string::npos||part.find(',',comma+1)!=std::string::npos)
+   throw std::invalid_argument("Invalid internal waypoint pair");
+  std::size_t lonEnd=0,latEnd=0;
+  GeoPoint p{std::stod(part.substr(0,comma),&lonEnd),
+             std::stod(part.substr(comma+1),&latEnd)};
+  if(lonEnd!=comma||latEnd!=part.size()-comma-1||
+     !std::isfinite(p.lon)||!std::isfinite(p.lat)||
+     p.lon<-180||p.lon>180||p.lat<-85||p.lat>85)
+   throw std::invalid_argument("Invalid waypoint longitude or latitude");
+  points.push_back(p);
+  if(points.size()>64)throw std::invalid_argument("Too many waypoints");
+  if(end==std::string::npos)break;
+  pos=end+1;
+  if(pos==encoded.size())throw std::invalid_argument("Trailing waypoint delimiter");
+ }
+ return points;
 }
 struct HostImage {
  OfxPropertySetHandle p=nullptr;
@@ -471,6 +508,13 @@ OfxStatus render(OfxImageEffectHandle effect,OfxPropertySetHandle args,Type type
   r.to={numberAt(effect,"ToLongitude",t,0),
         numberAt(effect,"ToLatitude",t,0)};
   r.curvature=numberAt(effect,"Curvature",t,0);
+  r.waypoints=decodeWaypoints(textAt(effect,"WaypointsEncoded",t));
+  int path=0,arrow=0;
+  if(auto h=parameter(effect,"PathType"))param->paramGetValueAtTime(h,t,&path);
+  if(auto h=parameter(effect,"ArrowheadDirection"))
+   param->paramGetValueAtTime(h,t,&arrow);
+  r.curved=path==1;
+  r.reverseArrowhead=arrow==1;
   r.width=numberAt(effect,"StrokeWidth",t,3);
   r.progress=numberAt(effect,"DrawProgress",t,1);
   r.trimStart=numberAt(effect,"TrimStart",t,0);
@@ -478,7 +522,8 @@ OfxStatus render(OfxImageEffectHandle effect,OfxPropertySetHandle args,Type type
   r.arrowhead=flagAt(effect,"Arrowhead",t,false);
   r.arrowheadSize=numberAt(effect,"ArrowheadSize",t,12);
   r.stroke=colorAt(effect,"Stroke",t,{214,223,230,255});
-  r.opacity=opacity;
+  r.opacity=opacity*numberAt(effect,"StrokeAlpha",t,1);
+  r.followerProgress=numberAt(effect,"FollowerProgress",t,0);
   drawRoute(canvas,camera,r);
  }else if(type==Type::Label&&enabled&&opacity>0){
   LabelOptions label;
