@@ -314,6 +314,19 @@ int main(){
         m.params.params.at("LandLayerOpacity")->keys.empty()&&
         m.params.params.at("LayerOpacity")->keys.empty(),
         "Layer Fade must not change other base layers (QA-40)");
+  auto*camera=pluginByName.at("com.cartorig.fusionrc1.camera");
+  TestEffect flight;
+  check(camera->mainEntry(kOfxImageEffectActionDescribeInContext,
+                          &flight,nullptr,nullptr)==kOfxStatOK,"camera controls");
+  select(flight,"MotionPreset",0);
+  chooseValue(flight,"CenterLongitude",179);
+  chooseValue(flight,"MotionTargetLongitude",-179);
+  chooseValue(flight,"MotionTargetLatitude",0);
+  chooseValue(flight,"MotionTargetZoom",4);
+  event(camera,flight,100);
+  assertKey(flight,"CenterLongitude",145,181);
+  check(flight.params.params.at("Bearing")->keys.empty(),
+        "Fly To preserves Camera Bearing unless user opts into rotation");
   std::cout<<"PASS OpenFX mock: all 6 host plugin descriptors, pages, "
            <<"native Highlight Pulse, Instant Color, Layer Fade and conflicts\n";
   return 0;
