@@ -118,6 +118,10 @@ check(comp:FindTool("CR_Base_Map"):GetInput("CountryA")==nil,
 local state=api.search("Rio de Janeiro","state")
 check(#state==1 and state[1].kind=="state","states found by name")
 check(#api.search("São Paulo","city")==1,"Unicode city search")
+check(#api.search("SÃO PAULO","city")==1,
+      "Uppercase UTF-8 accents are normalized offline")
+check(#api.search("SãO PaUlO","city")==1,
+      "Mixed-case UTF-8 accents are normalized offline")
 check(#api.search("brasil","country")==1,"Portuguese country alias")
 local continents=api.search("South America","continent")
 check(#continents==1 and continents[1].kind=="continent" and
