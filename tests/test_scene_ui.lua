@@ -204,6 +204,25 @@ local function makeDispatcher(_)
    end
    check(region~=nil,"Scene adds country Region")
    check(#tree.roots>=2,"native Tree has category hierarchy")
+   w.ObjectFilter.Text="No Matching CartoRig Object"
+   window.On.ObjectFilter.TextChanged({})
+   check(#tree.roots==0,
+         "object filter suppresses unmatched categories without deleting nodes")
+   w.ObjectFilter.Text="Brazil"
+   window.On.ObjectFilter.TextChanged({})
+   check(#tree.roots==1 and tree.roots[1].Text[0]=="Regions",
+         "object filter selects matching category and authored object")
+   w.ObjectFilter.Text=""
+   window.On.ObjectFilter.TextChanged({})
+   window.On.CollapseAll.Clicked({})
+   local collapsed=true
+   for _,root in ipairs(tree.roots)do
+    if root.Expanded then collapsed=false end
+   end
+   check(collapsed,"Collapse all affects only Scene Tree expansion state")
+   window.On.CollapseAll.Clicked({})
+   check(tree.roots[1].Expanded and w.CollapseAll.Text=="Collapse all",
+         "Expand all restores visible categories")
    local selected=tree:SelectedItems()
    check(#selected==1,"newly authored Region selected by stable ID")
    window.On.ObjectTree.ItemSelectionChanged({})
