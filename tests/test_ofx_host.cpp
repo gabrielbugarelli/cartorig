@@ -273,6 +273,14 @@ int main(){
                       &effect,nullptr,nullptr)==kOfxStatOK,
          "define type-specific Control/Motion pages");
    assertPage(effect);
+   Props preferences;
+   check(p->mainEntry(kOfxImageEffectActionGetClipPreferences,
+                      &effect,nullptr,
+                      reinterpret_cast<OfxPropertySetHandle>(&preferences))==kOfxStatOK,
+         "OFX clip preferences action must declare transparent RGBA");
+   check(preferences.strings.at(kOfxImageEffectPropPreMultiplication).at(0)
+         ==kOfxImageUnPreMultiplied,
+         "OFX output must explicitly advertise straight alpha for antialias");
    pluginByName[p->pluginIdentifier]=p;
   }
   auto*region=pluginByName.at("com.cartorig.fusionrc1.region");
