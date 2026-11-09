@@ -14,7 +14,7 @@ local ui=fusion.UIManager
 local dispatcher=bmd.UIDispatcher(ui)
 local window=dispatcher:AddWindow({
     ID="CartoRigSceneWindow",WindowTitle="CartoRig — Scene",
-    Geometry={140,80,515,840},Spacing=7,Margin=12
+    Geometry={140,70,540,895},Spacing=7,Margin=12
 },ui:VGroup{
     ID="Root",Spacing=8,
     ui:HGroup{
@@ -80,6 +80,19 @@ local window=dispatcher:AddWindow({
         ui:Label{Text="Target lat",Weight=0.17},
         ui:LineEdit{ID="ToLat",PlaceholderText="0.7000",Weight=0.33}
     },
+    ui:HGroup{
+        ui:Label{Text="Route waypoints",Weight=0.29},
+        ui:ComboBox{ID="Waypoints",Weight=0.71}
+    },
+    ui:HGroup{
+        ui:LineEdit{ID="WayLon",PlaceholderText="Waypoint lon",Weight=0.24},
+        ui:LineEdit{ID="WayLat",PlaceholderText="Waypoint lat",Weight=0.24},
+        ui:Button{ID="AddWaypoint",Text="Add",Weight=0.12},
+        ui:Button{ID="WayUp",Text="Up",Weight=0.10},
+        ui:Button{ID="WayDown",Text="Down",Weight=0.10},
+        ui:Button{ID="WayRemove",Text="Remove",Weight=0.13}
+    },
+    ui:Button{ID="ReverseRoute",Text="Reverse selected Route (keep styles and curves)"},
     ui:HGroup{
         ui:Button{ID="UseFrom",Text="Origin from result"},
         ui:Button{ID="UseTo",Text="Target from result"},
@@ -384,6 +397,72 @@ local function pointFrom(loc)
     end
     return {lon=(loc.bounds[1]+loc.bounds[3])/2,
             lat=(loc.bounds[2]+loc.bounds[4])/2}
+end
+local function updateWaypoints()
+    local object=selectedObject()
+    local labels={}
+    if object.role=="Route" then
+        for index,point in ipairs(scene.waypoints(object.id)) do
+            labels[#labels+1]=string.format("%02d | %.6f, %.6f",
+                                          index,point.lon,point.lat)
+        end
+    end
+    setItems(item.Waypoints,labels)
+    return "Route waypoints refreshed."
+end
+function window.On.Objects.CurrentIndexChanged(_)
+    if locked then return end
+    local object=objects[(tonumber(item.Objects.CurrentIndex) or -1)+1]
+    if object and object.role=="Route" then
+        perform(updateWaypoints)
+    else setItems(item.Waypoints,{}) end
+end
+local function activeRoute()
+    local object=chooseObject("route")
+    if object.role~="Route" then
+        error("Select an existing Route in Scene Objects")
+    end
+    return object
+end
+function window.On.AddWaypoint.Clicked(_)
+    perform(function()
+        local route=activeRoute()
+        scene.addWaypoint(route.id,item.WayLon.Text,item.WayLat.Text)
+        updateWaypoints()
+        return "Waypoint added; route geometry updated without new keyframes."
+    end)
+end
+function window.On.WayUp.Clicked(_)
+    perform(function()
+        local route=activeRoute()
+        scene.moveWaypoint(route.id,currentIndex(item.Waypoints),-1)
+        updateWaypoints()
+        return "Waypoint moved up."
+    end)
+end
+function window.On.WayDown.Clicked(_)
+    perform(function()
+        local route=activeRoute()
+        scene.moveWaypoint(route.id,currentIndex(item.Waypoints),1)
+        updateWaypoints()
+        return "Waypoint moved down."
+    end)
+end
+function window.On.WayRemove.Clicked(_)
+    perform(function()
+        local route=activeRoute()
+        scene.removeWaypoint(route.id,currentIndex(item.Waypoints))
+        updateWaypoints()
+        return "Waypoint removed, other objects preserved."
+    end)
+end
+function window.On.ReverseRoute.Clicked(_)
+    perform(function()
+        local route=activeRoute()
+        scene.reverseRoute(route.id)
+        updateWaypoints()
+        return "Route endpoints and ordered waypoints reversed."
+    end)
 end
 function window.On.UseFrom.Clicked(_)
     perform(function()
