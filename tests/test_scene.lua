@@ -395,8 +395,8 @@ check(comp==prior and api.state()=="SCENE_BROKEN" and
       #prior:GetToolList(false)==priorObjects,
       "source composition remains damaged but completely unchanged")
 comp=recoveryTarget
-check(api.isInitialized() and api.state()=="SCENE_READY",
-      "recovery copy is independently authorable")
+check(api.isInitialized() and api.state()=="SCENE_EMPTY",
+      "recovered copy is valid and neutral after its only Marker was deleted")
 local copyLedger=comp:FindTool("CR_Base_Map"):GetData(
     "CartoRig.Fusion.RC1.ObjectRegistry")
 check(copyLedger[lost]==nil,
