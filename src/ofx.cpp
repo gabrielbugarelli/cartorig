@@ -50,13 +50,13 @@ std::filesystem::path installedData(){
  auto length=GetModuleFileNameW(dll,path,32768);
  require(length>0&&length<32768,"Plugin path unavailable");
  return std::filesystem::path(std::wstring(path,length))
-   .parent_path().parent_path()/"Resources"/"data";
+   .parent_path()/"Resources"/"data";
 #else
  Dl_info info{};
  require(dladdr(reinterpret_cast<const void*>(&installedData),&info)!=0,
          "Plugin path unavailable");
  return std::filesystem::path(info.dli_fname)
-   .parent_path().parent_path()/"Resources"/"data";
+   .parent_path()/"Resources"/"data";
 #endif
 }
 const Catalog& getCatalog(){
