@@ -17,12 +17,12 @@ local function normalized_pose(pose)
   return {0.5-(x-0.5)*pose.zoom,0.5-(y-0.5)*pose.zoom}
 end
 local channelMap={
-  Region={opacity={tool='object',input='TopLeftAlpha',percent=true},fill={tool='object',color={'TopLeftRed','TopLeftGreen','TopLeftBlue'}}},
+  Region={opacity={tool='object',input='ObjectOpacity',percent=true},fill={tool='object',color={'FillRed','FillGreen','FillBlue'}},highlightStrength={tool='object',input='HighlightStrength',percent=true}},
   Marker={opacity={tool='object',input='TopLeftAlpha',percent=true},size={tool='mask',inputs={'Width','Height'},scale=1/1080}},
   Label={opacity={tool='object',input='Alpha1',percent=true}},
   Route={opacity={tool='object',input='TopLeftAlpha',percent=true},drawProgress={tool='mask',input='WriteLength',percent=true}},
   Camera={zoom={tool='object',input='Size'},longitude={tool='object',camera=true},latitude={tool='object',camera=true}},
-  BaseMap={opacity={tool='object',input='TopLeftAlpha',percent=true}},
+  BaseMap={['layerOpacity.Ocean']={tool='object',input='OceanLayerOpacity',percent=true}},
 }
 M.supported_channels=channelMap
 local function active_tool(host,object,spec)

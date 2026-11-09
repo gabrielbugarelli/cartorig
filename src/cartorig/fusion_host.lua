@@ -77,10 +77,12 @@ function H:init_base(scene)
   local begun=false
   if self.comp.StartUndo then self.comp:StartUndo('CartoRig: initialize scene');begun=true end
   local ok,err=xpcall(function()
-    local base=new('Background','CR2_BASE_'..scene.id,-4,0)
-    local r,g,b=hex('#10283C')
-    base:SetInput('TopLeftRed',r);base:SetInput('TopLeftGreen',g);base:SetInput('TopLeftBlue',b)
-    base:SetInput('TopLeftAlpha',1)
+    local white=new('Background','CR2_BASE_SOURCE_'..scene.id,-5,0)
+    white:SetInput('TopLeftRed',1);white:SetInput('TopLeftGreen',1)
+    white:SetInput('TopLeftBlue',1);white:SetInput('TopLeftAlpha',1)
+    self:tag(white,scene.id,scene.objects[1].id,'InternalBaseSurface')
+    local base=new('CartoRigBase','CR2_BASE_'..scene.id,-4,0)
+    connect(base,'Input',white)
     local camera=new('Transform','CR2_CAMERA_'..scene.id,0,0)
     connect(camera,'Input',base)
     connect(out,'Input',camera)
@@ -165,41 +167,61 @@ function H:add_region(scene,object,feature)
   end
   if needed>200 then fail('polygon too fragmented for native mask preview') end
   local camera=find(self.comp,'CR2_CAMERA_'..scene.id)
-  local tail=find(self.comp,scene.lastLayerRef or '')
-  if not tail or not camera then fail('CartoRig scene is not initialized') end
+  local previous=find(self.comp,scene.lastLayerRef or '')
+  if not previous or not camera then fail('CartoRig scene is not initialized') end
   local created={}
   local function new(id,name,x,y)
     local node=add(self.comp,id,name,x,y);created[#created+1]=node;return node
   end
-  local began=false
-  if self.comp.StartUndo then self.comp:StartUndo('CartoRig: add Region');began=true end
-  local oldtail=tail
+  local begun=false
+  if self.comp.StartUndo then self.comp:StartUndo('CartoRig: add Region');begun=true end
   local ok,err=xpcall(function()
-    local fg=new('Background','CR2_REGION_'..object.id,1,4)
-    local r,g,b=hex(object.style.fill)
-    fg:SetInput('TopLeftRed',r);fg:SetInput('TopLeftGreen',g);fg:SetInput('TopLeftBlue',b)
-    fg:SetInput('TopLeftAlpha',(object.style.opacity or 100)/100)
-    self:tag(fg,scene.id,object.id,'Region')
+    -- Compose all island fragments into a SINGLE white premultiplied matte.
+    -- That matte is then shaded by one CartoRigRegion Fuse, which is the
+    -- authorial Inspector tool; no fragment carries separate style keys.
+    local blank=new('Background','CR2_REGION_EMPTY_'..object.id,-3,3)
+    blank:SetInput('TopLeftRed',0)
+    blank:SetInput('TopLeftGreen',0)
+    blank:SetInput('TopLeftBlue',0)
+    blank:SetInput('TopLeftAlpha',0)
+    self:tag(blank,scene.id,object.id,'InternalRegionCanvas')
+    local matte=blank
     for i,polygon in ipairs(polygons) do
       local mask=self:_make_polygon_mask(polygon[1],'CR2_MASK_'..object.id..'_'..i)
       created[#created+1]=mask
       self:tag(mask,scene.id,object.id,'InternalMask')
-      local merge=new('Merge','CR2_MERGE_'..object.id..'_'..i,3,4)
-      self:tag(merge,scene.id,object.id,'InternalComposite')
-      connect(merge,'Background',tail)
-      connect(merge,'Foreground',fg)
-      connect(merge,'EffectMask',mask)
-      tail=merge
+      local white=new('Background','CR2_WHITE_'..object.id..'_'..i,-1,i)
+      white:SetInput('TopLeftRed',1);white:SetInput('TopLeftGreen',1)
+      white:SetInput('TopLeftBlue',1);white:SetInput('TopLeftAlpha',1)
+      self:tag(white,scene.id,object.id,'InternalRegionFill')
+      connect(white,'EffectMask',mask)
+      local piece=new('Merge','CR2_PIECE_'..object.id..'_'..i,1,i)
+      self:tag(piece,scene.id,object.id,'InternalRegionComposite')
+      connect(piece,'Background',matte)
+      connect(piece,'Foreground',white)
+      matte=piece
     end
-    connect(camera,'Input',tail)
-    object.hostToolRef=attr(fg).TOOLS_Name or fg.Name
-    scene.lastLayerRef=attr(tail).TOOLS_Name or tail.Name
+    local region=new('CartoRigRegion','CR2_REGION_'..object.id,3,4)
+    self:tag(region,scene.id,object.id,'Region')
+    connect(region,'Input',matte)
+    local r,g,b=hex(object.style.fill or '#8296A4')
+    region:SetInput('FillRed',r);region:SetInput('FillGreen',g);region:SetInput('FillBlue',b)
+    region:SetInput('ObjectOpacity',(object.style.opacity or 100)/100)
+    region:SetInput('HighlightStrength',0)
+    local merge=new('Merge','CR2_COMPOSITE_'..object.id,5,4)
+    self:tag(merge,scene.id,object.id,'InternalComposite')
+    connect(merge,'Background',previous)
+    connect(merge,'Foreground',region)
+    connect(camera,'Input',merge)
+    object.hostToolRef=attr(region).TOOLS_Name or region.Name
+    object.compositeToolRef=attr(merge).TOOLS_Name or merge.Name
+    scene.lastLayerRef=object.compositeToolRef
   end,debug.traceback)
   if not ok then
+    pcall(function()connect(camera,'Input',previous)end)
     for i=#created,1,-1 do pcall(function()created[i]:Delete()end) end
-    pcall(function()connect(camera,'Input',oldtail)end)
   end
-  if began and self.comp.EndUndo then self.comp:EndUndo(ok) end
+  if begun and self.comp.EndUndo then self.comp:EndUndo(ok) end
   if not ok then fail('Region creation rolled back: '..tostring(err)) end
   return true
 end
@@ -207,7 +229,7 @@ function H:set_region_fill(object,color,frame,animate)
   local node=self:tool_for(object)
   if not node or object.kind~='Region' then fail('Region has no Fusion color tool') end
   local r,g,b=hex(color)
-  local channels={TopLeftRed=r,TopLeftGreen=g,TopLeftBlue=b}
+  local channels={FillRed=r,FillGreen=g,FillBlue=b}
   for channel,value in pairs(channels) do
     if animate then
       if type(node.AddModifier)~='function' then fail('Fusion AddModifier unavailable') end
@@ -229,4 +251,5 @@ function H:apply_color_plan(object,plan)
     self:set_region_fill(object,keyframe.value,keyframe.frame,true)
   end
 end
+
 return H

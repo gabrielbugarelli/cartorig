@@ -22,8 +22,19 @@ set "FUSE_DIR=%APPDATA%\Blackmagic Design\DaVinci Resolve\Support\Fusion\Fuses"
 if not exist "%FUSE_DIR%" mkdir "%FUSE_DIR%"
 if exist "%SOURCE%\fuses\CartoRigOpacity.fuse" (
   copy /Y "%SOURCE%\fuses\CartoRigOpacity.fuse" "%FUSE_DIR%\CartoRigOpacity.fuse" >nul
-  echo Installed experimental Control/Motion opacity Fuse in Fusion Fuses folder.
 )
+for %%F in (CartoRigBase.fuse CartoRigRegion.fuse) do (
+  if not exist "%SOURCE%\fuses\%%F" (
+    echo ERROR: Missing required Fuse %%F. Extract the complete package first.
+    pause & exit /b 1
+  )
+  copy /Y "%SOURCE%\fuses\%%F" "%FUSE_DIR%\%%F" >nul
+  if errorlevel 1 (
+    echo ERROR: Failed to install %%F.
+    pause & exit /b 1
+  )
+)
+echo Installed CartoRig Base Map and Region Inspector Fuses.
 if not exist "%TARGET%\CartoRig\fusion_host.lua" (
   echo Installation incomplete.
   pause & exit /b 1

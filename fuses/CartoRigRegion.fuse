@@ -1,0 +1,79 @@
+-- CartoRig Region (rewrite). White, premultiplied mask-in -> styled RGBA-out.
+-- The input must be a transparent image whose occupied pixels are premultiplied white.
+-- Each authorial Region has one instance; keys are native Fusion inputs, not a UIManager timeline.
+-- No global geography data or file paths are evaluated by this renderer.
+FuRegisterClass('CartoRigRegion', CT_Tool, {
+  REGS_Name='CartoRig Region',
+  REGS_Category='CartoRig\\Map Objects',
+  REGS_OpIconString='CRR',
+  REGS_OpDescription='Independent Region fill, highlight and native Control/Motion channels',
+  REG_NoMotionBlurCtrls=true,
+})
+local function clamp(value)
+  local n=tonumber(value)
+  if not n or n~=n then return 0 end
+  return math.max(0,math.min(1,n))
+end
+local function number(input,req)
+  local v=input:GetValue(req)
+  return clamp(type(v)=='table' and v.Value or v)
+end
+function Create()
+  self:AddControlPage('Control')
+  InFillR=self:AddInput('Fill Red','FillRed',{
+    LINKID_DataType='Number',INPID_InputControl='ColorControl',INP_Default=0.51,
+    INP_MinScale=0,INP_MaxScale=1,IC_ControlGroup=21,IC_ControlID=0,
+  })
+  InFillG=self:AddInput('Fill Green','FillGreen',{
+    LINKID_DataType='Number',INPID_InputControl='ColorControl',INP_Default=0.59,
+    INP_MinScale=0,INP_MaxScale=1,IC_ControlGroup=21,IC_ControlID=1,
+  })
+  InFillB=self:AddInput('Fill Blue','FillBlue',{
+    LINKID_DataType='Number',INPID_InputControl='ColorControl',INP_Default=0.64,
+    INP_MinScale=0,INP_MaxScale=1,IC_ControlGroup=21,IC_ControlID=2,
+  })
+  InOpacity=self:AddInput('Object Opacity','ObjectOpacity',{
+    LINKID_DataType='Number',INPID_InputControl='SliderControl',INP_Default=1,
+    INP_MinScale=0,INP_MaxScale=1,INP_MinAllowed=0,INP_MaxAllowed=1,
+  })
+  InHighlightR=self:AddInput('Highlight Red','HighlightRed',{
+    LINKID_DataType='Number',INPID_InputControl='ColorControl',INP_Default=0.902,
+    INP_MinScale=0,INP_MaxScale=1,IC_ControlGroup=22,IC_ControlID=0,
+  })
+  InHighlightG=self:AddInput('Highlight Green','HighlightGreen',{
+    LINKID_DataType='Number',INPID_InputControl='ColorControl',INP_Default=0.776,
+    INP_MinScale=0,INP_MaxScale=1,IC_ControlGroup=22,IC_ControlID=1,
+  })
+  InHighlightB=self:AddInput('Highlight Blue','HighlightBlue',{
+    LINKID_DataType='Number',INPID_InputControl='ColorControl',INP_Default=0.420,
+    INP_MinScale=0,INP_MaxScale=1,IC_ControlGroup=22,IC_ControlID=2,
+  })
+  InHighlightStrength=self:AddInput('Highlight Strength','HighlightStrength',{
+    LINKID_DataType='Number',INPID_InputControl='SliderControl',INP_Default=0,
+    INP_MinScale=0,INP_MaxScale=1,INP_MinAllowed=0,INP_MaxAllowed=1,
+  })
+  -- The Motion tab exposes the SAME channels rather than introducing a second
+  -- invisible keyframe store. CloneInput is a native Fuse SDK feature.
+  self:AddControlPage('Motion')
+  self:CloneInput(InOpacity,'MotionOpacity',{INP_DoNotifyChanged=false,INP_InteractivePassive=true})
+  self:CloneInput(InHighlightStrength,'MotionHighlight',{INP_DoNotifyChanged=false,INP_InteractivePassive=true})
+  InImage=self:AddInput('White Region Mask','Input',{
+    LINKID_DataType='Image',LINK_Main=1,INP_Required=true,
+  })
+  OutImage=self:AddOutput('Output','Output',{LINKID_DataType='Image',LINK_Main=1})
+end
+function Process(req)
+  local image=InImage:GetValue(req)
+  if not image then OutImage:Set(req,nil);return end
+  local opacity=number(InOpacity,req)
+  local strength=number(InHighlightStrength,req)
+  local inverse=1-strength
+  local r=(number(InFillR,req)*inverse+number(InHighlightR,req)*strength)*opacity
+  local g=(number(InFillG,req)*inverse+number(InHighlightG,req)*strength)*opacity
+  local b=(number(InFillB,req)*inverse+number(InHighlightB,req)*strength)*opacity
+  local out=image:Copy()
+  -- Input is white premultiplied by geographic mask coverage; gain by RGB and
+  -- alpha together to retain correct premultiplied RGBA on anti-aliased edges.
+  out:Gain(r,g,b,opacity)
+  OutImage:Set(req,out)
+end

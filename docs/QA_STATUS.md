@@ -13,6 +13,8 @@
 | Persistence-failure rollback without touching other nodes | PASS mock host | NOT RUN | OPEN |
 | RGB/Opacity/Size/Draw/Camera native keys (supported channels) | PASS mock host | NOT RUN | OPEN |
 | Experimental Fuse with Control/Motion Inspector pages, premultiplied alpha pass | PASS callback mock | NOT RUN | OPEN |
+| Region authorial Fuse: color picker, object opacity, highlight and native color/opacity/highlight keys | PASS callback + graph mock incl. 2-island geometry and rollback | NOT RUN | OPEN |
+| Base Map authorial Fuse: ocean-only background, Full Map / Transparent Overlay and Ocean Fade | PASS callback + graph mock incl. alpha 0 and fail-closed unsupported Land | NOT RUN | OPEN |
 | All 16 Motion plan definitions | PASS unit plan contracts | NOT RUN | OPEN |
 | All 16 preset execution in Inspector Control/Motion | **NOT IMPLEMENTED** | NOT RUN | OPEN |
 | Real 10m data and geometry source inventory | Offline 7-dataset build + self-contained Windows preview artifact in Actions (SHA256 checked) | NOT RUN | OPEN |

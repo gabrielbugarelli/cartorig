@@ -1,0 +1,63 @@
+-- CartoRig Base Map surface (ocean-only preview). The authorial BaseMap tool
+-- keeps full-map and transparent-overlay output in native Fusion RGBA.
+-- Land and boundary layers require a dedicated geographic renderer and are
+-- intentionally NOT advertised as implemented here.
+FuRegisterClass('CartoRigBase',CT_Tool,{
+  REGS_Name='CartoRig Base Map',
+  REGS_Category='CartoRig\\Map Objects',
+  REGS_OpIconString='CRB',
+  REGS_OpDescription='Ocean surface, transparent overlay, and independently animated ocean layer',
+  REG_NoMotionBlurCtrls=true,
+})
+local function v(input,req)
+  local x=input:GetValue(req)
+  local n=tonumber(type(x)=='table' and x.Value or x)
+  if not n or n~=n then return 0 end
+  return math.max(0,math.min(1,n))
+end
+function Create()
+  self:AddControlPage('Control')
+  InDisplayMode=self:AddInput('Display Mode','DisplayMode',{
+    LINKID_DataType='Number',INPID_InputControl='ComboControl',INP_Integer=true,INP_Default=0,
+    {CCS_AddString='Full Map'},{CCS_AddString='Transparent Overlay'},
+  })
+  InOceanR=self:AddInput('Ocean Red','OceanRed',{
+    LINKID_DataType='Number',INPID_InputControl='ColorControl',INP_Default=16/255,
+    INP_MinScale=0,INP_MaxScale=1,IC_ControlGroup=31,IC_ControlID=0,
+  })
+  InOceanG=self:AddInput('Ocean Green','OceanGreen',{
+    LINKID_DataType='Number',INPID_InputControl='ColorControl',INP_Default=40/255,
+    INP_MinScale=0,INP_MaxScale=1,IC_ControlGroup=31,IC_ControlID=1,
+  })
+  InOceanB=self:AddInput('Ocean Blue','OceanBlue',{
+    LINKID_DataType='Number',INPID_InputControl='ColorControl',INP_Default=60/255,
+    INP_MinScale=0,INP_MaxScale=1,IC_ControlGroup=31,IC_ControlID=2,
+  })
+  InBaseOpacity=self:AddInput('Base Opacity','BaseOpacity',{
+    LINKID_DataType='Number',INPID_InputControl='SliderControl',INP_Default=1,
+    INP_MinScale=0,INP_MaxScale=1,INP_MinAllowed=0,INP_MaxAllowed=1,
+  })
+  InOceanLayerOpacity=self:AddInput('Ocean Layer Opacity','OceanLayerOpacity',{
+    LINKID_DataType='Number',INPID_InputControl='SliderControl',INP_Default=1,
+    INP_MinScale=0,INP_MaxScale=1,INP_MinAllowed=0,INP_MaxAllowed=1,
+  })
+  self:AddControlPage('Motion')
+  self:CloneInput(InOceanLayerOpacity,'MotionOceanLayerOpacity',{
+    INP_DoNotifyChanged=false,INP_InteractivePassive=true,
+  })
+  InImage=self:AddInput('White Base Surface','Input',{
+    LINKID_DataType='Image',LINK_Main=1,INP_Required=true,
+  })
+  OutImage=self:AddOutput('Output','Output',{LINKID_DataType='Image',LINK_Main=1})
+end
+function Process(req)
+  local img=InImage:GetValue(req)
+  if not img then OutImage:Set(req,nil);return end
+  local mode=InDisplayMode:GetValue(req)
+  mode=tonumber(type(mode)=='table' and mode.Value or mode) or 0
+  local opacity=(mode==1) and 0 or v(InBaseOpacity,req)*v(InOceanLayerOpacity,req)
+  local out=img:Copy()
+  out:Gain(v(InOceanR,req)*opacity,v(InOceanG,req)*opacity,
+           v(InOceanB,req)*opacity,opacity)
+  OutImage:Set(req,out)
+end
