@@ -296,7 +296,7 @@ int main(){
   select(categorical,"MotionPreset",3);
   event(region,categorical,330);
   assertKey(categorical,"Fill",329,130./255);
-  assertKey(categorical,"Fill",330,.83);
+  assertKey(categorical,"Fill",330,212./255);
   auto*map=pluginByName.at("com.cartorig.fusionrc1.map");
   TestEffect m;
   check(map->mainEntry(kOfxImageEffectActionDescribeInContext,
