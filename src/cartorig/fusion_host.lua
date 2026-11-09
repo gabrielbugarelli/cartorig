@@ -87,6 +87,47 @@ function H:tool_for(object)
   end
   return match
 end
+-- Resolve the scene chain by owned identities. Node names can be changed
+-- freely in the Fusion Node Editor without invalidating Scene references.
+function H:resolve_camera(scene)
+  if not scene or not scene.id or not scene.objects or not scene.objects[2] then fail('scene camera identity missing') end
+  local id=scene.objects[2].id
+  local match
+  for _,tool in pairs(self.comp:GetToolList(false) or {}) do
+    if tool:GetData('CartoRig.V2.Owned')==true
+      and tool:GetData('CartoRig.V2.SceneId')==scene.id
+      and tool:GetData('CartoRig.V2.ObjectId')==id
+      and tool:GetData('CartoRig.V2.Kind')=='Camera' then
+      if match then fail('duplicate camera tool identity') end
+      match=tool
+    end
+  end
+  if not match then fail('CartoRig camera tool missing or detached') end
+  return match
+end
+function H:resolve_last_layer(scene,pending_id)
+  if not scene or type(scene.objects)~='table' then fail('scene object list missing') end
+  local id,kind
+  for i=#scene.objects,1,-1 do
+    local object=scene.objects[i]
+    if object.id~=pending_id and (object.kind=='Region' or object.kind=='Route' or object.kind=='Marker' or object.kind=='Label') then
+      id=object.id;kind='InternalComposite';break
+    end
+  end
+  if not id then id=scene.objects[1] and scene.objects[1].id;kind='BaseMap' end
+  local match
+  for _,tool in pairs(self.comp:GetToolList(false) or {}) do
+    if tool:GetData('CartoRig.V2.Owned')==true
+      and tool:GetData('CartoRig.V2.SceneId')==scene.id
+      and tool:GetData('CartoRig.V2.ObjectId')==id
+      and tool:GetData('CartoRig.V2.Kind')==kind then
+      if match then fail('duplicate managed final-layer identity') end
+      match=tool
+    end
+  end
+  if not match then fail('managed final layer is missing or disconnected') end
+  return match
+end
 function H:select(object)
   local tool=self:tool_for(object)
   if not tool then fail('selected object is not linked to its Fusion tool') end
@@ -266,9 +307,8 @@ function H:add_region(scene,object,feature)
     end
   end
   if needed>200 then fail('region exceeds safe native mask preview budget') end
-  local camera=find(self.comp,'CR2_CAMERA_'..scene.id)
-  local previous=find(self.comp,scene.lastLayerRef or '')
-  if not previous or not camera then fail('CartoRig scene is not initialized') end
+  local camera=self:resolve_camera(scene)
+  local previous=self:resolve_last_layer(scene,object.id)
   local created={}
   local function new(id,name,x,y)
     local node=add(self.comp,id,name,x,y);created[#created+1]=node;return node

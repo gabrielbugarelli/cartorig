@@ -32,12 +32,18 @@ local function feature_struct(feature)
   return {id=feature.id,name=feature.name,type=feature.kind,version=feature.source and feature.source.version,
     dataset=feature.source and feature.source.dataset,geometryType=feature.geometryType,point=feature.point}
 end
-local function rollback_new_owned(comp,object_id,previous_name,scene_id)
-  local camera=comp:FindTool('CR2_CAMERA_'..scene_id)
-  local previous=previous_name and comp:FindTool(previous_name)
-  if camera and previous then pcall(function()camera:ConnectInput('Input',previous)end) end
+local function rollback_new_owned(host,original,object_id)
+  local comp=host.comp
+  local camera=host:resolve_camera(original)
+  local previous=host:resolve_last_layer(original)
+  local ok,worked=pcall(function()return camera:ConnectInput('Input',previous)end)
+  if not ok or worked==false then
+    error('CartoRig authoring: could not restore original camera connection; stop editing and recover a project copy',2)
+  end
   for _,tool in pairs(comp:GetToolList(false) or {}) do
-    if tool:GetData('CartoRig.V2.Owned') and tool:GetData('CartoRig.V2.ObjectId')==object_id then
+    if tool:GetData('CartoRig.V2.Owned')==true
+       and tool:GetData('CartoRig.V2.SceneId')==original.id
+       and tool:GetData('CartoRig.V2.ObjectId')==object_id then
       pcall(function()tool:Delete()end)
     end
   end
@@ -55,7 +61,7 @@ function A:add_location(feature,kind)
     self.m.Repository.write(self.comp,draft,self.m.Scene,self.m.Json)
   end,debug.traceback)
   if not ok then
-    rollback_new_owned(self.comp,object.id,original.lastLayerRef,original.id)
+    rollback_new_owned(self.host,original,object.id)
     fail('creation not persisted, owned tools rolled back: '..tostring(err))
   end
   return draft,object
@@ -73,7 +79,7 @@ function A:add_route(from,to)
     self.m.Repository.write(self.comp,draft,self.m.Scene,self.m.Json)
   end,debug.traceback)
   if not ok then
-    rollback_new_owned(self.comp,object.id,original.lastLayerRef,original.id)
+    rollback_new_owned(self.host,original,object.id)
     fail('route not persisted, owned tools rolled back: '..tostring(err))
   end
   return draft,object

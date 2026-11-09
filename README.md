@@ -97,3 +97,21 @@ Region polygon rendering now accepts inner rings and chains native `PolylineMask
 `fusion/CartoRig Host Diagnostics.lua` is installed alongside the authoring script. Run it on a **new empty disposable Fusion Composition** to generate `%TEMP%\CartoRig_Host_Diagnostics.txt` and verify actual Fuse registry, mask serialization, hole subtraction, numeric keyframes and cleanup. It never wires MediaOut or touches another project. It does not certify rendering or all 60 QA cases.
 
 All new tests are run by the GitHub Actions suite under Lua 5.4 and LuaJIT (Lua 5.1 semantics), with Python geometry/index fixtures. Results do not imply a release-ready product.
+
+## Fusion authorial draw order and rename-safe links (engineering preview, 2026-11-09)
+
+Scene exposes **Move Up / Move Down**. Reordering authorial Region, Marker,
+Label and Route objects actually reconnects the owned Merge.Background sockets
+and the camera input, so draw order changes the Fusion composition. The graph
+adapter reads the live upstream links before touching them, refuses externally
+rewired chains, disconnects inputs to avoid temporary cycles, and attempts to
+restore the original chain on connection errors or failed metadata persistence.
+The original user-created MediaIn / MediaOut graph is not rewired by a reorder.
+
+The host adapter resolves the **Camera** and previous authorial composite by
+persistent CartoRig scene/object tags, not by the Fusion tool's displayed
+name. A manually renamed region/marker/label/camera/composite node remains
+selectable, and a newly added object still attaches to the correct output.
+These are automated *mock-Fusion* contracts, not proof of native Resolve 20
+compatibility. Run `CartoRig Host Diagnostics` on a disposable composition
+and validate reorder/save/reopen visually before production use.

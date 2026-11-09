@@ -55,9 +55,8 @@ function O.build(host,scene,object,kind,points)
   local comp=host.comp
   if type(comp.AddTool)~='function' then fail('Fusion Composition not available') end
   if object.hostToolRef then fail('object already has a Fusion tool') end
-  local camera=comp:FindTool('CR2_CAMERA_'..scene.id)
-  local previous=scene.lastLayerRef and comp:FindTool(scene.lastLayerRef)
-  if not camera or not previous then fail('initialize Scene before creating objects') end
+  local camera=host:resolve_camera(scene)
+  local previous=host:resolve_last_layer(scene,object.id)
   if kind=='Marker' or kind=='Label' then
     if not object.anchor then fail(kind..' requires geographic anchor') end
     point(object.anchor)

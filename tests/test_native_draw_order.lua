@@ -104,4 +104,21 @@ order(lbl,r,mark)
 assert(author:current().objects[3].id==lbl.id)
 -- Objects do not multiply during reorders. Foreign footage remains unchanged.
 assert(#comp:GetToolList()>=12 and not external.deleted)
+-- A new object must attach by stable owned ID even if a user renamed the
+-- Camera AND the final Merge node in the native Fusion flow.
+local renamedLast=merge(mark)
+renamedLast:SetAttrs({TOOLS_Name='User Renamed Final Composite'})
+camera:SetAttrs({TOOLS_Name='User Renamed Camera'})
+local _,newMark=author:add_location(city,'Marker')
+assert(merge(newMark).links.Background==renamedLast)
+assert(camera.links.Input==merge(newMark))
+assert(author:select(newMark.id)==comp:FindTool(newMark.hostToolRef))
+-- Post-insertion failure must restore the renamed upstream, not a stale ref.
+comp.fail_store=true
+local count=#comp:GetToolList()
+assert(not pcall(function()author:add_location(city,'Marker')end))
+comp.fail_store=false
+assert(camera.links.Input==merge(newMark))
+assert(#comp:GetToolList()==count)
+assert(external.deleted~=true and output.links.Input.links.Background==external)
 print('PASS native draw order: true Merge rewiring, stable IDs, renamed tool, external-graph guard, failed reconnect and persistence rollback')

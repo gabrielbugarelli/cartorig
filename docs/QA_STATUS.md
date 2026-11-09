@@ -40,3 +40,18 @@
 | Lua 5.1 compatibility | LuaJIT job added to CI; local `texlua` tests PASS | NOT RUN | OPEN |
 
 **Known functional gaps unchanged:** no complete land/border renderer or high-resolution 10m dynamic cache; 16 presets are NOT fully bound to Inspector, Layer Fade beyond Ocean and Region Border Draw/Route Follower are unavailable; marker/label screen-pixel sizing under geographic zoom needs a new rendering layer; full antimeridian wrapping needs an in-host render implementation. HOST-01..HOST-10 and QA-01..QA-60 remain **NOT RUN**. The new host diagnostic only probes tool registration/serialization/animation; it does not substitute for pixel QA.
+
+## 2026-11-09 — Native layer order and persistent object lookup
+
+| Verification | Automated | Windows Resolve Studio 20 |
+| --- | --- | --- |
+| Move Up/Down actually rewire authored Merge chain without rewiring MediaOut/footage | PASS `test_native_draw_order.lua` | NOT RUN |
+| Manual modification of the chain fails closed before modifying managed nodes | PASS `test_native_draw_order.lua` | NOT RUN |
+| Rejected Fusion connection restores previous chain | PASS `test_native_draw_order.lua` | NOT RUN |
+| Failed Scene JSON persistence restores previous connections and order | PASS `test_native_draw_order.lua` | NOT RUN |
+| Rename camera/final composite in Node Editor then add another object | PASS `test_native_draw_order.lua` | NOT RUN |
+| Stale name cannot cause selection of a different ObjectId | PASS `test_native_draw_order.lua` | NOT RUN |
+
+**Not certified:** Actual `GetConnectedOutput`, disconnected sockets, Undo,
+reordering/rendering and save/reopen in DaVinci Resolve Studio 20. CI cannot
+substitute for those host gates.
