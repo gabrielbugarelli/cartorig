@@ -154,7 +154,8 @@ local function makeDispatcher(_)
         "uninitialized composition gets context feedback")
   if visited==1 then
    window.On.Initialize.Clicked({})
-   check(compA:FindTool("CR_Base_Map")~=nil,"Scene initialized from window")
+   check(compA:FindTool("CR_Base_Map")~=nil,
+         "Scene initialized from window: "..tostring(w.Status.Text))
    w.Search.Text="Brazil";w.Type.CurrentIndex=2
    window.On.Find.Clicked({})
    window.On.AddRegion.Clicked({})
