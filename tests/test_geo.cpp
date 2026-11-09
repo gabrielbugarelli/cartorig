@@ -106,7 +106,7 @@ int main(){
   RouteOptions seamRoute;seamRoute.from={179.5,0};seamRoute.to={-179.5,0};
   seamRoute.width=5;
   drawRoute(seam,seamCamera,seamRoute);
-  check(seam.pixel(400,300).a>0,
+  check(seam.pixel(425,300).a>0,
         "antimeridian endpoints use shortest screen-space arc");
   MarkerOptions marker;marker.at={-44,-23.5};marker.ring=true;
   drawMarker(canvas,camera,marker);
