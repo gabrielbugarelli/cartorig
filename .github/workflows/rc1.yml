@@ -40,6 +40,15 @@ jobs:
         run: ctest --test-dir build --output-on-failure
       - name: Natural Earth offline fixture tests
         run: python3 -m unittest discover -s tests -p "test_builder.py" -v
+      - name: Install Lua test interpreter
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq lua5.4
+      - name: Syntax check the Scene scripts
+        run: |
+          luac5.4 -p fusion/CartoRigSupport/scene.lua
+          luac5.4 -p "fusion/CartoRig Scene.lua"
+          luac5.4 -p tests/test_scene.lua
+      - name: Mock-host Scene contract tests
+        run: lua5.4 tests/test_scene.lua
   sanitizers:
     runs-on: ubuntu-24.04
     steps:
