@@ -106,6 +106,23 @@ function A:set_lock(id,locked)
   self.m.Repository.write(self.comp,draft,self.m.Scene,self.m.Json)
   return draft
 end
+local function effective_visibility(scene,object)
+  if object.visible==false then return false end
+  local parent=object.groupId
+  local seen={[object.id]=true}
+  while parent do
+    if seen[parent] then fail('cyclic visibility hierarchy') end
+    seen[parent]=true
+    local group=nil
+    for _,candidate in ipairs(scene.objects) do
+      if candidate.id==parent then group=candidate;break end
+    end
+    if not group or group.kind~='Group' then fail('invalid visibility parent group') end
+    if group.visible==false then return false end
+    parent=group.groupId
+  end
+  return true
+end
 function A:set_visible(id,visible)
   local previous,draft=mutation_draft(self)
   local obj=self.m.Scene.get(previous,id)
@@ -115,17 +132,46 @@ function A:set_visible(id,visible)
   end
   self.m.Scene.set_visible(draft,id,visible)
   if obj.visible==visible then return previous end
-  self.host:set_authorial_visibility(previous,obj,visible)
-  local ok,err=pcall(function()
-    self.m.Scene.validate(draft)
+  self.m.Scene.validate(draft)
+  -- Group visibility is inherited but never overwrites a child's own flag.
+  -- Stage every affected Merge and roll back in reverse order if the host
+  -- rejects an input or saving scene JSON fails.
+  local changed={}
+  for _,old in ipairs(previous.objects) do
+    if old.kind=='Region' or old.kind=='Route' or old.kind=='Marker' or old.kind=='Label' then
+      local nextObject=self.m.Scene.get(draft,old.id)
+      local before=effective_visibility(previous,old)
+      local after=effective_visibility(draft,nextObject)
+      if before~=after then
+        changed[#changed+1]={object=old,before=before,after=after}
+      end
+    end
+  end
+  local applied={}
+  local ok,err=xpcall(function()
+    for _,entry in ipairs(changed) do
+      self.host:set_authorial_visibility(previous,entry.object,entry.after)
+      applied[#applied+1]=entry
+    end
     self.m.Repository.write(self.comp,draft,self.m.Scene,self.m.Json)
-  end)
+  end,debug.traceback)
   if not ok then
-    pcall(function()self.host:set_authorial_visibility(previous,obj,obj.visible)end)
-    fail('visibility persistence failed; Fusion blend restored: '..tostring(err))
+    local recovery={}
+    for i=#applied,1,-1 do
+      local entry=applied[i]
+      local restored,reason=pcall(function()
+        self.host:set_authorial_visibility(previous,entry.object,entry.before)
+      end)
+      if not restored then recovery[#recovery+1]=tostring(reason) end
+    end
+    if #recovery>0 then
+      fail('visibility update failed AND native rollback failed; recover a project copy: '..table.concat(recovery,'; '))
+    end
+    fail('visibility not saved; native Fusion layers restored: '..tostring(err))
   end
   return draft
 end
+
 -- Updating endpoints/waypoints affects the existing native geographic
 -- mask; it does NOT remove the mask or overwrite its Draw Progress spline.
 function A:update_route(id,changes)
