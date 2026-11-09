@@ -409,58 +409,90 @@ void drawRegion(Surface&canvas,const Geometry&g,const Camera&camera,
 }
 void drawRoute(Surface&canvas,const Camera&camera,const RouteOptions&route){
  camera.validate();validateGeo(route.from);validateGeo(route.to);
- if(!finite(route.progress)||!finite(route.trimStart)||!finite(route.trimEnd)||
-    route.trimStart<0||route.trimEnd>1||route.trimStart>route.trimEnd||
-    route.progress<0||route.progress>1||route.width<0||route.width>32||
-    route.opacity<0||route.opacity>1||route.curvature<-100||route.curvature>100)
-  throw std::invalid_argument("Invalid route values");
+ for(const auto&point:route.waypoints)validateGeo(point);
+ if(route.waypoints.size()>64||!finite(route.progress)||
+    !finite(route.trimStart)||!finite(route.trimEnd)||
+    !finite(route.followerProgress)||route.followerProgress<0||
+    route.followerProgress>1||route.trimStart<0||route.trimEnd>1||
+    route.trimStart>route.trimEnd||route.progress<0||route.progress>1||
+    route.width<0||route.width>32||!finite(route.width)||
+    route.opacity<0||route.opacity>1||!finite(route.opacity)||
+    !finite(route.curvature)||route.curvature<-100||route.curvature>100)
+  throw std::invalid_argument("Invalid route geometry or temporal values");
  if(route.progress==0||route.opacity==0)return;
- auto a=project(route.from,camera,canvas.width,canvas.height);
- auto b=project(route.to,camera,canvas.width,canvas.height);
- const double dx=b.x-a.x,dy=b.y-a.y;
- const double ratio=route.curvature/200.;
- const ScreenPoint midpoint{(a.x+b.x)*.5-dy*ratio,(a.y+b.y)*.5+dx*ratio};
- auto sample=[&](double t){
-  double q=1-t;
-  return ScreenPoint{q*q*a.x+2*q*t*midpoint.x+t*t*b.x,
-                     q*q*a.y+2*q*t*midpoint.y+t*t*b.y};
- };
- constexpr int steps=128;
- std::array<ScreenPoint,steps+1> coordinates;
- std::array<double,steps+1> accumulated{};
- coordinates[0]=sample(0);
- for(int i=1;i<=steps;++i){
-  coordinates[i]=sample(i/static_cast<double>(steps));
-  accumulated[i]=accumulated[i-1]+std::hypot(coordinates[i].x-coordinates[i-1].x,
-                                              coordinates[i].y-coordinates[i-1].y);
+ std::vector<GeoPoint> anchors{route.from};
+ anchors.insert(anchors.end(),route.waypoints.begin(),route.waypoints.end());
+ anchors.push_back(route.to);
+ std::vector<ScreenPoint> screen;
+ screen.reserve(anchors.size());
+ const double angle=camera.bearing*pi/180.;
+ const ScreenPoint wrap{canvas.width*camera.zoom*std::cos(angle),
+                        canvas.width*camera.zoom*std::sin(angle)};
+ for(const auto&anchor:anchors){
+  const auto original=project(anchor,camera,canvas.width,canvas.height);
+  if(screen.empty()){screen.push_back(original);continue;}
+  ScreenPoint best=original;
+  double distance=std::hypot(best.x-screen.back().x,best.y-screen.back().y);
+  for(int shift:{-1,1}){
+   ScreenPoint candidate{original.x+shift*wrap.x,original.y+shift*wrap.y};
+   const double test=std::hypot(candidate.x-screen.back().x,
+                                candidate.y-screen.back().y);
+   if(test<distance){distance=test;best=candidate;}
+  }
+  screen.push_back(best);
  }
- const double total=accumulated[steps];
- if(total<=1e-9)return;
- const double lo=route.trimStart*total;
- const double hi=std::min(route.progress,route.trimEnd)*total;
- if(hi<=lo)return;
- ScreenPoint tip=a,previous=a;
- for(int i=1;i<=steps;++i){
-  const double length=accumulated[i]-accumulated[i-1];
-  if(length<=1e-9||accumulated[i]<=lo)continue;
-  if(accumulated[i-1]>=hi)break;
-  const double first=clamp01((lo-accumulated[i-1])/length);
-  const double last=clamp01((hi-accumulated[i-1])/length);
-  ScreenPoint p0{coordinates[i-1].x+first*(coordinates[i].x-coordinates[i-1].x),
-                 coordinates[i-1].y+first*(coordinates[i].y-coordinates[i-1].y)};
-  ScreenPoint p1{coordinates[i-1].x+last*(coordinates[i].x-coordinates[i-1].x),
-                 coordinates[i-1].y+last*(coordinates[i].y-coordinates[i-1].y)};
-  if(first<last){paintLine(canvas,p0,p1,route.width,route.stroke,route.opacity);
-   tip=p1;previous=p0;}
+ constexpr int subdivision=96;
+ std::vector<ScreenPoint> sampled;
+ sampled.reserve((screen.size()-1)*subdivision+1);
+ for(std::size_t segment=1;segment<screen.size();++segment){
+  auto a=screen[segment-1],b=screen[segment];
+  const double dx=b.x-a.x,dy=b.y-a.y;
+  const double ratio=route.curved?route.curvature/200.:0.;
+  const ScreenPoint mid{(a.x+b.x)*.5-dy*ratio,
+                        (a.y+b.y)*.5+dx*ratio};
+  for(int index=(segment==1?0:1);index<=subdivision;++index){
+   const double t=index/static_cast<double>(subdivision),q=1-t;
+   sampled.push_back({q*q*a.x+2*q*t*mid.x+t*t*b.x,
+                      q*q*a.y+2*q*t*mid.y+t*t*b.y});
+  }
  }
- if(route.arrowhead&&route.arrowheadSize>0){
-  double angle=std::atan2(tip.y-previous.y,tip.x-previous.x);
-  double size=std::clamp(route.arrowheadSize,2.,64.);
-  ScreenPoint p0{tip.x-std::cos(angle-.5)*size,tip.y-std::sin(angle-.5)*size};
-  ScreenPoint p1{tip.x-std::cos(angle+.5)*size,tip.y-std::sin(angle+.5)*size};
-  paintLine(canvas,p0,tip,route.width,route.stroke,route.opacity);
-  paintLine(canvas,p1,tip,route.width,route.stroke,route.opacity);
+ if(sampled.size()<2)return;
+ std::vector<double> cumulative(sampled.size(),0);
+ for(std::size_t i=1;i<sampled.size();++i)
+  cumulative[i]=cumulative[i-1]+std::hypot(sampled[i].x-sampled[i-1].x,
+                                            sampled[i].y-sampled[i-1].y);
+ const double length=cumulative.back();
+ if(length<1e-9)return;
+ const double first=route.trimStart*length;
+ const double last=std::min(route.trimEnd,route.progress)*length;
+ if(last<=first)return;
+ std::vector<std::pair<ScreenPoint,ScreenPoint>> drawn;
+ for(std::size_t i=1;i<sampled.size();++i){
+  const double segment=cumulative[i]-cumulative[i-1];
+  if(segment<=1e-9||cumulative[i]<=first)continue;
+  if(cumulative[i-1]>=last)break;
+  const double lo=clamp01((first-cumulative[i-1])/segment);
+  const double hi=clamp01((last-cumulative[i-1])/segment);
+  if(lo>=hi)continue;
+  auto from=sampled[i-1],to=sampled[i];
+  ScreenPoint p0{from.x+lo*(to.x-from.x),from.y+lo*(to.y-from.y)};
+  ScreenPoint p1{from.x+hi*(to.x-from.x),from.y+hi*(to.y-from.y)};
+  if(route.width>0)paintLine(canvas,p0,p1,route.width,route.stroke,route.opacity);
+  drawn.push_back({p0,p1});
  }
+ if(drawn.empty()||!route.arrowhead||route.arrowheadSize<=0||
+    route.width==0)return;
+ const auto pair=route.reverseArrowhead?drawn.front():drawn.back();
+ const auto tip=route.reverseArrowhead?pair.first:pair.second;
+ const auto behind=route.reverseArrowhead?pair.second:pair.first;
+ const double direction=std::atan2(tip.y-behind.y,tip.x-behind.x);
+ const double size=std::clamp(route.arrowheadSize,2.,64.);
+ ScreenPoint left{tip.x-std::cos(direction-.5)*size,
+                  tip.y-std::sin(direction-.5)*size};
+ ScreenPoint right{tip.x-std::cos(direction+.5)*size,
+                   tip.y-std::sin(direction+.5)*size};
+ paintLine(canvas,left,tip,route.width,route.stroke,route.opacity);
+ paintLine(canvas,right,tip,route.width,route.stroke,route.opacity);
 }
 void drawMarker(Surface&canvas,const Camera&camera,const MarkerOptions&m){
  camera.validate();validateGeo(m.at);
