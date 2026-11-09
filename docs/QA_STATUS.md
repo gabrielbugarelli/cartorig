@@ -96,3 +96,21 @@ on PolygonMask with a keyframed WriteLength channel. No QA gate is marked DONE.
 **Host gate:** `Comp.FrameFormat.Width`/`Height` preferences and Fusion Fuse camera
 positioning must be exercised on the actual Resolve 20 Windows host. Unit tests
 confirm transactional integration contracts, not Viewer alignment or render quality.
+
+## 2026-11-09 — Incremental authoring and Region Stroke integration
+
+| Contract | Automation | Windows Resolve Studio 20 |
+| --- | --- | --- |
+| Nested group locks block structural route edits and descendant lock toggles | PASS `test_nested_group_lock.lua` | NOT RUN |
+| Group Hide/Show changes effective child Fusion visibility without erasing child flags | PASS `test_group_visibility.lua` | NOT RUN |
+| Native group visibility failures restore earlier Blend state and do not persist partial changes | PASS `test_group_visibility.lua` | NOT RUN |
+| Create/Ungroup group objects from Scene authoring and reject writes on locked groups | PASS `test_group_authoring.lua` | NOT RUN |
+| Reverse Curved Route geometry while preserving mask identity and Draw Progress keys | PASS `test_native_draw_order.lua` | NOT RUN |
+| Manual Merge Blend keys prevent structural visibility overwrite | PASS `test_scene_commands.lua` | NOT RUN |
+| Region Fuse composes separate Stroke RGBA over Fill RGBA | PASS `test_fuse_stroke.lua` | NOT RUN |
+| Region outer/hole contour masks and per-object Stroke color/alpha/visibility tools | PASS `test_region_renderer.lua`, `test_native_control.lua` | NOT RUN |
+
+**Open:** Stroke Width is not an authorial Fuse-driven pixel-constant channel;
+Border Draw, full 10m base cartography, all 16 Inspector-executable Motion
+presets, reprojected screen-size symbols, antimeridian and HOST/QA gates remain
+unverified. No R1.0 completion claim is permitted from these mocks.

@@ -8,7 +8,7 @@ Fresh source code aligned to `CR-PS-2.0`: `Scene` owns structure in UIManager; t
 - Safe Scene authoring orchestration: manifest-pinned source protection, initialize, add Region, Marker, Label or Route, persist back into Fusion Composition metadata, and remove only the newly-created CartoRig nodes when an operation fails before commit.
 - Offline GeoJSON search/index: country/state/city distinction, Unicode/aliases, on-demand point and polygon geometry loading. Natural Earth country continent attributes are indexed as explicit **composite search results**, not fabricated administrative continent polygons; member-country IDs are checked against bundled Country records on both packaging and loading. Invalid member references fail closed. A City with point geometry does not become an invented municipal polygon.
 - Native Fusion authoring adapter: white Background + CartoRigBase Fuse/Transform/MediaOut **preview**, Region via native PolygonMask matte + CartoRigRegion Fuse, Marker via EllipseMask, Label via TextPlus, Route via PolylineMask, each with a separate user-facing tool and a shared downstream Transform.
-- Native motion-key writer for currently backed channels: Region color/opacity/highlight, Base Map ocean layer opacity, Marker opacity/size, Label opacity, Route opacity/Draw Progress, Camera Zoom and synchronized Center/Zoom. Zoom-only Camera keys now pair native Size/Center poses to retain the WGS84 focal point at the keyed frames and block overwrites of an already-animated manual Center. The 16-preset **plan catalogue** is separately unit-tested. Presets requiring region stroke/highlight, follower, and multiple base layers fail safely until the corresponding renderer and Inspector integration exist; no fictitious success.
+- Native motion-key writer for currently backed channels: Region fill color/opacity/highlight, Base Map ocean layer opacity, Marker opacity/size, Label opacity, Route opacity/Draw Progress and geographic Camera Longitude/Latitude/Zoom. Camera channels belong to a single per-frame-evaluated geographic Fuse, rather than independently interpolated screen-space Transform inputs. The 16-preset **plan catalogue** is separately unit-tested. Presets requiring Region Border Draw, Route follower and multiple base layers fail safely until the corresponding renderer and Inspector integration exist; no fictitious success.
 - Offline route sampling, curved paths, geographic camera-fit math, antimeridian math and topology predicates independent of Fusion.
 - Fusion UIManager Scene bootstrap supports initialization, typed search/filter, adding Regions, Markers, Labels, choosing explicit Route endpoints, creating Routes and selecting a node in the Fusion Inspector.
 - No network or external process is required for playback of *already-created native Fusion nodes*; the Scene window is not the render engine.
@@ -27,9 +27,13 @@ premultiplied RGBA: no UIManager color cache is used when evaluating frames.
 The host writer now maps native Region `FillRed/Green/Blue`, `ObjectOpacity`
 and `HighlightStrength`; tested presets include Color Transition, Fade and
 Highlight Pulse. The metadata and graph builder assign one authorial tool
-per Region and still fail safely for geographic holes/antimeridian or other
-unsupported geometry. **This is not a full cartographic renderer:** Stroke,
-Border Draw, rings with holes and high-resolution topology remain open.
+per Region. Outer and inner rings produce native filled geometry, while a separate
+white outline-matte chain is composited through the same authorial Region Fuse.
+Stroke Color, Stroke Alpha and Stroke Visible are independent from Fill;
+contours are generated for islands and hole boundaries. **This is not a full
+cartographic renderer:** Stroke Width is still fixed at mask construction,
+not pixel-constant when camera zooms; Border Draw, 10m performance and
+antimeridian topology remain open and require Resolve host pixel validation.
 
 `fuses/CartoRigBase.fuse` is the **ocean-only** initial base preview with
 `Control` inputs for `Full Map` / `Transparent Overlay`, Ocean Fill, Base
@@ -52,7 +56,7 @@ mock tests; rendering, CloneInput and Spline behavior in Windows Resolve Studio
 ## Explicit preview limitations
 
 1. **The full object-specific `Control`/`Motion` pages in the Fusion Inspector are NOT implemented.** Region and Base Map have partial native Fuse pages; Route, Marker, Label and Camera still need complete pages. Native tool inputs are editable but do not represent the final object-specific Inspector design. The Scene window does **not** create an extra animation timeline.
-2. **Renderer is NOT production-complete.** Base Map currently starts with a flat Background preview; native Region masks do not support polygons with interior holes, high-fragmentation geometry or seam-crossing boundaries. Such input fails with a diagnostic instead of rendering inaccurately. Lines that cross the antimeridian are rejected until a proper geometry-splitting renderer is installed.
+2. **Renderer is NOT production-complete.** Base Map currently starts with a flat Background preview; Region masks handle interior rings and their contours through native mask chains, but high-fragmentation geometry and seam-crossing boundaries are not production-ready. Such input fails with a diagnostic instead of rendering inaccurately. Lines that cross the antimeridian are rejected until a proper geometry-splitting renderer is installed.
 3. **Screen-space marker/label/route widths are not preserved under the downstream Transform's zoom.** This is a known limitation of the interim graph; final geoanchor and compositing needs a projection-aware render layer.
 4. **Not all 16 presets execute.** The 16 planner definitions exist; only channels with native tool bindings are written, with host behavior subject to validation. No claim of Step interpolation, shape masks or full Spline compatibility on Resolve 20 is made until a real host run.
 5. A saved scene records a fingerprint of its installed Natural Earth dataset; if the installed data change, CartoRig blocks source-dependent edits instead of silently replacing geometries. Current bundled data are a **Natural Earth Admin-0 1:110m preview**. The official build workflow produces a separate 10m data archive and a **single offline Windows preview bundle** containing editor code, Fuse, installer and the seven 10m datasets, with SHA-256 validation. This is still not a certified R1.0 catalogue or GUI installer.
@@ -140,19 +144,17 @@ with a simulated Fusion host, **not yet validated in Resolve Studio 20**.
 
 **Outstanding scope:** full 10m land/coastline/border rendering, screen-space constant Marker/Label sizes, full 16-preset workflow and lifecycle in Inspector, native Windows GUI installation, all HOST-01..10/QA-01..60 including real alpha/4K/media export. This remains a Draft engineering preview, not CartoRig 1.0.
 
-## Camera Focus / Fit (new Scene authoring commands)
+## November 9 incremental implementation commits
 
-The Scene window now exposes **Focus Camera** and **Fit Location**. Choose a
-geographic search result, then select one of the actions. Focus changes native
-`CenterLongitude` and `CenterLatitude` on the one scene camera without adding
-keyframes, markers or regions. It requires a genuine geographic point. Fit
-loads the selected Point/Polygon/MultiPolygon from the installed offline bundle
-and computes Center+Zoom at the actual Fusion composition aspect ratio. For
-point-only locations, the baseline fit zoom is 4×. Both actions preserve Bearing,
-existing user objects and all unrelated native channels. If the camera is
-already animated on any affected input, the static action refuses to overwrite
-it. Failed Fusion writes or Scene persistence restore the previous camera pose.
+The rewrite branch now receives small, traceable commits for nested Group locking,
+transactional Group visibility and authoring commands, Route reversal retaining
+Fusion Draw Progress, and manual Merge Blend animation conflict protection.
+An additional pair of commits adds a Region Stroke input to the authorial Fuse
+and native outer/inner ring contour-matte generation. The Region Fuse composes
+Stroke above Fill with independent colors and alpha.
 
-The host must expose its actual frame size in Composition preferences or attrs
-for Fit to proceed; it will not guess 1920×1080. Native positioning and
-spline behavior on Resolve Studio 20 Windows remain unverified.
+All of these paths have Lua mock contracts and are included in the GitHub
+Actions unit suite. **They have not been tested in Windows Resolve Studio 20**.
+The Inspector is not yet a complete Motion preset launcher, and the renderer
+still lacks correctly pixel-scaled outlines, land/border basemap rendering,
+seam wrapping and high-density global data performance. No 1.0 sign-off is implied.
