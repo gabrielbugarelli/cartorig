@@ -64,10 +64,14 @@ jobs:
       - name: Syntax check the Scene scripts
         run: |
           luac5.4 -p fusion/CartoRigSupport/scene.lua
+          luac5.4 -p fusion/CartoRigSupport/scene_tree.lua
           luac5.4 -p "fusion/CartoRig Scene.lua"
           luac5.4 -p tests/test_scene.lua
+          luac5.4 -p tests/test_scene_tree.lua
       - name: Mock-host Scene contract tests
-        run: lua5.4 tests/test_scene.lua
+        run: |
+          lua5.4 tests/test_scene.lua
+          lua5.4 tests/test_scene_tree.lua
   sanitizers:
     runs-on: ubuntu-24.04
     steps:
@@ -146,7 +150,8 @@ jobs:
               'CartoRigFusion.ofx.bundle/Contents/Resources/data/geometry.crgeo',
               'CartoRigFusion.ofx.bundle/Contents/Resources/data/catalog.tsv',
               'Fusion/Scripts/Comp/CartoRig Scene.lua',
-              'Fusion/Scripts/Comp/CartoRigSupport/scene.lua')){
+              'Fusion/Scripts/Comp/CartoRigSupport/scene.lua',
+              'Fusion/Scripts/Comp/CartoRigSupport/scene_tree.lua')){
               if($paths -notcontains $must){throw "Missing packaged path: $must"}
             }
           } finally { $zip.Dispose() }
