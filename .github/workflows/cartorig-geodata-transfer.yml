@@ -30,7 +30,7 @@ jobs:
             ('admin1_world.geojson','15b12703a702387c48da9183016b1101974f0160',4596),
             ('cities_world_full.geojson','376fb028c390a7a23213800ae4babaa6f534a0f3',7342)]:
             b=(pathlib.Path('geodata')/name).read_bytes()
-            blob=hashlib.sha1(b'blob '+str(len(b)).encode()+b'\\0'+b).hexdigest()
+            blob=hashlib.sha1(b'blob '+str(len(b)).encode()+b'\0'+b).hexdigest()
             d=json.loads(b)
             print(name,len(b),blob,len(d['features']),hashlib.sha256(b).hexdigest(),flush=True)
             assert blob==expected,(name,'unexpected source blob SHA')
