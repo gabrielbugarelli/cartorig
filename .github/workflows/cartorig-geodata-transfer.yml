@@ -1,0 +1,46 @@
+name: CartoRig 1.2.3 - Natural Earth Full Data Bridge
+on:
+  push:
+    branches: [cartorig-123-geo-data-transfer]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  transfer:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Fetch official Natural Earth complete GeoJSON files
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p geodata
+          curl -fL --retry 4 --retry-delay 3 --max-time 240 \
+            'https://raw.githubusercontent.com/datasets/geo-ne-admin1/main/data/admin1.geojson' \
+            -o geodata/admin1_world.geojson
+          curl -fL --retry 4 --retry-delay 3 --max-time 240 \
+            'https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_10m_populated_places.geojson' \
+            -o geodata/cities_world_full.geojson
+      - name: Verify pinned upstream Git blob hashes and full feature counts
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import hashlib,json,pathlib
+          for name,expected,count in [
+            ('admin1_world.geojson','15b12703a702387c48da9183016b1101974f0160',4596),
+            ('cities_world_full.geojson','376fb028c390a7a23213800ae4babaa6f534a0f3',7342)]:
+            b=(pathlib.Path('geodata')/name).read_bytes()
+            blob=hashlib.sha1(b'blob '+str(len(b)).encode()+b'\\0'+b).hexdigest()
+            d=json.loads(b)
+            print(name,len(b),blob,len(d['features']),hashlib.sha256(b).hexdigest(),flush=True)
+            assert blob==expected,(name,'unexpected source blob SHA')
+            assert len(d['features'])==count,(name,'incomplete data')
+          PY
+      - name: Transfer complete files as downloadable artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: CartoRig-1.2.3-Full-Natural-Earth-GeoJSON
+          path: geodata/*.geojson
+          if-no-files-found: error
+          compression-level: 6
+          retention-days: 7
